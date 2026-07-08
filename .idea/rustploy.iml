@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="EMPTY_MODULE" version="4">
+  <component name="NewModuleRootManager">
+    <content url="file://$MODULE_DIR$">
+      <sourceFolder url="file://$MODULE_DIR$/auto_route/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/auto_route/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/auto_route_inventory/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/auto_route_macros/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/auto_socket/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/auto_socket/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/auto_socket_inventory/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/auto_socket_macros/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/auto_route/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/auto_socket/examples" isTestSource="false" />
+      <excludeFolder url="file://$MODULE_DIR$/auto_route/target" />
+      <excludeFolder url="file://$MODULE_DIR$/auto_route_inventory/target" />
+      <excludeFolder url="file://$MODULE_DIR$/target" />
+    </content>
+    <orderEntry type="inheritedJdk" />
+    <orderEntry type="sourceFolder" forTests="false" />
+  </component>
+</module>

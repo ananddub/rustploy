@@ -1,0 +1,33 @@
+use auto_di::singleton;
+
+pub struct Config {
+    pub database_url: String,
+    pub host: String,
+    pub port: u16,
+    pub secret_key: String,
+    pub socket_path: String,
+}
+
+#[singleton]
+impl Config {
+    pub fn new() -> Result<Self, &'static str> {
+        let database_url =
+            std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:///db.sqlite3".to_string());
+        let port = std::env::var("PORT")
+            .unwrap_or_else(|_| "4000".to_string())
+            .parse::<u16>()
+            .expect("PORT must be a number");
+        let secret_key =
+            std::env::var("SECRET_KEY").unwrap_or_else(|_| "your_secret_key_here".to_string());
+        let socket_path =
+            std::env::var("SOCKET_PATH").unwrap_or_else(|_| "/var/run/docker.sock".to_string());
+        let host = std::env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
+        Ok(Config {
+            database_url,
+            port,
+            host,
+            secret_key,
+            socket_path,
+        })
+    }
+}

@@ -1,0 +1,22 @@
+[package]
+name = "auto_socket"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Automatic Socketioxide event registration for auto-di managed handlers"
+license = "MIT"
+readme = "README.md"
+documentation = "https://docs.rs/auto_socket"
+keywords = ["socketio", "websocket", "dependency-injection", "proc-macro"]
+categories = ["web-programming", "asynchronous"]
+
+[dependencies]
+auto-di = "0.6.0"
+auto_socket_macros = { version = "0.1.0", path = "../auto_socket_macros" }
+inventory = "0.3.24"
+socketioxide = "0.18.4"
+
+[dev-dependencies]
+axum = "0.8.9"
+serde = { version = "1", features = ["derive"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

@@ -1,0 +1,37 @@
+-- deployments (Execution logs)
+CREATE TABLE deployments (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	title TEXT NOT NULL,
+	description TEXT,
+	-- status: RUNNING | DONE | ERROR | CANCELLED
+	status TEXT NOT NULL DEFAULT 'RUNNING',
+	log_path TEXT NOT NULL,
+	pid TEXT,
+	error_message TEXT,
+	is_preview_deployment INTEGER NOT NULL DEFAULT 0,
+	started_at INTEGER,
+	finished_at INTEGER,
+	-- Foreign keys
+	application_id INTEGER REFERENCES applications(id) ON DELETE CASCADE,
+	compose_id INTEGER REFERENCES compose_projects(id) ON DELETE CASCADE,
+	server_id INTEGER REFERENCES servers(id) ON DELETE CASCADE,
+	created_at INTEGER DEFAULT (strftime('%s', 'now')) NOT NULL,
+	CONSTRAINT deployment_status_check CHECK (status IN ('RUNNING', 'DONE', 'ERROR', 'CANCELLED'))
+) STRICT;
+
+-- rollbacks (Snapshots for reversion)
+CREATE TABLE rollbacks (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	deployment_id INTEGER NOT NULL REFERENCES deployments(id) ON DELETE CASCADE,
+	version INTEGER NOT NULL DEFAULT 1,
+	image TEXT,
+	full_context TEXT, -- JSON snapshot of application configs
+	created_at INTEGER DEFAULT (strftime('%s', 'now')) NOT NULL
+) STRICT;
+
+-- Indexes for rollbacks
+CREATE INDEX idx_rollbacks_deployment_id ON rollbacks(deployment_id);
+CREATE INDEX idx_deployments_status ON deployments(status);
+CREATE INDEX idx_deployments_created_at ON deployments(created_at);
+CREATE INDEX idx_deployments_compose_id ON deployments(compose_id);
+CREATE INDEX idx_deployments_application_id ON deployments(application_id);
