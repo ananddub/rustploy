@@ -61,7 +61,9 @@
               cargo-deny
               cargo-edit
               cargo-watch
+              sqlx-cli
               rust-analyzer
+              mold
               self.formatter.${system}
             ];
 

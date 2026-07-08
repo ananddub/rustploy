@@ -6,6 +6,7 @@ use tokio::net::TcpListener;
 
 #[tokio::main]
 async fn main() {
+    dotenvy::dotenv().ok();
     init_logs();
     let service: Arc<Router> = resolve::<Router<()>>().await.unwrap();
     let port = resolve::<Config>().await.unwrap().port.clone();

@@ -1,4 +1,4 @@
-use auto_di::{Container, singleton};
+use auto_di::Container;
 use auto_route::{build_routes, controller, get};
 use axum::{
     Json,
@@ -29,7 +29,6 @@ mod module_routes {
     }
 }
 
-#[singleton]
 #[controller("/users")]
 impl UserController {
     pub fn new() -> Self {

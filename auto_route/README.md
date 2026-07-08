@@ -3,13 +3,14 @@
 `auto_route` adds Spring-style route attributes to Axum and integrates controller construction with [`auto-di`](https://crates.io/crates/auto-di).
 
 You write `#[controller]`, `#[get]`, and `#[post]`; the crate generates ordinary Axum routes and discovers them automatically at startup.
+`#[controller]` also registers its impl as an auto-di singleton, so it must contain a `new(...) -> Self` constructor and does not need a separate `#[singleton]` attribute.
 
 ## Installation
 
 ```toml
 [dependencies]
 auto-di = "0.6"
-auto_route = "0.1"
+auto_route = "0.2"
 axum = "0.8"
 tokio = { version = "1", features = ["full"] }
 ```
@@ -36,7 +37,6 @@ struct UserController {
     service: Arc<UserService>,
 }
 
-#[singleton]
 #[controller("/users")]
 impl UserController {
     fn new(service: Arc<UserService>) -> Self {

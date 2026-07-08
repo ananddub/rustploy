@@ -233,6 +233,13 @@ fn expand_controller(
     }
 
     let self_ty = item_impl.self_ty.as_ref().clone();
+    let has_singleton = item_impl.attrs.iter().any(|attribute| {
+        attribute
+            .path()
+            .segments
+            .last()
+            .is_some_and(|segment| segment.ident == "singleton")
+    });
     let type_ident = type_ident(&self_ty)?;
     let factory_ident = format_ident!("__auto_route_factory_{}", type_ident);
     let mut routes = Vec::new();
@@ -337,8 +344,17 @@ fn expand_controller(
         }
     });
 
+    let managed_impl = if has_singleton {
+        quote!(#item_impl)
+    } else {
+        quote! {
+            #[auto_route::__private::auto_di::singleton]
+            #item_impl
+        }
+    };
+
     Ok(quote! {
-        #item_impl
+        #managed_impl
 
         #[doc(hidden)]
         #[allow(non_snake_case)]

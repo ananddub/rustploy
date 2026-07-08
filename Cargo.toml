@@ -15,19 +15,22 @@ members = [
 [dependencies]
 tokio = { version = "1",features = ["full"] }
 auto-di = "0.6.0"
-auto_route = "0.1.0"
+auto_route = { version = "0.2.0", path = "auto_route" }
 auto_socket = "0.1.0"
 serde = { version = "1.0", features = ["derive"] }
+axum-extra = { version = "0.12.6", features = ["typed-header"] }
 serde_json = "1.0"
+validator = { version = "0.20", features = ["derive"] }
 axum = "0.8.9"
 sqlx = { version = "0.8.6", features = ["runtime-tokio", "sqlite", "macros", "chrono", "uuid"] }
 sqlx-gen = { version = "0.5.8", default-features = false }
 dotenv = "0.15.0"
 chrono = "0.4.45"
 clap = { version = "4", features = ["derive"] }
+anyhow = "1.0.103"
 tracing = "0.1.44"
 bollard = "0.21.0"
-jsonwebtoken = "10.4.0"
+jsonwebtoken = { version = "10", default-features = false, features = ["rust_crypto"] }
 socketioxide = "0.18.4"
 git2 = "0.21.0"
 toml = "1.1.2"

@@ -1,11 +1,9 @@
-use auto_di::singleton;
 use auto_route::{controller, get};
 use axum::extract::Path;
 use tokio::net::TcpListener;
 
 struct GreetingController;
 
-#[singleton]
 #[controller("/greetings")]
 impl GreetingController {
     fn new() -> Self {

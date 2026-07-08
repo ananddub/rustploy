@@ -1,6 +1,6 @@
 [package]
 name = "auto_route"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.85"
 description = "Spring-style automatic Axum routing for auto-di managed controllers"
@@ -12,7 +12,7 @@ categories = ["web-programming", "asynchronous"]
 
 [dependencies]
 auto-di = "0.6.0"
-auto_route_macros = { version = "0.1.0", path = "../auto_route_macros" }
+auto_route_macros = { version = "0.2.0", path = "../auto_route_macros" }
 axum = "0.8.9"
 inventory = "0.3.24"
 

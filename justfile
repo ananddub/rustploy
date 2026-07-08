@@ -77,6 +77,10 @@ gen-mod:
         add_if_missing "src/lib.rs" "$name"
     done < <(find src -mindepth 1 -maxdepth 1 -type d | sort)
 
+# Generate typed sqlx query methods from db/queries/*.sql → src/db/queries/
+query-gen:
+    bash scripts/query-gen.sh
+
 # Generate Rust models + CRUD repositories from the SQLite database
 db-gen:
     #!/usr/bin/env bash
@@ -111,6 +115,9 @@ db-gen:
 
     echo ">> Fixing import paths in generated repositories ..."
     sed -i 's/crate::models::/crate::db::models::/g' src/db/repository/*.rs
+
+    echo ">> Generating typed query methods from db/queries/*.sql ..."
+    just query-gen
 
     echo ">> Done!"
 
