@@ -1,1 +1,7 @@
 /target
+.env
+.envrc
+/.vscode
+/.direnv
+/.idea
+/data
