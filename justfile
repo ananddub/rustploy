@@ -86,28 +86,32 @@ db-gen:
     echo ">> Generating entities from $DB_URL ..."
     sqlx-gen generate entities \
         -u "$DB_URL" \
-        -o src/models \
+        -o src/db/models \
         -x _sqlx_migrations
 
     echo ">> Patching derives: removing Eq from files with f32/f64 fields ..."
-    grep -rl "f64\|f32" src/models/ | xargs sed -i 's/, Eq,/, /g; s/, Eq)/)/g; s/(Eq, /(/g'
+    grep -rl "f64\|f32" src/db/models/ | xargs sed -i 's/, Eq,/, /g; s/, Eq)/)/g; s/(Eq, /(/g'
 
     echo ">> Suppressing warnings in generated files ..."
-    for dir in src/models src/repository; do
+    for dir in src/db/models src/db/repository; do
         mod="$dir/mod.rs"
         grep -qx '#![allow(warnings)]' "$mod" || sed -i '1s/^/#![allow(warnings)]\n/' "$mod"
     done
 
     echo ">> Generating CRUD repositories ..."
-    for f in src/models/*.rs; do
+    for f in src/db/models/*.rs; do
         name="$(basename "$f")"
         [[ "$name" == "mod.rs" || "$name" == "types.rs" ]] && continue
         sqlx-gen generate crud \
             -f "$f" \
             -d sqlite \
             -m '*' \
-            -o src/repository
+            -o src/db/repository
     done
+
+    echo ">> Fixing import paths in generated repositories ..."
+    sed -i 's/crate::models::/crate::db::models::/g' src/db/repository/*.rs
+
     echo ">> Done!"
 
 run: gen-mod

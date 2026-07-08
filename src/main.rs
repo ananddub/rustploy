@@ -1,6 +1,6 @@
 use auto_di::resolve;
 use axum::Router;
-use rustploy::{config::init::Config, logs::init::init_logs};
+use rustploy::{core::config::Config, core::logs::init_logs};
 use std::sync::Arc;
 use tokio::net::TcpListener;
 
