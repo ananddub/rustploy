@@ -77,5 +77,38 @@ gen-mod:
         add_if_missing "src/lib.rs" "$name"
     done < <(find src -mindepth 1 -maxdepth 1 -type d | sort)
 
+# Generate Rust models + CRUD repositories from the SQLite database
+db-gen:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    DB_URL="${DATABASE_URL:-sqlite:///run/media/das/SSD/Devloper/rustploy/data/db.sqlite3}"
+
+    echo ">> Generating entities from $DB_URL ..."
+    sqlx-gen generate entities \
+        -u "$DB_URL" \
+        -o src/models \
+        -x _sqlx_migrations
+
+    echo ">> Patching derives: removing Eq from files with f32/f64 fields ..."
+    grep -rl "f64\|f32" src/models/ | xargs sed -i 's/, Eq,/, /g; s/, Eq)/)/g; s/(Eq, /(/g'
+
+    echo ">> Suppressing warnings in generated files ..."
+    for dir in src/models src/repository; do
+        mod="$dir/mod.rs"
+        grep -qx '#![allow(warnings)]' "$mod" || sed -i '1s/^/#![allow(warnings)]\n/' "$mod"
+    done
+
+    echo ">> Generating CRUD repositories ..."
+    for f in src/models/*.rs; do
+        name="$(basename "$f")"
+        [[ "$name" == "mod.rs" || "$name" == "types.rs" ]] && continue
+        sqlx-gen generate crud \
+            -f "$f" \
+            -d sqlite \
+            -m '*' \
+            -o src/repository
+    done
+    echo ">> Done!"
+
 run: gen-mod
     cargo run

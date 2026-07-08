@@ -12,6 +12,5 @@ pub async fn socket_init() -> Socket {
     auto_socket::register_global(&io)
         .await
         .expect("failed to register socket handlers");
-
     Socket { io, layer }
 }

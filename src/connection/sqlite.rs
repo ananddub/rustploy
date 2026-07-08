@@ -13,6 +13,7 @@ pub async fn connect(config: Arc<Config>) -> SqlitePool {
         .run(&pool)
         .await
         .expect("Failed to run database migrations");
+
     tracing::info!("Database connection established and migrations run successfully.");
     pool
 }
