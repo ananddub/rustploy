@@ -3,7 +3,7 @@ use validator::Validate;
 
 use crate::db::models::servers::Server;
 
-#[derive(Debug, Validate, Deserialize)]
+#[derive(Debug, Validate, Deserialize, poem_openapi::Object)]
 pub struct CreateRemoteServerDto {
     #[validate(length(min = 1, max = 255))]
     pub name: String,
@@ -20,7 +20,7 @@ pub struct CreateRemoteServerDto {
     pub ssh_key_id: Option<i64>,
 }
 
-#[derive(Debug, Validate, Deserialize)]
+#[derive(Debug, Validate, Deserialize, poem_openapi::Object)]
 pub struct PatchRemoteServerDto {
     #[validate(length(min = 1, max = 255))]
     pub name: Option<String>,
@@ -38,7 +38,7 @@ pub struct PatchRemoteServerDto {
     pub ssh_key_id: Option<i64>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, poem_openapi::Object)]
 pub struct RemoteServerResponseDto {
     pub id: i64,
     pub name: String,
@@ -81,7 +81,7 @@ impl From<Server> for RemoteServerResponseDto {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, poem_openapi::Object)]
 pub struct RemoteServerActionResponseDto {
     pub server: RemoteServerResponseDto,
     pub action: String,

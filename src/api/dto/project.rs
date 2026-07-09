@@ -3,7 +3,7 @@ use validator::Validate;
 
 use crate::db::models::projects::Project;
 
-#[derive(Debug, Validate, Deserialize)]
+#[derive(Debug, Validate, Deserialize, poem_openapi::Object)]
 pub struct CreateProjectDto {
     #[validate(length(min = 1, max = 255))]
     pub name: String,
@@ -14,7 +14,7 @@ pub struct CreateProjectDto {
     pub organization_id: i64,
 }
 
-#[derive(Debug, Validate, Deserialize)]
+#[derive(Debug, Validate, Deserialize, poem_openapi::Object)]
 pub struct PatchProjectDto {
     #[validate(length(min = 1, max = 255))]
     pub name: Option<String>,
@@ -23,7 +23,7 @@ pub struct PatchProjectDto {
     pub env_var: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, poem_openapi::Object)]
 pub struct ProjectResponseDto {
     pub id: i64,
     pub name: String,

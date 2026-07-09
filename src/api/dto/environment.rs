@@ -3,7 +3,7 @@ use validator::Validate;
 
 use crate::db::models::environments::Environment;
 
-#[derive(Debug, Validate, Deserialize)]
+#[derive(Debug, Validate, Deserialize, poem_openapi::Object)]
 pub struct CreateEnvironmentDto {
     #[validate(length(min = 1, max = 255))]
     pub name: String,
@@ -16,7 +16,7 @@ pub struct CreateEnvironmentDto {
     pub project_id: i64,
 }
 
-#[derive(Debug, Validate, Deserialize)]
+#[derive(Debug, Validate, Deserialize, poem_openapi::Object)]
 pub struct PatchEnvironmentDto {
     #[validate(length(min = 1, max = 255))]
     pub name: Option<String>,
@@ -26,7 +26,7 @@ pub struct PatchEnvironmentDto {
     pub is_default: Option<bool>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, poem_openapi::Object)]
 pub struct EnvironmentResponseDto {
     pub id: i64,
     pub name: String,

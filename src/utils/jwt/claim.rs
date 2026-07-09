@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, poem_openapi::Object)]
 pub struct JwtSubject {
     pub user_id: i64,
     pub email: Option<String>,

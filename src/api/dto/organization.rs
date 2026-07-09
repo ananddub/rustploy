@@ -3,7 +3,7 @@ use validator::Validate;
 
 use crate::db::models::organization::Organization;
 
-#[derive(Debug, Validate, Deserialize)]
+#[derive(Debug, Validate, Deserialize, poem_openapi::Object)]
 pub struct CreateOrganizationDto {
     #[validate(length(min = 1, max = 255))]
     pub name: String,
@@ -13,7 +13,7 @@ pub struct CreateOrganizationDto {
     pub slug: Option<String>,
 }
 
-#[derive(Debug, Validate, Deserialize)]
+#[derive(Debug, Validate, Deserialize, poem_openapi::Object)]
 pub struct PatchOrganizationDto {
     #[validate(length(min = 1, max = 255))]
     pub name: Option<String>,
@@ -23,7 +23,7 @@ pub struct PatchOrganizationDto {
     pub slug: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, poem_openapi::Object)]
 pub struct OrganizationResponseDto {
     pub id: i64,
     pub name: String,

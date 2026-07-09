@@ -15,7 +15,7 @@ members = [
 [dependencies]
 tokio = { version = "1",features = ["full"] }
 auto-di = "0.6.0"
-auto_route = { version = "0.2.0", path = "auto_route" }
+auto_route = { version = "0.2.1", path = "auto_route" }
 auto_socket = "0.1.0"
 serde = { version = "1.0", features = ["derive"] }
 axum-extra = { version = "0.12.6", features = ["typed-header"] }
@@ -48,3 +48,4 @@ envy = "0.4.2"
 russh-extra = { version = "0.1.7", default-features = false, features = ["full"] }
 poem-openapi = "5.1.16"
 rust-pty = "0.5.0"
+scalar_api_reference = { version = "0.2.2", features = ["axum"] }

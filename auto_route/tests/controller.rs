@@ -1,12 +1,13 @@
 use auto_di::Container;
-use auto_route::{build_routes, controller, get};
+use auto_route::{build_routes, controller, get, openapi_json, scalar_routes};
 use axum::{
-    Json,
+    Form, Json,
     body::Body,
-    extract::Path,
+    extract::{Path, Query},
     http::{Request, StatusCode},
 };
 use http_body_util::BodyExt;
+use serde::Deserialize;
 use serde_json::{Value, json};
 use tower::ServiceExt;
 
@@ -14,9 +15,84 @@ struct UserController {
     prefix: String,
 }
 
+#[derive(Deserialize, poem_openapi::Object)]
+struct SearchQuery {
+    term: String,
+    page: Option<i32>,
+}
+
+#[derive(Deserialize, poem_openapi::Object)]
+struct LoginForm {
+    username: String,
+    password: String,
+}
+
+#[test]
+fn generates_openapi_from_registered_routes() {
+    let spec = openapi_json();
+
+    assert_eq!(spec["openapi"], "3.0.0");
+    assert!(spec["paths"]["/health"]["get"].is_object());
+    assert!(spec["paths"]["/users"]["post"].is_object());
+
+    let get_user = &spec["paths"]["/users/{id}"]["get"];
+    assert_eq!(get_user["operationId"], "UserController::get_user");
+    assert_eq!(get_user["tags"], json!(["users"]));
+    assert_eq!(get_user["parameters"][0]["name"], "id");
+    assert_eq!(get_user["parameters"][0]["in"], "path");
+    assert_eq!(get_user["parameters"][0]["required"], true);
+    assert_eq!(get_user["parameters"][0]["schema"]["type"], "integer");
+
+    let module = &spec["paths"]["/module/{id}"]["get"];
+    assert_eq!(module["operationId"], "module_routes::find");
+    assert_eq!(module["tags"], json!(["module"]));
+    assert_eq!(module["parameters"][0]["schema"]["type"], "integer");
+
+    let create_user = &spec["paths"]["/users"]["post"];
+    assert!(create_user["requestBody"]["required"].as_bool().unwrap());
+    assert!(
+        create_user["requestBody"]["content"]["application/json"]["schema"].is_object(),
+        "POST /users should expose the inferred Json<Value> request schema"
+    );
+    assert!(
+        create_user["responses"]["200"]["content"]["application/json"]["schema"].is_object(),
+        "POST /users should expose the inferred Json<Value> response schema"
+    );
+    assert!(
+        get_user["responses"]["200"]["content"]["application/json"]["schema"].is_object(),
+        "GET /users/{{id}} should expose the inferred Json<Value> response schema"
+    );
+
+    let search = &spec["paths"]["/search"]["get"];
+    assert_eq!(search["parameters"][0]["name"], "query");
+    assert_eq!(search["parameters"][0]["in"], "query");
+    assert_eq!(search["parameters"][0]["style"], "form");
+    assert_eq!(search["parameters"][0]["explode"], true);
+    assert!(search["parameters"][0]["schema"].is_object());
+
+    let login = &spec["paths"]["/login"]["post"];
+    assert!(
+        login["requestBody"]["content"]["application/x-www-form-urlencoded"]["schema"].is_object()
+    );
+    assert!(
+        login["responses"]["200"]["content"]["application/json"]["schema"].is_object(),
+        "form handlers should still expose the JSON response schema"
+    );
+}
+
 #[get("/health")]
 async fn health() -> &'static str {
     "ok"
+}
+
+#[get("/search")]
+async fn search(Query(_query): Query<SearchQuery>) -> Json<Value> {
+    Json(json!({ "ok": true }))
+}
+
+#[auto_route::post("/login")]
+async fn login(Form(_form): Form<LoginForm>) -> Json<Value> {
+    Json(json!({ "ok": true }))
 }
 
 #[controller("/module")]
@@ -93,4 +169,30 @@ async fn dispatches_get_and_post_to_the_di_managed_controller() {
     assert_eq!(response.status(), StatusCode::OK);
     let body = response.into_body().collect().await.unwrap().to_bytes();
     assert_eq!(&body[..], b"module-7");
+}
+
+#[tokio::test]
+async fn serves_scalar_api_reference() {
+    let app = scalar_routes("/scalar", "/openapi.json");
+
+    let response = app
+        .clone()
+        .oneshot(Request::get("/scalar").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let html = String::from_utf8(body.to_vec()).unwrap();
+    assert!(html.contains("/openapi.json"));
+    assert!(html.contains("/scalar/scalar.js"));
+
+    let response = app
+        .oneshot(
+            Request::get("/scalar/scalar.js")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
 }

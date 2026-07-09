@@ -3,7 +3,7 @@ use validator::Validate;
 
 use crate::utils::jwt::{claim::JwtSubject, service::TokenPair};
 
-#[derive(Debug, Validate, Deserialize)]
+#[derive(Debug, Validate, Deserialize, poem_openapi::Object)]
 pub struct SignupDto {
     #[validate(email, length(max = 320))]
     pub email: String,
@@ -17,7 +17,7 @@ pub struct SignupDto {
     pub avatar: Option<String>,
 }
 
-#[derive(Debug, Validate, Deserialize)]
+#[derive(Debug, Validate, Deserialize, poem_openapi::Object)]
 pub struct LoginDto {
     #[validate(email, length(max = 320))]
     pub email: String,
@@ -25,13 +25,13 @@ pub struct LoginDto {
     pub password: String,
 }
 
-#[derive(Debug, Validate, Deserialize)]
+#[derive(Debug, Validate, Deserialize, poem_openapi::Object)]
 pub struct RefreshTokenDto {
     #[validate(length(min = 1))]
     pub refresh_token: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, poem_openapi::Object)]
 pub struct AuthResponseDto {
     pub user: JwtSubject,
     pub tokens: TokenPair,

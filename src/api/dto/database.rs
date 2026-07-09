@@ -3,7 +3,7 @@ use validator::Validate;
 
 use crate::services::database::{DatabaseOperationResult, DatabaseRecord};
 
-#[derive(Debug, Validate, Deserialize)]
+#[derive(Debug, Validate, Deserialize, poem_openapi::Object)]
 pub struct CreateDatabaseDto {
     #[validate(length(min = 1, max = 255))]
     pub name: String,
@@ -23,7 +23,7 @@ pub struct CreateDatabaseDto {
     pub enable_namespaces: Option<i64>,
 }
 
-#[derive(Debug, Validate, Deserialize)]
+#[derive(Debug, Validate, Deserialize, poem_openapi::Object)]
 pub struct PatchDatabaseDto {
     #[validate(length(min = 1, max = 255))]
     pub name: Option<String>,
@@ -42,7 +42,7 @@ pub struct PatchDatabaseDto {
     pub server_id: Option<i64>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, poem_openapi::Object)]
 pub struct DatabaseResponseDto {
     pub kind: String,
     pub id: i64,
@@ -93,7 +93,7 @@ impl From<DatabaseRecord> for DatabaseResponseDto {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, poem_openapi::Object)]
 pub struct DatabaseOperationResponseDto {
     pub database: DatabaseResponseDto,
     pub operation: String,

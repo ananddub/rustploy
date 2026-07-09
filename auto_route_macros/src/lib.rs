@@ -1,8 +1,8 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::{
-    Attribute, FnArg, ImplItem, Item, ItemFn, ItemImpl, ItemMod, LitStr, PatType, Type,
-    parse_macro_input, spanned::Spanned,
+    Attribute, FnArg, GenericArgument, ImplItem, Item, ItemFn, ItemImpl, ItemMod, LitStr, PatType,
+    PathArguments, ReturnType, Type, parse_macro_input, spanned::Spanned,
 };
 
 const METHODS: &[&str] = &["get", "post", "put", "delete", "patch", "options", "head"];
@@ -76,9 +76,30 @@ fn expand_standalone_route(
     }
 
     let handler = &function.sig.ident;
+    let operation_id = format!("{handler}");
     let method = format_ident!("{method}");
+    let method_name = method.to_string().to_ascii_uppercase();
     let factory = format_ident!("__auto_route_factory_{}", handler);
     let path = LitStr::new(&join_paths("", &path.value()), path.span());
+    let tag = openapi_tag(&path.value());
+    let argument_types = function
+        .sig
+        .inputs
+        .iter()
+        .map(|argument| match argument {
+            FnArg::Typed(PatType { ty, .. }) => Ok((**ty).clone()),
+            FnArg::Receiver(receiver) => Err(syn::Error::new_spanned(
+                receiver,
+                "standalone route handlers cannot take self",
+            )),
+        })
+        .collect::<syn::Result<Vec<_>>>()?;
+    let params = infer_params(&path.value(), &argument_types);
+    let params = param_descriptor_tokens(&params);
+    let request_schema =
+        request_schema_descriptor_tokens(infer_request_body(&argument_types).as_ref());
+    let response_schema =
+        schema_descriptor_tokens(infer_response_body_type(&function.sig.output).as_ref());
 
     Ok(quote! {
         #function
@@ -104,6 +125,18 @@ fn expand_standalone_route(
         ::auto_route::__private::inventory::submit! {
             ::auto_route::RouteDescriptor::new(#factory)
         }
+
+        ::auto_route::__private::inventory::submit! {
+            ::auto_route::OpenApiRouteDescriptor::new(
+                #method_name,
+                #path,
+                #operation_id,
+                #tag,
+                #params,
+                #request_schema,
+                #response_schema,
+            )
+        }
     })
 }
 
@@ -112,12 +145,42 @@ struct Route {
     handler: syn::Ident,
     path: LitStr,
     argument_types: Vec<Type>,
+    request_body: Option<RequestBody>,
+    response_body_type: Option<Type>,
+    params: Vec<OpenApiParam>,
 }
 
 struct ModuleRoute {
     method: syn::Ident,
     handler: syn::Ident,
     path: LitStr,
+    request_body: Option<RequestBody>,
+    response_body_type: Option<Type>,
+    params: Vec<OpenApiParam>,
+}
+
+#[derive(Clone)]
+struct RequestBody {
+    ty: Type,
+    content: RequestContent,
+}
+
+#[derive(Clone, Copy)]
+enum RequestContent {
+    Json,
+    Form,
+}
+
+struct OpenApiParam {
+    name: String,
+    ty: Type,
+    source: ParamSource,
+}
+
+#[derive(Clone, Copy)]
+enum ParamSource {
+    Path,
+    Query,
 }
 
 fn expand_controller_module(
@@ -158,6 +221,7 @@ fn expand_controller_module(
             continue;
         };
         validate_route_function(function, "module route functions")?;
+        let argument_types = route_argument_types(function.sig.inputs.iter())?;
         let route_path = marker_path(&attribute)?;
         routes.push(ModuleRoute {
             method,
@@ -165,6 +229,12 @@ fn expand_controller_module(
             path: LitStr::new(
                 &join_paths(&base_path.value(), &route_path),
                 attribute.span(),
+            ),
+            request_body: infer_request_body(&argument_types),
+            response_body_type: infer_response_body_type(&function.sig.output),
+            params: infer_params(
+                &join_paths(&base_path.value(), &route_path),
+                &argument_types,
             ),
         });
     }
@@ -210,8 +280,36 @@ fn expand_controller_module(
             ::auto_route::RouteDescriptor::new(__auto_route_factory_module)
         }
     })?;
+    let openapi_submissions = routes
+        .iter()
+        .map(|route| {
+            let method = route.method.to_string().to_ascii_uppercase();
+            let path = &route.path;
+            let operation_id = format!("{}::{}", module_ident, route.handler);
+            let tag = openapi_tag(&path.value());
+            let params = param_descriptor_tokens(&route.params);
+            let request_schema = request_schema_descriptor_tokens(route.request_body.as_ref());
+            let response_schema = schema_descriptor_tokens(route.response_body_type.as_ref());
+            quote! {
+                ::auto_route::__private::inventory::submit! {
+                    ::auto_route::OpenApiRouteDescriptor::new(
+                        #method,
+                        #path,
+                        #operation_id,
+                        #tag,
+                        #params,
+                        #request_schema,
+                        #response_schema,
+                    )
+                }
+            }
+        })
+        .collect::<Vec<_>>();
     items.push(generated);
     items.push(submission);
+    for submission in openapi_submissions {
+        items.push(syn::parse2(submission)?);
+    }
     Ok(quote!(#item_mod))
 }
 
@@ -299,6 +397,9 @@ fn expand_controller(
             method,
             handler: function.sig.ident.clone(),
             path: LitStr::new(&full_path, attribute.span()),
+            request_body: infer_request_body(&argument_types),
+            response_body_type: infer_response_body_type(&function.sig.output),
+            params: infer_params(&full_path, &argument_types),
             argument_types,
         });
     }
@@ -343,6 +444,29 @@ fn expand_controller(
             );
         }
     });
+    let openapi_submissions = routes.iter().map(|route| {
+        let method = route.method.to_string().to_ascii_uppercase();
+        let path = &route.path;
+        let handler = &route.handler;
+        let operation_id = format!("{type_ident}::{handler}");
+        let tag = openapi_tag(&path.value());
+        let params = param_descriptor_tokens(&route.params);
+        let request_schema = request_schema_descriptor_tokens(route.request_body.as_ref());
+        let response_schema = schema_descriptor_tokens(route.response_body_type.as_ref());
+        quote! {
+            ::auto_route::__private::inventory::submit! {
+                ::auto_route::OpenApiRouteDescriptor::new(
+                    #method,
+                    #path,
+                    #operation_id,
+                    #tag,
+                    #params,
+                    #request_schema,
+                    #response_schema,
+                )
+            }
+        }
+    });
 
     let managed_impl = if has_singleton {
         quote!(#item_impl)
@@ -378,11 +502,202 @@ fn expand_controller(
         ::auto_route::__private::inventory::submit! {
             ::auto_route::RouteDescriptor::new(#factory_ident)
         }
+
+        #(#openapi_submissions)*
     })
 }
 
 fn validate_route_function(function: &ItemFn, label: &str) -> syn::Result<()> {
     validate_route_signature(&function.sig, label)
+}
+
+fn route_argument_types<'a>(inputs: impl Iterator<Item = &'a FnArg>) -> syn::Result<Vec<Type>> {
+    inputs
+        .map(|argument| match argument {
+            FnArg::Typed(PatType { ty, .. }) => Ok((**ty).clone()),
+            FnArg::Receiver(receiver) => Err(syn::Error::new_spanned(
+                receiver,
+                "module route functions cannot take self",
+            )),
+        })
+        .collect()
+}
+
+fn infer_request_body(arguments: &[Type]) -> Option<RequestBody> {
+    arguments.iter().find_map(|argument| {
+        wrapper_inner_type(argument, &["Json", "ValidatedJson"])
+            .map(|ty| RequestBody {
+                ty,
+                content: RequestContent::Json,
+            })
+            .or_else(|| {
+                wrapper_inner_type(argument, &["Form"]).map(|ty| RequestBody {
+                    ty,
+                    content: RequestContent::Form,
+                })
+            })
+    })
+}
+
+fn infer_response_body_type(output: &ReturnType) -> Option<Type> {
+    match output {
+        ReturnType::Default => None,
+        ReturnType::Type(_, ty) => response_json_type(ty),
+    }
+}
+
+fn response_json_type(ty: &Type) -> Option<Type> {
+    if let Some(inner) = wrapper_inner_type(ty, &["Json"]) {
+        return Some(inner);
+    }
+
+    match ty {
+        Type::Paren(paren) => response_json_type(&paren.elem),
+        Type::Reference(reference) => response_json_type(&reference.elem),
+        Type::Tuple(tuple) => tuple.elems.iter().find_map(response_json_type),
+        Type::Path(type_path) => {
+            let segment = type_path.path.segments.last()?;
+            if segment.ident != "Result" && segment.ident != "Option" {
+                return None;
+            }
+            let PathArguments::AngleBracketed(arguments) = &segment.arguments else {
+                return None;
+            };
+            arguments.args.iter().find_map(|argument| match argument {
+                GenericArgument::Type(ty) => response_json_type(ty),
+                _ => None,
+            })
+        }
+        _ => None,
+    }
+}
+
+fn infer_params(path: &str, arguments: &[Type]) -> Vec<OpenApiParam> {
+    let mut params = infer_path_params(path, arguments);
+    params.extend(arguments.iter().filter_map(|argument| {
+        wrapper_inner_type(argument, &["Query"]).map(|ty| OpenApiParam {
+            name: "query".to_owned(),
+            ty,
+            source: ParamSource::Query,
+        })
+    }));
+    params
+}
+
+fn infer_path_params(path: &str, arguments: &[Type]) -> Vec<OpenApiParam> {
+    let names = path_parameter_names(path);
+    let path_types = arguments
+        .iter()
+        .find_map(|argument| wrapper_inner_type(argument, &["Path"]))
+        .map(|ty| path_inner_types(&ty))
+        .unwrap_or_default();
+
+    names
+        .into_iter()
+        .enumerate()
+        .map(|(index, name)| OpenApiParam {
+            name,
+            ty: path_types.get(index).cloned().unwrap_or_else(string_type),
+            source: ParamSource::Path,
+        })
+        .collect()
+}
+
+fn path_inner_types(ty: &Type) -> Vec<Type> {
+    match ty {
+        Type::Tuple(tuple) => tuple.elems.iter().cloned().collect(),
+        Type::Paren(paren) => path_inner_types(&paren.elem),
+        Type::Reference(reference) => path_inner_types(&reference.elem),
+        _ => vec![ty.clone()],
+    }
+}
+
+fn path_parameter_names(path: &str) -> Vec<String> {
+    path.split('/')
+        .filter_map(|segment| {
+            Some(
+                segment
+                    .strip_prefix('{')?
+                    .strip_suffix('}')?
+                    .trim_start_matches('*')
+                    .to_owned(),
+            )
+        })
+        .collect()
+}
+
+fn wrapper_inner_type(ty: &Type, wrappers: &[&str]) -> Option<Type> {
+    match ty {
+        Type::Paren(paren) => wrapper_inner_type(&paren.elem, wrappers),
+        Type::Reference(reference) => wrapper_inner_type(&reference.elem, wrappers),
+        Type::Path(type_path) => {
+            let segment = type_path.path.segments.last()?;
+            let PathArguments::AngleBracketed(arguments) = &segment.arguments else {
+                return None;
+            };
+
+            if segment.ident == "Option" {
+                return arguments.args.iter().find_map(|argument| match argument {
+                    GenericArgument::Type(ty) => wrapper_inner_type(ty, wrappers),
+                    _ => None,
+                });
+            }
+
+            if !wrappers.iter().any(|wrapper| segment.ident == wrapper) {
+                return None;
+            }
+
+            arguments.args.iter().find_map(|argument| match argument {
+                GenericArgument::Type(ty) => Some(ty.clone()),
+                _ => None,
+            })
+        }
+        _ => None,
+    }
+}
+
+fn string_type() -> Type {
+    syn::parse_quote!(::std::string::String)
+}
+
+fn request_schema_descriptor_tokens(body: Option<&RequestBody>) -> proc_macro2::TokenStream {
+    match body {
+        Some(RequestBody {
+            ty,
+            content: RequestContent::Json,
+        }) => quote! {
+            ::std::option::Option::Some(::auto_route::OpenApiSchemaDescriptor::json::<#ty>())
+        },
+        Some(RequestBody {
+            ty,
+            content: RequestContent::Form,
+        }) => quote! {
+            ::std::option::Option::Some(::auto_route::OpenApiSchemaDescriptor::form::<#ty>())
+        },
+        None => quote!(::std::option::Option::None),
+    }
+}
+
+fn schema_descriptor_tokens(ty: Option<&Type>) -> proc_macro2::TokenStream {
+    match ty {
+        Some(ty) => quote! {
+            ::std::option::Option::Some(::auto_route::OpenApiSchemaDescriptor::json::<#ty>())
+        },
+        None => quote!(::std::option::Option::None),
+    }
+}
+
+fn param_descriptor_tokens(params: &[OpenApiParam]) -> proc_macro2::TokenStream {
+    let params = params.iter().map(|param| {
+        let name = LitStr::new(&param.name, proc_macro2::Span::call_site());
+        let ty = &param.ty;
+        match param.source {
+            ParamSource::Path => quote!(::auto_route::OpenApiParamDescriptor::path::<#ty>(#name)),
+            ParamSource::Query => quote!(::auto_route::OpenApiParamDescriptor::query::<#ty>(#name)),
+        }
+    });
+
+    quote!(&[#(#params),*])
 }
 
 fn validate_route_signature(signature: &syn::Signature, label: &str) -> syn::Result<()> {
@@ -458,6 +773,15 @@ fn join_paths(base: &str, route: &str) -> String {
         })
         .collect::<Vec<_>>()
         .join("/")
+}
+
+fn openapi_tag(path: &str) -> String {
+    path.trim_start_matches('/')
+        .split('/')
+        .next()
+        .filter(|segment| !segment.is_empty())
+        .unwrap_or("default")
+        .to_owned()
 }
 
 #[cfg(test)]

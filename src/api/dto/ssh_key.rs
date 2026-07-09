@@ -3,7 +3,7 @@ use validator::Validate;
 
 use crate::db::models::ssh_keys::SshKey;
 
-#[derive(Debug, Validate, Deserialize)]
+#[derive(Debug, Validate, Deserialize, poem_openapi::Object)]
 pub struct CreateSshKeyDto {
     #[validate(length(min = 1, max = 255))]
     pub name: String,
@@ -15,7 +15,7 @@ pub struct CreateSshKeyDto {
     pub private_key: String,
 }
 
-#[derive(Debug, Validate, Deserialize)]
+#[derive(Debug, Validate, Deserialize, poem_openapi::Object)]
 pub struct PatchSshKeyDto {
     #[validate(length(min = 1, max = 255))]
     pub name: Option<String>,
@@ -25,7 +25,7 @@ pub struct PatchSshKeyDto {
     pub private_key: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, poem_openapi::Object)]
 pub struct SshKeyResponseDto {
     pub id: i64,
     pub name: String,

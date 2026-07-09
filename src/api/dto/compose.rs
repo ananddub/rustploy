@@ -3,7 +3,7 @@ use validator::Validate;
 
 use crate::services::compose::{ComposeOperationResult, ComposeRecord};
 
-#[derive(Debug, Validate, Deserialize)]
+#[derive(Debug, Validate, Deserialize, poem_openapi::Object)]
 pub struct CreateComposeDto {
     #[validate(length(min = 1, max = 255))]
     pub name: String,
@@ -19,7 +19,7 @@ pub struct CreateComposeDto {
     pub compose_file: String,
 }
 
-#[derive(Debug, Validate, Deserialize)]
+#[derive(Debug, Validate, Deserialize, poem_openapi::Object)]
 pub struct PatchComposeDto {
     #[validate(length(min = 1, max = 255))]
     pub name: Option<String>,
@@ -40,7 +40,7 @@ pub struct PatchComposeDto {
     pub server_id: Option<i64>,
 }
 
-#[derive(Debug, Validate, Deserialize)]
+#[derive(Debug, Validate, Deserialize, poem_openapi::Object)]
 pub struct PatchComposeGithubSourceDto {
     #[validate(length(min = 1, max = 255))]
     pub repository: String,
@@ -52,7 +52,7 @@ pub struct PatchComposeGithubSourceDto {
     pub auto_deploy: Option<i64>,
 }
 
-#[derive(Debug, Validate, Deserialize)]
+#[derive(Debug, Validate, Deserialize, poem_openapi::Object)]
 pub struct PatchComposeGitlabSourceDto {
     pub gitlab_project_id: Option<i64>,
     #[validate(length(min = 1, max = 255))]
@@ -65,7 +65,7 @@ pub struct PatchComposeGitlabSourceDto {
     pub gitlab_provider_id: Option<i64>,
 }
 
-#[derive(Debug, Validate, Deserialize)]
+#[derive(Debug, Validate, Deserialize, poem_openapi::Object)]
 pub struct PatchComposeGiteaSourceDto {
     #[validate(length(min = 1, max = 255))]
     pub gitea_repository: String,
@@ -76,7 +76,7 @@ pub struct PatchComposeGiteaSourceDto {
     pub gitea_provider_id: Option<i64>,
 }
 
-#[derive(Debug, Validate, Deserialize)]
+#[derive(Debug, Validate, Deserialize, poem_openapi::Object)]
 pub struct PatchComposeBitbucketSourceDto {
     #[validate(length(min = 1, max = 255))]
     pub bitbucket_repository: String,
@@ -88,7 +88,7 @@ pub struct PatchComposeBitbucketSourceDto {
     pub bitbucket_provider_id: Option<i64>,
 }
 
-#[derive(Debug, Validate, Deserialize)]
+#[derive(Debug, Validate, Deserialize, poem_openapi::Object)]
 pub struct PatchComposeCustomGitSourceDto {
     #[validate(length(min = 1, max = 500))]
     pub custom_git_url: String,
@@ -97,12 +97,12 @@ pub struct PatchComposeCustomGitSourceDto {
     pub custom_git_ssh_key_id: Option<i64>,
 }
 
-#[derive(Debug, Validate, Deserialize)]
+#[derive(Debug, Validate, Deserialize, poem_openapi::Object)]
 pub struct PatchComposeRawSourceDto {
     pub compose_file: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, poem_openapi::Object)]
 pub struct ComposeResponseDto {
     pub id: i64,
     pub name: String,
@@ -173,7 +173,7 @@ impl From<ComposeRecord> for ComposeResponseDto {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, poem_openapi::Object)]
 pub struct ComposeOperationResponseDto {
     pub compose: ComposeResponseDto,
     pub deployment_id: Option<i64>,

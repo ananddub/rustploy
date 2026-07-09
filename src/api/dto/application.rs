@@ -3,7 +3,7 @@ use validator::Validate;
 
 use crate::services::application::ApplicationRecord;
 
-#[derive(Debug, Validate, Deserialize)]
+#[derive(Debug, Validate, Deserialize, poem_openapi::Object)]
 pub struct CreateApplicationDto {
     #[validate(length(min = 1, max = 255))]
     pub name: String,
@@ -17,7 +17,7 @@ pub struct CreateApplicationDto {
     pub build_type: String,
 }
 
-#[derive(Debug, Validate, Deserialize)]
+#[derive(Debug, Validate, Deserialize, poem_openapi::Object)]
 pub struct PatchApplicationDto {
     #[validate(length(min = 1, max = 255))]
     pub name: Option<String>,
@@ -32,7 +32,7 @@ pub struct PatchApplicationDto {
     pub registry_id: Option<i64>,
 }
 
-#[derive(Debug, Validate, Deserialize)]
+#[derive(Debug, Validate, Deserialize, poem_openapi::Object)]
 pub struct PatchGithubSourceDto {
     #[validate(length(min = 1, max = 255))]
     pub repository: String,
@@ -45,7 +45,7 @@ pub struct PatchGithubSourceDto {
     pub auto_deploy: Option<i64>,
 }
 
-#[derive(Debug, Validate, Deserialize)]
+#[derive(Debug, Validate, Deserialize, poem_openapi::Object)]
 pub struct PatchGitlabSourceDto {
     pub gitlab_project_id: Option<i64>,
     #[validate(length(min = 1, max = 255))]
@@ -59,7 +59,7 @@ pub struct PatchGitlabSourceDto {
     pub gitlab_provider_id: Option<i64>,
 }
 
-#[derive(Debug, Validate, Deserialize)]
+#[derive(Debug, Validate, Deserialize, poem_openapi::Object)]
 pub struct PatchGiteaSourceDto {
     #[validate(length(min = 1, max = 255))]
     pub gitea_repository: String,
@@ -71,7 +71,7 @@ pub struct PatchGiteaSourceDto {
     pub gitea_provider_id: Option<i64>,
 }
 
-#[derive(Debug, Validate, Deserialize)]
+#[derive(Debug, Validate, Deserialize, poem_openapi::Object)]
 pub struct PatchBitbucketSourceDto {
     #[validate(length(min = 1, max = 255))]
     pub bitbucket_repository: String,
@@ -84,7 +84,7 @@ pub struct PatchBitbucketSourceDto {
     pub bitbucket_provider_id: Option<i64>,
 }
 
-#[derive(Debug, Validate, Deserialize)]
+#[derive(Debug, Validate, Deserialize, poem_openapi::Object)]
 pub struct PatchDockerSourceDto {
     #[validate(length(min = 1, max = 500))]
     pub docker_image: String,
@@ -93,7 +93,7 @@ pub struct PatchDockerSourceDto {
     pub registry_url: Option<String>,
 }
 
-#[derive(Debug, Validate, Deserialize)]
+#[derive(Debug, Validate, Deserialize, poem_openapi::Object)]
 pub struct PatchCustomGitSourceDto {
     #[validate(length(min = 1, max = 500))]
     pub custom_git_url: String,
@@ -103,12 +103,12 @@ pub struct PatchCustomGitSourceDto {
     pub custom_git_ssh_key_id: Option<i64>,
 }
 
-#[derive(Debug, Validate, Deserialize)]
+#[derive(Debug, Validate, Deserialize, poem_openapi::Object)]
 pub struct PatchDropSourceDto {
     pub drop_build_path: Option<String>,
 }
 
-#[derive(Debug, Validate, Deserialize)]
+#[derive(Debug, Validate, Deserialize, poem_openapi::Object)]
 pub struct PatchBuildConfigDto {
     pub build_args: Option<String>,
     pub build_secrets: Option<String>,
@@ -128,7 +128,7 @@ pub struct PatchBuildConfigDto {
     pub watch_paths: Option<String>,
 }
 
-#[derive(Debug, Validate, Deserialize)]
+#[derive(Debug, Validate, Deserialize, poem_openapi::Object)]
 pub struct PatchResourceConfigDto {
     pub memory_reservation: Option<String>,
     pub memory_limit: Option<String>,
@@ -137,7 +137,7 @@ pub struct PatchResourceConfigDto {
     pub replicas: Option<i64>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, poem_openapi::Object)]
 pub struct ApplicationResponseDto {
     pub id: i64,
     pub name: String,
@@ -212,7 +212,7 @@ impl From<ApplicationRecord> for ApplicationResponseDto {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, poem_openapi::Object)]
 pub struct ApplicationOperationResponseDto {
     pub application: ApplicationResponseDto,
     pub deployment_id: Option<i64>,
