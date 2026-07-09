@@ -49,3 +49,4 @@ russh-extra = { version = "0.1.7", default-features = false, features = ["full"]
 poem-openapi = "5.1.16"
 rust-pty = "0.5.0"
 scalar_api_reference = { version = "0.2.2", features = ["axum"] }
+tower-http = { version = "0.6", features = ["cors"] }

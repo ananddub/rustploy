@@ -32,43 +32,43 @@ export default function SignupForm(props: { onSuccess?: () => void }) {
   return (
     <form onSubmit={submit} class="flex flex-col gap-4">
       <div class="grid grid-cols-2 gap-3">
-        <div>
-          <label class="block text-sm text-gray-300 mb-1.5">First name</label>
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend text-base-content/70">First name</legend>
           <input
-            class="w-full px-3 py-2 rounded-md bg-[#0d0d0d] border border-gray-700 text-white placeholder-gray-600 text-sm focus:outline-none focus:ring-1 focus:ring-gray-500 focus:border-gray-500 transition-all"
+            class="input input-bordered w-full"
             value={firstName()}
             onInput={(e) => setFirstName(e.currentTarget.value)}
             placeholder="Aman"
           />
-        </div>
-        <div>
-          <label class="block text-sm text-gray-300 mb-1.5">Last name</label>
+        </fieldset>
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend text-base-content/70">Last name</legend>
           <input
-            class="w-full px-3 py-2 rounded-md bg-[#0d0d0d] border border-gray-700 text-white placeholder-gray-600 text-sm focus:outline-none focus:ring-1 focus:ring-gray-500 focus:border-gray-500 transition-all"
+            class="input input-bordered w-full"
             value={lastName()}
             onInput={(e) => setLastName(e.currentTarget.value)}
             placeholder="Kumar"
           />
-        </div>
+        </fieldset>
       </div>
 
-      <div>
-        <label class="block text-sm text-gray-300 mb-1.5">Email</label>
+      <fieldset class="fieldset">
+        <legend class="fieldset-legend text-base-content/70">Email</legend>
         <input
-          class="w-full px-3 py-2 rounded-md bg-[#0d0d0d] border border-gray-700 text-white placeholder-gray-600 text-sm focus:outline-none focus:ring-1 focus:ring-gray-500 focus:border-gray-500 transition-all"
+          class="input input-bordered w-full"
           type="email"
           value={email()}
           onInput={(e) => setEmail(e.currentTarget.value)}
           placeholder="you@example.com"
           required
         />
-      </div>
+      </fieldset>
 
-      <div>
-        <label class="block text-sm text-gray-300 mb-1.5">Password</label>
+      <fieldset class="fieldset">
+        <legend class="fieldset-legend text-base-content/70">Password</legend>
         <div class="relative">
           <input
-            class="w-full px-3 py-2 rounded-md bg-[#0d0d0d] border border-gray-700 text-white placeholder-gray-600 text-sm focus:outline-none focus:ring-1 focus:ring-gray-500 focus:border-gray-500 transition-all pr-10"
+            class="input input-bordered w-full pr-10"
             type={showPassword() ? 'text' : 'password'}
             value={password()}
             onInput={(e) => setPassword(e.currentTarget.value)}
@@ -77,7 +77,7 @@ export default function SignupForm(props: { onSuccess?: () => void }) {
           />
           <button
             type="button"
-            class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+            class="absolute right-3 top-1/2 -translate-y-1/2 text-base-content/40 hover:text-base-content transition-colors"
             onClick={() => setShowPassword((s) => !s)}
           >
             {showPassword() ? (
@@ -92,19 +92,23 @@ export default function SignupForm(props: { onSuccess?: () => void }) {
             )}
           </button>
         </div>
-      </div>
+      </fieldset>
 
       <button
-        class="w-full py-2 mt-1 bg-white text-black text-sm font-medium rounded-md hover:bg-gray-200 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        class="btn btn-neutral w-full mt-1"
         type="submit"
         disabled={loading()}
       >
+        {loading() && <span class="loading loading-spinner loading-sm" />}
         {loading() ? 'Creating…' : 'Create account'}
       </button>
 
       {error() && (
-        <div class="p-3 bg-red-950/40 border border-red-800 rounded-md text-red-400 text-sm">
-          {error()}
+        <div role="alert" class="alert alert-error text-sm">
+          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M12 3a9 9 0 100 18A9 9 0 0012 3z"/>
+          </svg>
+          <span>{error()}</span>
         </div>
       )}
     </form>
