@@ -3,15 +3,16 @@ import { useNavigate } from '@solidjs/router';
 import { Rocket } from 'lucide-solid';
 import LoginForm from './LoginForm';
 import SignupForm from './SignupForm';
-import { restoreAuthSession } from '../../lib/auth';
+import { authSession } from '../../lib/auth';
 
 export default function AuthIndex() {
   const navigate = useNavigate();
   const [mode, setMode] = createSignal<'login' | 'signup'>('login');
 
-  void restoreAuthSession().then((isAuthenticated) => {
-    if (isAuthenticated) navigate('/dashboard', { replace: true });
-  });
+  // If already logged in, go to dashboard
+  if (authSession()) {
+    navigate('/dashboard', { replace: true });
+  }
 
   return (
     <div class="min-h-screen flex">

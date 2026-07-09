@@ -1,6 +1,12 @@
 import { createSignal } from 'solid-js';
 import type { JwtSubject, TokenPair } from '../client/types.gen';
-import { authControllerLogin, authControllerLogout, authControllerSignup, authControllerWhoAmI } from '../client/sdk.gen';
+import {
+  authControllerLogin,
+  authControllerLogout,
+  authControllerRefresh,
+  authControllerSignup,
+  authControllerWhoAmI,
+} from '../client/sdk.gen';
 
 const AUTH_STORAGE_KEY = 'rustploy-auth-session';
 
@@ -10,15 +16,9 @@ export type AuthSession = {
 };
 
 const loadStoredSession = (): AuthSession | null => {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-
+  if (typeof window === 'undefined') return null;
   const raw = window.localStorage.getItem(AUTH_STORAGE_KEY);
-  if (!raw) {
-    return null;
-  }
-
+  if (!raw) return null;
   try {
     return JSON.parse(raw) as AuthSession;
   } catch {
@@ -28,55 +28,98 @@ const loadStoredSession = (): AuthSession | null => {
 };
 
 const persistSession = (session: AuthSession | null) => {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
+  if (typeof window === 'undefined') return;
   if (session) {
     window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
-    return;
+  } else {
+    window.localStorage.removeItem(AUTH_STORAGE_KEY);
   }
-
-  window.localStorage.removeItem(AUTH_STORAGE_KEY);
 };
 
 const extractErrorMessage = (error: unknown): string => {
-  if (typeof error === 'string') {
-    return error;
-  }
-
-  if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
+  if (typeof error === 'string') return error;
+  if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string')
     return error.message;
-  }
-
   return 'Authentication failed. Please try again.';
 };
 
 export const [authSession, setAuthSession] = createSignal<AuthSession | null>(loadStoredSession());
 export const [authReady, setAuthReady] = createSignal(false);
 
+// Deduplicate concurrent refresh calls
+let refreshPromise: Promise<string | null> | null = null;
+
+/**
+ * Try to get a new access token using the stored refresh token.
+ * Returns new access_token on success, null on failure.
+ */
+export async function refreshAccessToken(): Promise<string | null> {
+  if (refreshPromise) return refreshPromise;
+
+  refreshPromise = (async () => {
+    const session = authSession();
+    if (!session?.tokens.refresh_token) return null;
+
+    try {
+      const res = await authControllerRefresh({
+        body: { refresh_token: session.tokens.refresh_token },
+      });
+
+      console.log('[refresh] response:', res.data, res.error);
+
+      if (res.error || !res.data) {
+        clearAuthSession();
+        return null;
+      }
+
+      // res.data is AuthResponseDto — contains tokens + user
+      const updated: AuthSession = {
+        tokens: res.data.tokens,
+        user: res.data.user,
+      };
+      setAuthSession(updated);
+      persistSession(updated);
+      return updated.tokens.access_token;
+    } catch (e) {
+      console.log('[refresh] exception:', e);
+      clearAuthSession();
+      return null;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
+}
+
 export async function restoreAuthSession() {
   const storedSession = authSession();
-
   if (!storedSession) {
     setAuthReady(true);
     return false;
   }
 
   try {
-    const response = await authControllerWhoAmI({ auth: storedSession.tokens.access_token });
+    const response = await authControllerWhoAmI({
+      auth: storedSession.tokens.access_token,
+    });
 
     if (response.error || !response.data) {
-      clearAuthSession();
-      return false;
+      // access token expired — try refresh
+      const newToken = await refreshAccessToken();
+      if (!newToken) {
+        clearAuthSession();
+        return false;
+      }
+      setAuthReady(true);
+      return true;
     }
 
     setAuthSession({ ...storedSession, user: response.data });
     persistSession(authSession());
     setAuthReady(true);
     return true;
-  } catch (error) {
-    console.error(error);
+  } catch {
     clearAuthSession();
     return false;
   }
@@ -90,33 +133,32 @@ export function clearAuthSession() {
 
 export async function signInWithPassword(email: string, password: string) {
   const response = await authControllerLogin({ body: { email, password } });
-
-  if (response.error || !response.data) {
+  if (response.error || !response.data)
     throw new Error(extractErrorMessage(response.error));
-  }
 
   const nextSession: AuthSession = {
     tokens: response.data.tokens,
     user: response.data.user,
   };
-
   setAuthSession(nextSession);
   persistSession(nextSession);
   return nextSession;
 }
 
-export async function signUpWithPassword(input: { email: string; password: string; first_name?: string; last_name?: string }) {
+export async function signUpWithPassword(input: {
+  email: string;
+  password: string;
+  first_name?: string;
+  last_name?: string;
+}) {
   const response = await authControllerSignup({ body: input });
-
-  if (response.error || !response.data) {
+  if (response.error || !response.data)
     throw new Error(extractErrorMessage(response.error));
-  }
 
   const nextSession: AuthSession = {
     tokens: response.data.tokens,
     user: response.data.user,
   };
-
   setAuthSession(nextSession);
   persistSession(nextSession);
   return nextSession;
@@ -124,14 +166,12 @@ export async function signUpWithPassword(input: { email: string; password: strin
 
 export async function signOut() {
   const currentSession = authSession();
-
   try {
     if (currentSession?.tokens.access_token) {
       await authControllerLogout({ auth: currentSession.tokens.access_token });
     }
-  } catch (error) {
-    console.error(error);
+  } catch {
+    /* ignore logout errors */
   }
-
   clearAuthSession();
 }

@@ -19,6 +19,11 @@ pub struct JwtService {
 #[singleton]
 impl JwtService {
     pub fn new(config: Arc<JwtConfig>) -> Self {
+        if config.debug_skip_time_check {
+            tracing::warn!(
+                "JWT_DEBUG_SKIP_TIME_CHECK is enabled: JWT expiry validation will be skipped"
+            );
+        }
         Self { config }
     }
 
@@ -79,7 +84,11 @@ impl JwtService {
         secret: &str,
         expected: TokenType,
     ) -> Result<Claims, TokenError> {
-        let validation = Validation::new(Algorithm::HS256);
+        let mut validation = Validation::new(Algorithm::HS256);
+        if self.config.debug_skip_time_check {
+            // dbg!(self.config.debug_skip_time_check,token);
+            validation.validate_exp = false;
+        }
 
         let token_data = decode::<Claims>(
             token,

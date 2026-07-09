@@ -13,9 +13,12 @@ export default function LoginForm(props: { onSuccess?: () => void }) {
     setError('');
     setLoading(true);
     try {
-      await signInWithPassword(email(), password());
+      const session = await signInWithPassword(email(), password());
+      console.log('[login] success, session:', session);
+      console.log('[login] localStorage:', localStorage.getItem('rustploy-auth-session'));
       props.onSuccess?.();
     } catch (err) {
+      console.log('[login] error:', err);
       setError(err instanceof Error ? err.message : 'Login failed');
     } finally {
       setLoading(false);
