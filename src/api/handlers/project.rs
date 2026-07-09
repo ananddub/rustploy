@@ -3,12 +3,12 @@ use std::sync::Arc;
 use auto_route::controller;
 use axum::{Json, extract::Path, http::StatusCode};
 
+use crate::utils::jwt::claim::Claims;
 use crate::{
     api::dto::project::{CreateProjectDto, PatchProjectDto, ProjectResponseDto},
     core::middleware::validator::ValidatedJson,
     services::project::ProjectService,
 };
-use crate::utils::jwt::claim::Claims;
 
 type ApiError = (StatusCode, String);
 
@@ -23,7 +23,12 @@ impl ProjectController {
     }
 
     #[get("/{id}")]
-    async fn get(&self,claim:Claims, Path(id): Path<i64>) -> Result<Json<ProjectResponseDto>, ApiError> {
+    async fn get(
+        &self,
+        _claims: Claims,
+        Path(id): Path<i64>,
+    ) -> Result<Json<ProjectResponseDto>, ApiError> {
+        // _claims.user.user_id
         self.service
             .get_by_id(id)
             .await
@@ -35,6 +40,7 @@ impl ProjectController {
     #[get("/organization/{organization_id}")]
     async fn list_by_organization(
         &self,
+        _claims: Claims,
         Path(organization_id): Path<i64>,
     ) -> Result<Json<Vec<ProjectResponseDto>>, ApiError> {
         self.service
@@ -48,6 +54,7 @@ impl ProjectController {
     #[post]
     async fn create(
         &self,
+        _claims: Claims,
         ValidatedJson(body): ValidatedJson<CreateProjectDto>,
     ) -> Result<(StatusCode, Json<ProjectResponseDto>), ApiError> {
         self.service
@@ -61,6 +68,7 @@ impl ProjectController {
     #[patch("/{id}")]
     async fn patch(
         &self,
+        _claims: Claims,
         Path(id): Path<i64>,
         ValidatedJson(body): ValidatedJson<PatchProjectDto>,
     ) -> Result<Json<ProjectResponseDto>, ApiError> {
@@ -73,7 +81,7 @@ impl ProjectController {
     }
 
     #[delete("/{id}")]
-    async fn delete(&self, Path(id): Path<i64>) -> Result<StatusCode, ApiError> {
+    async fn delete(&self, _claims: Claims, Path(id): Path<i64>) -> Result<StatusCode, ApiError> {
         self.service
             .delete(id)
             .await

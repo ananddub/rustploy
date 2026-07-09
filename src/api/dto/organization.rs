@@ -11,7 +11,6 @@ pub struct CreateOrganizationDto {
     pub logo: Option<String>,
     #[validate(length(min = 1, max = 255))]
     pub slug: Option<String>,
-    pub owner_id: i64,
 }
 
 #[derive(Debug, Validate, Deserialize)]

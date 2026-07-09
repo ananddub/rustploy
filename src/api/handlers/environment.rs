@@ -7,6 +7,7 @@ use crate::{
     api::dto::environment::{CreateEnvironmentDto, EnvironmentResponseDto, PatchEnvironmentDto},
     core::middleware::validator::ValidatedJson,
     services::environment::EnvironmentService,
+    utils::jwt::claim::Claims,
 };
 
 type ApiError = (StatusCode, String);
@@ -22,7 +23,11 @@ impl EnvironmentController {
     }
 
     #[get("/{id}")]
-    async fn get(&self, Path(id): Path<i64>) -> Result<Json<EnvironmentResponseDto>, ApiError> {
+    async fn get(
+        &self,
+        _claims: Claims,
+        Path(id): Path<i64>,
+    ) -> Result<Json<EnvironmentResponseDto>, ApiError> {
         self.service
             .get_by_id(id)
             .await
@@ -34,6 +39,7 @@ impl EnvironmentController {
     #[get("/project/{project_id}")]
     async fn list_by_project(
         &self,
+        _claims: Claims,
         Path(project_id): Path<i64>,
     ) -> Result<Json<Vec<EnvironmentResponseDto>>, ApiError> {
         self.service
@@ -52,6 +58,7 @@ impl EnvironmentController {
     #[post]
     async fn create(
         &self,
+        _claims: Claims,
         ValidatedJson(body): ValidatedJson<CreateEnvironmentDto>,
     ) -> Result<(StatusCode, Json<EnvironmentResponseDto>), ApiError> {
         self.service
@@ -65,6 +72,7 @@ impl EnvironmentController {
     #[patch("/{id}")]
     async fn patch(
         &self,
+        _claims: Claims,
         Path(id): Path<i64>,
         ValidatedJson(body): ValidatedJson<PatchEnvironmentDto>,
     ) -> Result<Json<EnvironmentResponseDto>, ApiError> {
@@ -79,6 +87,7 @@ impl EnvironmentController {
     #[put("/{id}/default")]
     async fn set_default(
         &self,
+        _claims: Claims,
         Path(id): Path<i64>,
     ) -> Result<Json<EnvironmentResponseDto>, ApiError> {
         self.service
@@ -90,7 +99,7 @@ impl EnvironmentController {
     }
 
     #[delete("/{id}")]
-    async fn delete(&self, Path(id): Path<i64>) -> Result<StatusCode, ApiError> {
+    async fn delete(&self, _claims: Claims, Path(id): Path<i64>) -> Result<StatusCode, ApiError> {
         self.service
             .delete(id)
             .await

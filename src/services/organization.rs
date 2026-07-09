@@ -40,7 +40,11 @@ impl OrganizationService {
         .await
     }
 
-    pub async fn create(&self, input: CreateOrganizationDto) -> sqlx::Result<Organization> {
+    pub async fn create(
+        &self,
+        owner_id: i64,
+        input: CreateOrganizationDto,
+    ) -> sqlx::Result<Organization> {
         let slug = normalize_slug(input.slug.as_deref().unwrap_or(&input.name));
         if slug.is_empty() {
             return Err(sqlx::Error::Protocol(
@@ -56,14 +60,14 @@ impl OrganizationService {
             input.name,
             input.logo,
             slug,
-            input.owner_id
+            owner_id
         )
         .fetch_one(&mut *tx)
         .await?;
 
         sqlx::query!(
             "INSERT INTO organization_members (role, user_id, organization_id) VALUES ('ADMIN', ?, ?)",
-            input.owner_id,
+            owner_id,
             organization.id
         )
         .execute(&mut *tx)
@@ -160,12 +164,14 @@ mod tests {
         let service = OrganizationService { db: Arc::new(pool) };
 
         let organization = service
-            .create(CreateOrganizationDto {
-                name: "My Cool Team".into(),
-                logo: None,
-                slug: None,
-                owner_id: 7,
-            })
+            .create(
+                7,
+                CreateOrganizationDto {
+                    name: "My Cool Team".into(),
+                    logo: None,
+                    slug: None,
+                },
+            )
             .await
             .unwrap();
 

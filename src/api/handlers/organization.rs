@@ -9,6 +9,7 @@ use crate::{
     },
     core::middleware::validator::ValidatedJson,
     services::organization::OrganizationService,
+    utils::jwt::claim::Claims,
 };
 
 type ApiError = (StatusCode, String);
@@ -24,7 +25,11 @@ impl OrganizationController {
     }
 
     #[get("/{id}")]
-    async fn get(&self, Path(id): Path<i64>) -> Result<Json<OrganizationResponseDto>, ApiError> {
+    async fn get(
+        &self,
+        _claims: Claims,
+        Path(id): Path<i64>,
+    ) -> Result<Json<OrganizationResponseDto>, ApiError> {
         self.service
             .get_by_id(id)
             .await
@@ -33,13 +38,13 @@ impl OrganizationController {
             .map_err(map_sqlx_error)
     }
 
-    #[get("/owner/{owner_id}")]
+    #[get]
     async fn list_by_owner(
         &self,
-        Path(owner_id): Path<i64>,
+        claims: Claims,
     ) -> Result<Json<Vec<OrganizationResponseDto>>, ApiError> {
         self.service
-            .list_by_owner(owner_id)
+            .list_by_owner(claims.user.user_id)
             .await
             .map(|items| {
                 items
@@ -54,10 +59,11 @@ impl OrganizationController {
     #[post]
     async fn create(
         &self,
+        claims: Claims,
         ValidatedJson(body): ValidatedJson<CreateOrganizationDto>,
     ) -> Result<(StatusCode, Json<OrganizationResponseDto>), ApiError> {
         self.service
-            .create(body)
+            .create(claims.user.user_id, body)
             .await
             .map(OrganizationResponseDto::from)
             .map(|organization| (StatusCode::CREATED, Json(organization)))
@@ -67,6 +73,7 @@ impl OrganizationController {
     #[patch("/{id}")]
     async fn patch(
         &self,
+        _claims: Claims,
         Path(id): Path<i64>,
         ValidatedJson(body): ValidatedJson<PatchOrganizationDto>,
     ) -> Result<Json<OrganizationResponseDto>, ApiError> {
@@ -79,7 +86,7 @@ impl OrganizationController {
     }
 
     #[delete("/{id}")]
-    async fn delete(&self, Path(id): Path<i64>) -> Result<StatusCode, ApiError> {
+    async fn delete(&self, _claims: Claims, Path(id): Path<i64>) -> Result<StatusCode, ApiError> {
         self.service
             .delete(id)
             .await

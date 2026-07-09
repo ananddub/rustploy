@@ -1,2 +1,2 @@
-pub mod validator;
 pub mod authorization;
+pub mod validator;

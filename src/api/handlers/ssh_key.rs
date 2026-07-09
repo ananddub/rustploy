@@ -1,0 +1,116 @@
+use std::sync::Arc;
+
+use auto_route::controller;
+use axum::{Json, extract::Path, http::StatusCode};
+
+use crate::{
+    api::dto::ssh_key::{CreateSshKeyDto, PatchSshKeyDto, SshKeyResponseDto},
+    core::middleware::validator::ValidatedJson,
+    services::ssh_key::SshKeyService,
+    utils::jwt::claim::Claims,
+};
+
+type ApiError = (StatusCode, String);
+
+pub struct SshKeyController {
+    service: Arc<SshKeyService>,
+}
+
+#[controller("/ssh-keys")]
+impl SshKeyController {
+    fn new(service: Arc<SshKeyService>) -> Self {
+        Self { service }
+    }
+
+    #[get]
+    async fn list(&self, _claims: Claims) -> Result<Json<Vec<SshKeyResponseDto>>, ApiError> {
+        self.service
+            .list()
+            .await
+            .map(|items| items.into_iter().map(SshKeyResponseDto::from).collect())
+            .map(Json)
+            .map_err(map_sqlx_error)
+    }
+
+    #[get("/{id}")]
+    async fn get(
+        &self,
+        _claims: Claims,
+        Path(id): Path<i64>,
+    ) -> Result<Json<SshKeyResponseDto>, ApiError> {
+        self.service
+            .get_by_id(id)
+            .await
+            .map(SshKeyResponseDto::from)
+            .map(Json)
+            .map_err(map_sqlx_error)
+    }
+
+    #[post]
+    async fn create(
+        &self,
+        _claims: Claims,
+        ValidatedJson(body): ValidatedJson<CreateSshKeyDto>,
+    ) -> Result<(StatusCode, Json<SshKeyResponseDto>), ApiError> {
+        self.service
+            .create(body)
+            .await
+            .map(SshKeyResponseDto::from)
+            .map(|key| (StatusCode::CREATED, Json(key)))
+            .map_err(map_sqlx_error)
+    }
+
+    #[patch("/{id}")]
+    async fn patch(
+        &self,
+        _claims: Claims,
+        Path(id): Path<i64>,
+        ValidatedJson(body): ValidatedJson<PatchSshKeyDto>,
+    ) -> Result<Json<SshKeyResponseDto>, ApiError> {
+        self.service
+            .patch(id, body)
+            .await
+            .map(SshKeyResponseDto::from)
+            .map(Json)
+            .map_err(map_sqlx_error)
+    }
+
+    #[post("/{id}/mark-used")]
+    async fn mark_used(
+        &self,
+        _claims: Claims,
+        Path(id): Path<i64>,
+    ) -> Result<Json<SshKeyResponseDto>, ApiError> {
+        self.service
+            .mark_used(id)
+            .await
+            .map(SshKeyResponseDto::from)
+            .map(Json)
+            .map_err(map_sqlx_error)
+    }
+
+    #[delete("/{id}")]
+    async fn delete(&self, _claims: Claims, Path(id): Path<i64>) -> Result<StatusCode, ApiError> {
+        self.service
+            .delete(id)
+            .await
+            .map(|()| StatusCode::NO_CONTENT)
+            .map_err(map_sqlx_error)
+    }
+}
+
+fn map_sqlx_error(error: sqlx::Error) -> ApiError {
+    match error {
+        sqlx::Error::RowNotFound => (StatusCode::NOT_FOUND, "ssh key not found".into()),
+        sqlx::Error::Database(ref database_error) if database_error.is_unique_violation() => {
+            (StatusCode::CONFLICT, database_error.message().into())
+        }
+        other => {
+            tracing::error!(error = %other, "ssh key database operation failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "database operation failed".into(),
+            )
+        }
+    }
+}

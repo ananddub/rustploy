@@ -1,18 +1,15 @@
-
+use crate::services::auth::AuthService;
+use crate::utils::jwt::claim::Claims;
 use auto_di::resolve;
 use axum::{
+    Json, RequestPartsExt,
     extract::FromRequestParts,
-    http::{request::Parts, StatusCode},
-    RequestPartsExt,
-    Json,
+    http::{StatusCode, request::Parts},
 };
+use axum_extra::TypedHeader;
 use axum_extra::headers::Authorization;
 use axum_extra::headers::authorization::Bearer;
-use axum_extra::TypedHeader;
 use serde_json::json;
-use crate::utils::jwt::claim::Claims;
-use crate::utils::jwt::error::TokenError;
-use crate::utils::jwt::service::JwtService;
 
 impl<S> FromRequestParts<S> for Claims
 where
@@ -24,14 +21,29 @@ where
         let TypedHeader(Authorization(bearer)) = parts
             .extract::<TypedHeader<Authorization<Bearer>>>()
             .await
-            .map_err(|_| (StatusCode::UNAUTHORIZED, Json(json!({ "error": "missing header" }))))?;
-        let jwt_service = resolve::<JwtService>().await.map_err(|_| (
+            .map_err(|_| {
+                (
+                    StatusCode::UNAUTHORIZED,
+                    Json(json!({ "error": "missing header" })),
+                )
+            })?;
+        let auth_service = resolve::<AuthService>()
+            .await
+            .map_err(|_| {
+                (
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(json!({ "error": "jwt service unavailable" })),
-                ))?
+                    Json(json!({ "error": "auth service unavailable" })),
+                )
+            })?
             .clone();
-        jwt_service
+        auth_service
             .validate_access_token(bearer.token())
-            .map_err(|_| (StatusCode::UNAUTHORIZED, Json(json!({ "error": "invalid token" }))))
+            .await
+            .map_err(|_| {
+                (
+                    StatusCode::UNAUTHORIZED,
+                    Json(json!({ "error": "invalid token" })),
+                )
+            })
     }
 }

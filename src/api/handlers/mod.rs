@@ -1,7 +1,11 @@
+pub mod application;
 pub mod auth;
+pub mod compose;
+pub mod database;
 pub mod deployment;
 pub mod environment;
-pub mod git;
 pub mod organization;
 pub mod project;
+pub mod remote_server;
 pub mod server;
+pub mod ssh_key;

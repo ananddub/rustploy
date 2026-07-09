@@ -11,7 +11,6 @@ use crate::{
 pub struct ProjectService {
     db: Arc<SqlitePool>,
 }
-
 #[singleton]
 impl ProjectService {
     fn new(db: Arc<SqlitePool>) -> Self {
