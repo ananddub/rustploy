@@ -9,3 +9,4 @@ pub mod project;
 pub mod remote_server;
 pub mod server;
 pub mod ssh_key;
+pub mod public;

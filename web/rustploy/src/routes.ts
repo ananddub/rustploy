@@ -32,6 +32,14 @@ export const routes: RouteDefinition[] = [
     component: lazy(() => import('./pages/projects/env')),
   },
   {
+    path: '/projects/:projectId/app/:appId',
+    component: lazy(() => import('./pages/applications')),
+  },
+  {
+    path: '/projects/:projectId/compose/:composeId',
+    component: lazy(() => import('./pages/compose')),
+  },
+  {
     path: '/about',
     component: lazy(() => import('./pages/about')),
     data: AboutData,

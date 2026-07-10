@@ -4,7 +4,7 @@ pub mod compose;
 pub mod database;
 pub mod deployment;
 pub mod environment;
-pub mod git;
+pub mod public;
 pub mod organization;
 pub mod project;
 pub mod remote_server;

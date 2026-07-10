@@ -1,13 +1,14 @@
 import { createResource, createSignal, Show, For } from 'solid-js';
 import { useNavigate, useParams } from '@solidjs/router';
-import { FolderOpen, Rocket, Plus, Box, Settings2 } from 'lucide-solid';
+import { FolderOpen, Rocket, Plus, Box, Layers2, Settings2 } from 'lucide-solid';
 import { authSession } from '../../lib/auth';
 import {
   projectControllerGet,
   environmentControllerListByProject,
   applicationControllerListByEnvironment,
+  composeControllerListByEnvironment,
 } from '../../client/sdk.gen';
-import type { EnvironmentResponseDto, ApplicationResponseDto } from '../../client/types.gen';
+import type { EnvironmentResponseDto, ApplicationResponseDto, ComposeResponseDto } from '../../client/types.gen';
 import {
   Sidebar,
   EnvDropdown,
@@ -15,6 +16,7 @@ import {
   CreateEnvModal,
   CreateServiceDropdown,
   CreateApplicationModal,
+  CreateComposeModal,
   ProjectEnvironmentModal,
 } from '../../components';
 
@@ -29,6 +31,7 @@ export default function ProjectDetailPage() {
   const [showCreateEnv, setShowCreateEnv] = createSignal(false);
   const [showEnvSettings, setShowEnvSettings] = createSignal(false);
   const [showCreateApp, setShowCreateApp] = createSignal(false);
+  const [showCreateCompose, setShowCreateCompose] = createSignal(false);
 
   const [project] = createResource(async () => {
     const res = await projectControllerGet({ path: { id: projectId() } });
@@ -51,6 +54,12 @@ export default function ProjectDetailPage() {
     if (!envId) return [];
     const res = await applicationControllerListByEnvironment({ path: { environment_id: envId } });
     return (res.data as ApplicationResponseDto[]) ?? [];
+  });
+
+  const [composes] = createResource(selectedEnvId, async (envId) => {
+    if (!envId) return [];
+    const res = await composeControllerListByEnvironment({ path: { environment_id: envId } });
+    return (res.data as ComposeResponseDto[]) ?? [];
   });
 
   return (
@@ -89,6 +98,7 @@ export default function ProjectDetailPage() {
             <CreateServiceDropdown
               onSelect={(type) => {
                 if (type === 'application') setShowCreateApp(true);
+                if (type === 'compose') setShowCreateCompose(true);
               }}
             />
           </div>
@@ -108,7 +118,7 @@ export default function ProjectDetailPage() {
               <span class="loading loading-spinner loading-md text-base-content/40" />
             </div>
           }>
-            <Show when={(apps() ?? []).length > 0} fallback={
+            <Show when={(apps() ?? []).length > 0 || (composes() ?? []).length > 0} fallback={
               <div class="flex flex-col items-center justify-center py-20 text-base-content/30">
                 <Box class="w-12 h-12 mb-3" />
                 <p class="text-sm">No services yet</p>
@@ -119,7 +129,32 @@ export default function ProjectDetailPage() {
             }>
               <div class="flex flex-wrap gap-3">
                 <For each={apps()}>
-                  {(app) => <ServiceCard app={app} />}
+                  {(app) => <ServiceCard app={app} projectId={projectId()} />}
+                </For>
+                <For each={composes()}>
+                  {(compose) => (
+                    <div
+                      class="w-56 bg-base-200 border border-base-300 rounded-lg p-4 flex flex-col gap-3 hover:border-base-content/20 transition-colors cursor-pointer group shrink-0"
+                      onClick={() => navigate(`/projects/${projectId()}/compose/${compose.id}`)}
+                    >
+                      <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 rounded-lg bg-secondary/10 flex items-center justify-center shrink-0 relative">
+                          <Layers2 class="w-4 h-4 text-secondary" />
+                          <span class={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-base-200 ${compose.compose_status === 'RUNNING' ? 'bg-success' : compose.compose_status === 'ERROR' ? 'bg-error' : 'bg-base-content/30'}`} />
+                        </div>
+                        <div class="min-w-0">
+                          <p class="font-medium text-sm truncate group-hover:text-secondary transition-colors">{compose.name}</p>
+                          <p class="text-xs text-base-content/40">compose</p>
+                        </div>
+                      </div>
+                      <div class="flex items-center justify-between border-t border-base-300 pt-2">
+                        <span class="flex items-center gap-1.5 text-xs text-base-content/50">
+                          <span class={`w-1.5 h-1.5 rounded-full ${compose.compose_status === 'RUNNING' ? 'bg-success' : 'bg-base-content/30'}`} />
+                          {compose.compose_status?.toLowerCase() ?? 'idle'}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </For>
               </div>
             </Show>
@@ -157,6 +192,17 @@ export default function ProjectDetailPage() {
           onClose={() => setShowCreateApp(false)}
           onCreated={(app) => {
             mutateApps(prev => [...(prev ?? []), app]);
+          }}
+        />
+      </Show>
+
+      {/* Create Compose Modal */}
+      <Show when={showCreateCompose() && selectedEnvId()}>
+        <CreateComposeModal
+          environmentId={selectedEnvId()!}
+          onClose={() => setShowCreateCompose(false)}
+          onCreated={(compose) => {
+            navigate(`/projects/${projectId()}/compose/${compose.id}`);
           }}
         />
       </Show>

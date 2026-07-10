@@ -94,7 +94,11 @@ export default function Sidebar(props: Props) {
 
   onCleanup(() => setDragging(false));
 
-  const isActive = (path?: string) => path && location.pathname === path;
+  const isActive = (path?: string) => {
+    if (!path) return false;
+    if (path === '/dashboard') return location.pathname === '/dashboard';
+    return location.pathname.startsWith(path);
+  };
 
   return (
     <aside

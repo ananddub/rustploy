@@ -60,6 +60,13 @@ export type AuthResponseDto = {
 };
 
 /**
+ * BranchQuery
+ */
+export type BranchQuery = {
+    query: string;
+};
+
+/**
  * ComposeOperationResponseDto
  */
 export type ComposeOperationResponseDto = {
@@ -1805,6 +1812,24 @@ export type ProjectControllerPatchResponses = {
 };
 
 export type ProjectControllerPatchResponse = ProjectControllerPatchResponses[keyof ProjectControllerPatchResponses];
+
+export type PublicListBranchesData = {
+    body?: never;
+    path?: never;
+    query: {
+        query: BranchQuery;
+    };
+    url: '/public/git/list_branches';
+};
+
+export type PublicListBranchesResponses = {
+    /**
+     * Successful response
+     */
+    200: Array<string>;
+};
+
+export type PublicListBranchesResponse = PublicListBranchesResponses[keyof PublicListBranchesResponses];
 
 export type RemoteServerControllerListData = {
     body?: never;

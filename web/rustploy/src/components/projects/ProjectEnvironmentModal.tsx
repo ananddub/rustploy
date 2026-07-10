@@ -18,9 +18,10 @@ export default function ProjectEnvironmentModal(props: Props) {
   let editorInstance: any = null;
 
   onMount(async () => {
+    if (!editorContainer) return;
     const monaco = await loader.init();
 
-    editorInstance = monaco.editor.create(editorContainer!, {
+    editorInstance = monaco.editor.create(editorContainer, {
       value: envVars(),
       language: 'ini',
       theme: 'vs-dark',
@@ -39,6 +40,7 @@ export default function ProjectEnvironmentModal(props: Props) {
     editorInstance.onDidChangeModelContent(() => {
       setEnvVars(editorInstance.getValue());
     });
+    setTimeout(() => editorInstance?.layout(), 50);
   });
 
   onCleanup(() => {

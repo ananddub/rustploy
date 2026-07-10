@@ -19,7 +19,6 @@ client.interceptors.response.use(async (response, request) => {
   const url = request.url;
   if (url.includes('/auth/')) return response; // never intercept auth endpoints
 
-  const { refreshAccessToken, clearAuthSession } = await import('./lib/auth');
   const newToken = await refreshAccessToken();
 
   if (!newToken) {

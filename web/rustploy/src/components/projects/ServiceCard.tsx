@@ -1,8 +1,10 @@
+import { useNavigate } from '@solidjs/router';
 import { Box } from 'lucide-solid';
 import type { ApplicationResponseDto } from '../../client/types.gen';
 
 type Props = {
   app: ApplicationResponseDto;
+  projectId: number;
 };
 
 const statusColor = (status: string) => {
@@ -21,8 +23,13 @@ const formatDate = (ts: number) =>
   });
 
 export default function ServiceCard(props: Props) {
+  const navigate = useNavigate();
+
   return (
-    <div class="w-56 bg-base-200 border border-base-300 rounded-lg p-4 flex flex-col gap-3 hover:border-base-content/20 transition-colors cursor-pointer group shrink-0">
+    <div
+      class="w-56 bg-base-200 border border-base-300 rounded-lg p-4 flex flex-col gap-3 hover:border-base-content/20 transition-colors cursor-pointer group shrink-0"
+      onClick={() => navigate(`/projects/${props.projectId}/app/${props.app.id}`)}
+    >
       <div class="flex items-center gap-3">
         <div class="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 relative">
           <Box class="w-4 h-4 text-primary" />
