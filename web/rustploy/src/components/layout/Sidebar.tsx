@@ -24,11 +24,11 @@ const navHome = [
 const navSettings = [
   { label: 'Web Server', icon: Server },
   { label: 'Profile', icon: Users },
-  { label: 'Remote Servers', icon: Globe },
+  { label: 'Remote Servers', icon: Globe, path: '/remote-servers' },
   { label: 'Deployments', icon: Zap },
   { label: 'Users', icon: Users },
   { label: 'Audit Logs', icon: FileText },
-  { label: 'SSH Keys', icon: FileKey },
+  { label: 'SSH Keys', icon: FileKey, path: '/ssh-keys' },
   { label: 'AI', icon: Bot },
   { label: 'Tags', icon: Tag },
   { label: 'Git', icon: GitBranch },
@@ -137,7 +137,13 @@ export default function Sidebar(props: Props) {
 
         <p class="text-[10px] uppercase tracking-widest text-base-content/30 px-2 pt-4 pb-1">Settings</p>
         {navSettings.map((item) => (
-          <button class="w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm text-base-content/60 hover:bg-base-200 hover:text-base-content transition-colors text-left">
+          <button
+            class={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm transition-colors text-left
+              ${isActive(item.path)
+                ? 'bg-base-300 text-base-content font-medium'
+                : 'text-base-content/60 hover:bg-base-200 hover:text-base-content'}`}
+            onClick={() => item.path && navigate(item.path)}
+          >
             <item.icon class="w-3.5 h-3.5 shrink-0" />
             <span class="truncate">{item.label}</span>
           </button>

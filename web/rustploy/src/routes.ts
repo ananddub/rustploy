@@ -40,6 +40,14 @@ export const routes: RouteDefinition[] = [
     component: lazy(() => import('./pages/compose')),
   },
   {
+    path: '/remote-servers',
+    component: lazy(() => import('./pages/remote-servers')),
+  },
+  {
+    path: '/ssh-keys',
+    component: lazy(() => import('./pages/ssh-keys')),
+  },
+  {
     path: '/about',
     component: lazy(() => import('./pages/about')),
     data: AboutData,
