@@ -2,6 +2,7 @@ pub mod application;
 pub mod auth;
 pub mod compose;
 pub mod database;
+pub mod domain;
 pub mod environment;
 pub mod organization;
 pub mod project;

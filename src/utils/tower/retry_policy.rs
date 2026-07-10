@@ -1,13 +1,13 @@
 use std::fmt::Display;
-use std::future::{ready, Ready};
+use std::future::{Ready, ready};
 use thiserror::Error;
 use tower::retry::Policy;
 use tracing::trace;
 
-#[derive(Debug,Error)]
+#[derive(Debug, Error)]
 pub enum RetryPolicyError<E>
 where
-    E: std::error::Error+'static,
+    E: std::error::Error + 'static,
 {
     #[error("retryable: {0}")]
     Retry(E),
@@ -17,7 +17,7 @@ where
 
 #[derive(Clone)]
 pub struct MyRetryPolicy {
-   pub  retries: usize,
+    pub retries: usize,
 }
 
 impl<Req, Res, E> Policy<Req, Res, RetryPolicyError<E>> for MyRetryPolicy

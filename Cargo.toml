@@ -30,7 +30,6 @@ clap = { version = "4", features = ["derive"] }
 anyhow = "1.0.103"
 argon2 = { version = "0.6.0-rc.8", features = ["getrandom"] }
 tracing = "0.1.44"
-bollard = "0.21.0"
 jsonwebtoken = { version = "10", default-features = false, features = ["rust_crypto"] }
 socketioxide = "0.18.4"
 git2 = { version = "0.21", features = ["vendored-libgit2", "vendored-openssl","https"] }

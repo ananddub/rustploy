@@ -1,10 +1,10 @@
+use auto_route::{controller, get};
 use axum::Json;
 use axum::extract::Query;
 use git2::{Direction, Repository};
 use reqwest::StatusCode;
 use serde::Deserialize;
 use tempfile::TempDir;
-use auto_route::{controller, get};
 
 #[derive(Deserialize, poem_openapi::Object)]
 pub struct BranchQuery {
@@ -25,8 +25,8 @@ impl Public {
     ) -> Result<Json<Vec<String>>, StatusCode> {
         let temp = TempDir::new().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-        let repo = Repository::init_bare(temp.path())
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        let repo =
+            Repository::init_bare(temp.path()).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
         let mut remote = repo
             .remote_anonymous(&params.query)
