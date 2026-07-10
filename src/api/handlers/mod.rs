@@ -6,7 +6,7 @@ pub mod deployment;
 pub mod environment;
 pub mod organization;
 pub mod project;
+pub mod public;
 pub mod remote_server;
 pub mod server;
 pub mod ssh_key;
-pub mod public;

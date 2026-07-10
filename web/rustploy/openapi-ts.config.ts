@@ -1,7 +1,7 @@
 import { defineConfig } from '@hey-api/openapi-ts';
 
 export default defineConfig({
-  input: 'http://localhost:4000/openapi.json',
+  input: 'http://das:4000/openapi.json',
   output: {
     path: 'src/client',
   },
