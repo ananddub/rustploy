@@ -1,17 +1,19 @@
-import { createSignal, createResource, Show, For } from 'solid-js';
+import { createSignal, createResource, createEffect, For, Show } from 'solid-js';
 import { publicListBranches } from '../../client/sdk.gen';
 import { RefreshCw } from 'lucide-solid';
 
 type Props = {
   value: string;
   onChange: (v: string) => void;
-  repoUrl?: string;  // initial URL hint
+  // For GIT provider — caller owns the URL input and passes it here reactively
+  repoUrl?: string;
+  // For hosted providers — we build the URL from owner + repo + provider
   owner?: string;
   repo?: string;
   provider?: string;
 };
 
-function buildInitialUrl(props: Props): string {
+function buildUrl(props: Props): string {
   if (props.repoUrl) return props.repoUrl;
   if (props.owner && props.repo) {
     const p = (props.provider ?? 'GITHUB').toUpperCase();
@@ -24,71 +26,81 @@ function buildInitialUrl(props: Props): string {
 }
 
 export default function BranchSelect(props: Props) {
-  const [repoInput, setRepoInput] = createSignal(buildInitialUrl(props));
-  const [trigger, setTrigger] = createSignal(0);
-  const [fetchUrl, setFetchUrl] = createSignal('');
+  // fetchKey drives the resource — bump it to force a re-fetch
+  const [fetchKey, setFetchKey] = createSignal<{ url: string; tick: number } | null>(null);
 
-  const [branches] = createResource(fetchUrl, async (url) => {
-    if (!url) return [];
-    console.log('[BranchSelect] fetching branches for:', url);
-    const res = await publicListBranches({ query: { query: url } });
-    console.log('[BranchSelect] response:', res.data, res.error);
-    const raw = (res.data as string[]) ?? [];
+  // Debounce auto-fetch when the derived URL changes (e.g. user types in GIT URL field)
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+  createEffect(() => {
+    const url = buildUrl(props).trim();
+    if (!url) return;
+
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      setFetchKey(prev => ({ url, tick: (prev?.tick ?? 0) + 1 }));
+    }, 600);
+  });
+
+  const [branches, { refetch }] = createResource(fetchKey, async (key) => {
+    if (!key?.url) return [];
+    const res = await publicListBranches({ query: { query: key.url } });
+    const raw = (res.data as string[] | undefined) ?? [];
     return raw
       .filter(b => b !== 'HEAD' && !b.startsWith('refs/tags/'))
       .map(b => b.replace('refs/heads/', ''));
   });
 
-  const load = () => {
-    const url = repoInput().trim();
+  const manualRefresh = (e: MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const url = buildUrl(props).trim();
     if (!url) return;
-    setFetchUrl(url);
+    // bump tick so resource re-runs even if url is the same
+    setFetchKey(prev => ({ url, tick: (prev?.tick ?? 0) + 1 }));
   };
 
   return (
-    <div class="flex flex-col gap-2">
-      {/* Repo URL input + fetch button */}
-      <div class="flex gap-2">
-        <input
-          class="input input-bordered flex-1 text-sm font-mono"
-          placeholder="https://github.com/owner/repo.git"
-          value={repoInput()}
-          onInput={e => setRepoInput(e.currentTarget.value)}
-        />
-        <button
-          type="button"
-          class="btn btn-ghost btn-sm"
-          onClick={load}
-          disabled={branches.loading || !repoInput()}
-          title="Load branches"
-        >
-          <Show when={branches.loading} fallback={<RefreshCw class="w-4 h-4" />}>
-            <span class="loading loading-spinner loading-xs" />
-          </Show>
-        </button>
-      </div>
-
-      {/* Branch dropdown */}
-      <Show when={branches() && branches()!.length > 0}>
+    <div class="flex gap-2 items-center">
+      <div class="relative flex-1">
         <select
           class="select select-bordered w-full"
           value={props.value}
           onChange={e => props.onChange(e.currentTarget.value)}
+          disabled={branches.loading || !branches()?.length}
         >
-          <option value="">Select branch</option>
-          <For each={branches()}>
-            {(b) => <option value={b}>{b}</option>}
-          </For>
+          <Show when={branches.loading}>
+            <option value="">Loading branches…</option>
+          </Show>
+          <Show when={!branches.loading && (!branches() || branches()!.length === 0)}>
+            <option value="">
+              {buildUrl(props) ? 'No branches found' : 'Enter repo URL first'}
+            </option>
+          </Show>
+          <Show when={!branches.loading && (branches()?.length ?? 0) > 0}>
+            <option value="">Select branch</option>
+            <For each={branches()}>
+              {b => <option value={b}>{b}</option>}
+            </For>
+          </Show>
         </select>
-      </Show>
 
-      <Show when={branches.error}>
-        <p class="text-xs text-error">Failed to load branches. Check URL.</p>
-      </Show>
+        {/* Loading spinner overlay inside the select row */}
+        <Show when={branches.loading}>
+          <span class="absolute right-8 top-1/2 -translate-y-1/2 loading loading-spinner loading-xs text-base-content/40 pointer-events-none" />
+        </Show>
+      </div>
 
-      <Show when={!branches() && !branches.loading && fetchUrl()}>
-        <p class="text-xs text-base-content/40">No branches found.</p>
-      </Show>
+      {/* Manual refresh button — type="button" prevents form submit / page reload */}
+      <button
+        type="button"
+        class="btn btn-ghost btn-sm btn-square"
+        onClick={manualRefresh}
+        disabled={branches.loading || !buildUrl(props)}
+        title="Refresh branches"
+      >
+        <RefreshCw class={`w-4 h-4 ${branches.loading ? 'animate-spin' : ''}`} />
+      </button>
     </div>
   );
 }

@@ -17,10 +17,10 @@ type Props = {
 };
 
 const PROVIDERS = [
-  { id: 'GITHUB', label: 'GitHub' },
-  { id: 'GITLAB', label: 'GitLab' },
-  { id: 'BITBUCKET', label: 'Bitbucket' },
-  { id: 'GITEA', label: 'Gitea' },
+  // { id: 'GITHUB', label: 'GitHub' },
+  // { id: 'GITLAB', label: 'GitLab' },
+  // { id: 'BITBUCKET', label: 'Bitbucket' },
+  // { id: 'GITEA', label: 'Gitea' },
   { id: 'GIT', label: 'Git' },
   { id: 'RAW', label: 'Raw' },
 ];
@@ -38,6 +38,8 @@ export default function ComposeGeneralTab(props: Props) {
   const [cleanCache, setCleanCache] = createSignal(false);
   const [saving, setSaving] = createSignal(false);
   const [branch, setBranch] = createSignal(props.compose.branch ?? "");
+  const [gitUrl, setGitUrl] = createSignal(props.compose.custom_git_url ?? "");
+  const [gitBranch, setGitBranch] = createSignal(props.compose.custom_git_branch ?? "");
 
   let editorContainer: HTMLDivElement | undefined;
   let editorInstance: any = null;
@@ -242,11 +244,15 @@ export default function ComposeGeneralTab(props: Props) {
             <div>
               <label class="block text-sm mb-1.5">Repository URL</label>
               <input
+                type="text"
                 class="input input-bordered w-full font-mono"
-                placeholder="git@github.com:user/repo.git"
-                // on:change={}
-                value={props.compose.custom_git_url ?? ""}
+                placeholder="https://github.com/user/repo.git"
+                value={gitUrl()}
+                onInput={e => setGitUrl(e.currentTarget.value)}
               />
+              <p class="text-xs text-base-content/40 mt-1">
+                Branches are fetched automatically as you type.
+              </p>
             </div>
             <div>
               <label class="block text-sm mb-1.5">SSH Key</label>
@@ -258,9 +264,9 @@ export default function ComposeGeneralTab(props: Props) {
               <div>
                 <label class="block text-sm mb-1.5">Branch</label>
                 <BranchSelect
-                  value={props.compose.custom_git_branch ?? ''}
-                  onChange={setBranch}
-                  repoUrl={props.compose.custom_git_url ?? ''}
+                  value={gitBranch()}
+                  onChange={setGitBranch}
+                  repoUrl={gitUrl()}
                 />
               </div>
               <div>
@@ -273,6 +279,7 @@ export default function ComposeGeneralTab(props: Props) {
             </div>
             <div class="flex justify-end">
               <button
+                type="button"
                 class="btn btn-neutral btn-sm"
                 onClick={save}
                 disabled={saving()}

@@ -1,0 +1,11 @@
+[2026-07-10T15:08:53.208Z] Error: Request failed with status 500: Unable to connect. Is the computer able to access the url?
+Stack:
+Error: Request failed with status 500: Unable to connect. Is the computer able to access the url?
+    at <anonymous> (/run/media/rana/DEV/code/Experment/rustploy/web/rustploy/node_modules/@hey-api/openapi-ts/dist/src-CI9riJdm.mjs:82:14)
+    at async createClient$1 (/run/media/rana/DEV/code/Experment/rustploy/web/rustploy/node_modules/@hey-api/openapi-ts/dist/src-CI9riJdm.mjs:89:34)
+    at async <anonymous> (/run/media/rana/DEV/code/Experment/rustploy/web/rustploy/node_modules/@hey-api/openapi-ts/dist/src-CI9riJdm.mjs:213:18)
+    at async createClient (/run/media/rana/DEV/code/Experment/rustploy/web/rustploy/node_modules/@hey-api/openapi-ts/dist/src-CI9riJdm.mjs:211:35)
+    at async <anonymous> (/run/media/rana/DEV/code/Experment/rustploy/web/rustploy/node_modules/@hey-api/openapi-ts/dist/run.mjs:35:14)
+    at async parseAsync (/run/media/rana/DEV/code/Experment/rustploy/web/rustploy/node_modules/commander/lib/command.js:1113:16)
+    at async runCli (/run/media/rana/DEV/code/Experment/rustploy/web/rustploy/node_modules/@hey-api/openapi-ts/dist/run.mjs:39:17)
+    at processTicksAndRejections (native:7:39)
