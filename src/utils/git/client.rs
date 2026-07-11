@@ -35,6 +35,10 @@ impl GitCli {
             repository: None,
         }
     }
+    pub fn set_repository<S: Into<String>>(&mut self, repository: S) {
+        self.repository = Some(repository.into());
+    }
+
     pub fn new_remote(
         host: impl Into<String>,
         port: u16,
@@ -139,6 +143,9 @@ impl GitCli {
     pub async fn init(&self, args: &[&str]) -> ExecResult<ExecOutput> {
         self.prefixed(&["init"], args).await
     }
+
+    // pub async fn list_branches(&self, repo &)
+
     pub async fn clone_repository(
         &self,
         url: &str,

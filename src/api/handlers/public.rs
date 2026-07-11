@@ -1,10 +1,11 @@
 use auto_route::{controller, get};
 use axum::Json;
 use axum::extract::Query;
-use git2::{Direction, Repository};
+// use git2::{Direction, Repository};
 use reqwest::StatusCode;
 use serde::Deserialize;
 use tempfile::TempDir;
+use crate::utils::git::GitCli;
 
 #[derive(Deserialize, poem_openapi::Object)]
 pub struct BranchQuery {
@@ -22,29 +23,18 @@ impl Public {
     pub async fn list_branches(
         &self,
         Query(params): Query<BranchQuery>,
-    ) -> Result<Json<Vec<String>>, StatusCode> {
-        let temp = TempDir::new().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    ) -> Result<Json<Vec<&str>>, StatusCode> {
 
-        let repo =
-            Repository::init_bare(temp.path()).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        let mut git = GitCli::new_local();
+        git.set_repository(params.query.clone());
+        let  remote = git.branches().await.map_err(|_| StatusCode::BAD_REQUEST)?;
 
-        let mut remote = repo
-            .remote_anonymous(&params.query)
-            .map_err(|_| StatusCode::BAD_REQUEST)?;
+        let mut branches:Vec<&str> = Vec::new();
 
-        remote
-            .connect(Direction::Fetch)
-            .map_err(|_| StatusCode::BAD_REQUEST)?;
-
-        let mut branches = Vec::new();
-
-        for head in remote.list().map_err(|_| StatusCode::BAD_REQUEST)? {
-            branches.push(head.name().to_string());
+        for head in remote.iter() {
+            branches.push(&head.name);
         }
 
-        remote
-            .disconnect()
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
         Ok(Json(branches))
     }

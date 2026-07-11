@@ -68,6 +68,7 @@ impl ApplicationBuilder {
         self.executor
             .run_cancelled("mkdir", ["-p", app_dir.as_str()], cancel)
             .await?;
+
         self.prepare_file_mounts(spec, cancel).await?;
 
         let stack_file = format!("{app_dir}/stack.yml");

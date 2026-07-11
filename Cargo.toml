@@ -33,7 +33,7 @@ argon2 = { version = "0.6.0-rc.8", features = ["getrandom"] }
 tracing = "0.1.44"
 jsonwebtoken = { version = "10", default-features = false, features = ["rust_crypto"] }
 socketioxide = "0.18.4"
-git2 = { version = "0.21", features = ["vendored-libgit2", "vendored-openssl","https"] }
+#git2 = { version = "0.21", features = ["vendored-libgit2", "vendored-openssl","https"] }
 toml = "1.1.2"
 reqwest = { version = "0.13", features = ["json", "stream"] }
 flate2 = "1.1.9"
@@ -41,7 +41,7 @@ tar = "0.4.46"
 zip = "9.0.0-pre2"
 tracing-subscriber = "0.3.23"
 uuid = {version = "1.2.2", features = ["v4","serde"] }
-bacon = "3.23.0"
+bacon = { version = "3.23.0", optional = true }
 dashmap = "6.2.1"
 dotenvy = "0.15.7"
 envy = "0.4.2"
@@ -57,3 +57,10 @@ tempfile = "3.27.0"
 scopeguard = "1.1.0"
 minijinja = "2.21.0"
 tokio-util = "0.7.11"
+
+[profile.release]
+opt-level = "z"        # size ke liye optimize (speed ke liye "3" use karo)
+lto = true             # Link Time Optimization — dead code remove karta hai
+codegen-units = 1      # better optimization, slow compile
+panic = "abort"        # unwinding code hata deta hai
+strip = true           # debug symbols binary se remove karta hai
