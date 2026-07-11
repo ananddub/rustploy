@@ -31,10 +31,12 @@
     "@codemirror/view": "^6.43.6",
     "@hey-api/client-fetch": "^0.13.1",
     "@monaco-editor/loader": "^1.7.0",
+    "@phosphor-icons/core": "^2.1.1",
     "@solidjs/router": "^0.15.1",
     "@tailwindcss/vite": "^4.3.2",
     "daisyui": "^5.6.16",
     "lucide-solid": "^1.24.0",
+    "phosphor-solid": "^1.1.5",
     "solid-codemirror": "^2.3.3",
     "solid-js": "^1.9.5"
   }

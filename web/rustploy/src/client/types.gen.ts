@@ -720,7 +720,10 @@ export type ServerConnectionDto = {
  * ServerConnectionResponseDto
  */
 export type ServerConnectionResponseDto = {
+    active_channels: number;
     connected: boolean;
+    connections: number;
+    max_channels_per_session: number;
     max_pool_size: number;
     reused_sessions: number;
 };
@@ -889,6 +892,22 @@ export type ApplicationControllerPatchBuildResponses = {
 };
 
 export type ApplicationControllerPatchBuildResponse = ApplicationControllerPatchBuildResponses[keyof ApplicationControllerPatchBuildResponses];
+
+export type ApplicationControllerCancelData = {
+    body?: never;
+    path: {
+        id: number;
+    };
+    query?: never;
+    url: '/applications/{id}/cancel';
+};
+
+export type ApplicationControllerCancelResponses = {
+    /**
+     * Successful response
+     */
+    200: unknown;
+};
 
 export type ApplicationControllerDeployData = {
     body?: never;
@@ -1288,6 +1307,22 @@ export type ComposeControllerPatchResponses = {
 
 export type ComposeControllerPatchResponse = ComposeControllerPatchResponses[keyof ComposeControllerPatchResponses];
 
+export type ComposeControllerCancelData = {
+    body?: never;
+    path: {
+        id: number;
+    };
+    query?: never;
+    url: '/compose/{id}/cancel';
+};
+
+export type ComposeControllerCancelResponses = {
+    /**
+     * Successful response
+     */
+    200: unknown;
+};
+
 export type ComposeControllerDeployData = {
     body?: never;
     path: {
@@ -1671,6 +1706,22 @@ export type DatabaseControllerStopResponses = {
 };
 
 export type DatabaseControllerStopResponse = DatabaseControllerStopResponses[keyof DatabaseControllerStopResponses];
+
+export type DeploymentControllerCancelData = {
+    body?: never;
+    path: {
+        id: number;
+    };
+    query?: never;
+    url: '/deployments/{id}/cancel';
+};
+
+export type DeploymentControllerCancelResponses = {
+    /**
+     * Successful response
+     */
+    200: unknown;
+};
 
 export type DomainControllerCreateData = {
     body: CreateDomainDto;

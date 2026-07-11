@@ -1,5 +1,5 @@
 import { createSignal } from 'solid-js';
-import { FileText, RefreshCw } from 'lucide-solid';
+import { FileText, ArrowClockwise } from 'phosphor-solid';
 
 type Props = {
   /** Human-readable noun used in placeholder text, e.g. "application" or "compose" */
@@ -31,15 +31,15 @@ export default function LogsTab(props: Props) {
             <option value="200">200 lines</option>
             <option value="500">500 lines</option>
           </select>
-          <button class="btn btn-ghost btn-sm gap-1.5">
-            <RefreshCw class="w-3.5 h-3.5" /> Refresh
+          <button class="btn btn-ghost btn-sm gap-1.5 hover:bg-base-300">
+            <ArrowClockwise size={14} /> Refresh
           </button>
         </div>
       </div>
 
       <div class="rounded-md bg-[#0d0d0d] border border-base-300 p-4 font-mono text-xs text-base-content/60 min-h-64 flex items-center justify-center">
         <div class="flex flex-col items-center gap-2 text-base-content/30">
-          <FileText class="w-8 h-8" />
+          <FileText size={32} />
           <p>No logs available. Deploy your {label()} first.</p>
         </div>
       </div>

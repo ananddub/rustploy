@@ -1,4 +1,4 @@
-import { Activity } from 'lucide-solid';
+import { Activity } from 'phosphor-solid';
 
 type Props = {
   serviceLabel?: string;
@@ -27,7 +27,7 @@ export default function MonitoringTab(props: Props) {
       </div>
 
       <div class="flex flex-col items-center justify-center py-10 text-base-content/30">
-        <Activity class="w-10 h-10 mb-3" />
+        <Activity size={40} class="mb-3 opacity-40" />
         <p class="text-sm">No monitoring data available.</p>
         <p class="text-xs mt-1">Deploy your {label()} to start collecting metrics.</p>
       </div>
