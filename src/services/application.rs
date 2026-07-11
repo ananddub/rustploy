@@ -2,6 +2,7 @@ use std::{
     collections::hash_map::DefaultHasher,
     hash::{Hash, Hasher},
     sync::Arc,
+    time::Duration,
 };
 
 use auto_di::{resolve, singleton};
@@ -469,6 +470,19 @@ impl ApplicationService {
     ) -> sqlx::Result<ApplicationOperationResult> {
         let mut tx = self.db.begin().await?;
 
+        let running_deployment = sqlx::query_scalar::<_, i64>(
+            "SELECT EXISTS(SELECT 1 FROM deployments WHERE application_id = ? AND status = 'RUNNING')",
+        )
+        .bind(id)
+        .fetch_one(&mut *tx)
+        .await?
+            != 0;
+        if running_deployment {
+            return Err(sqlx::Error::Protocol(
+                "application deployment already running".into(),
+            ));
+        }
+
         let app = sqlx::query_as!(
             ApplicationRecord,
             r#"UPDATE applications SET app_status = ? WHERE id = ?
@@ -578,6 +592,9 @@ impl ApplicationService {
             {
                 tracing::error!(deployment_id, error = %error, "could not persist deployment status");
             }
+            if let Ok(state) = resolve::<ApplicationState>().await {
+                state.remove_state(IdType::AppId(application_id));
+            }
         });
     }
 
@@ -614,13 +631,28 @@ async fn execute_operation(
     let state = resolve::<ApplicationState>()
         .await
         .map_err(|error| format!("could not resolve application state: {error}"))?;
-    state.ensure_default(app_key.clone(), environment_id, project_id);
+    state.reset_default(app_key.clone(), environment_id, project_id);
     let cancel = state
         .cancellation_token(app_key.clone())
         .unwrap_or_else(CancellationToken::new);
 
     let executor = match server_id {
-        Some(server_id) => CommandExecutor::Remote(remote_executor(db.as_ref(), server_id).await?),
+        Some(server_id) => {
+            let pid_file = deployment_pid_file(deployment_id);
+            sqlx::query("UPDATE deployments SET pid = ? WHERE id = ?")
+                .bind(&pid_file)
+                .bind(deployment_id)
+                .execute(db.as_ref())
+                .await
+                .map_err(|error| {
+                    format!("could not persist remote deployment pid file: {error}")
+                })?;
+            CommandExecutor::Remote(
+                remote_executor(db.as_ref(), server_id)
+                    .await?
+                    .with_job_pid_file(pid_file),
+            )
+        }
         None => CommandExecutor::Local(LocalExecutor::new()),
     };
     let (events_tx, events_rx) = mpsc::channel(64);
@@ -680,6 +712,7 @@ fn is_cancelled_error(error: &str) -> bool {
 
 fn spawn_recover_stale_deployments(db: Arc<SqlitePool>) {
     tokio::spawn(async move {
+        cleanup_stale_remote_jobs(db.clone(), "application").await;
         if let Err(error) = sqlx::query(
             "UPDATE deployments SET status = 'ERROR', state = 'RECOVERED_AFTER_RESTART', error_message = COALESCE(error_message, 'server restarted while deployment was running'), finished_at = strftime('%s', 'now'), last_state_at = strftime('%s', 'now') WHERE status = 'RUNNING' AND application_id IS NOT NULL",
         )
@@ -696,7 +729,146 @@ fn spawn_recover_stale_deployments(db: Arc<SqlitePool>) {
         {
             tracing::error!(error = %error, "could not recover stale application statuses");
         }
+        spawn_recovered_remote_cleanup_retry(db.clone(), "application");
     });
+}
+
+async fn cleanup_stale_remote_jobs(db: Arc<SqlitePool>, kind: &'static str) {
+    let rows = match sqlx::query_as::<_, (i64, i64, String)>(
+        "SELECT id, server_id, pid FROM deployments WHERE status = 'RUNNING' AND application_id IS NOT NULL AND server_id IS NOT NULL AND pid IS NOT NULL",
+    )
+    .fetch_all(db.as_ref())
+    .await
+    {
+        Ok(rows) => rows,
+        Err(error) => {
+            tracing::error!(error = %error, "could not load stale application remote jobs");
+            return;
+        }
+    };
+
+    for (deployment_id, server_id, pid_file) in rows {
+        match remote_executor(db.as_ref(), server_id).await {
+            Ok(executor) => {
+                if let Err(error) = executor.kill_pid_file(&pid_file).await {
+                    tracing::warn!(
+                        deployment_id,
+                        server_id,
+                        pid_file = %pid_file,
+                        error = %error,
+                        "failed to cleanup stale remote deployment job after restart"
+                    );
+                } else {
+                    clear_deployment_pid(db.clone(), deployment_id).await;
+                    tracing::warn!(
+                        deployment_id,
+                        server_id,
+                        pid_file = %pid_file,
+                        kind,
+                        "cleaned stale remote deployment job after restart"
+                    );
+                }
+            }
+            Err(error) => {
+                tracing::warn!(
+                    deployment_id,
+                    server_id,
+                    pid_file = %pid_file,
+                    error = %error,
+                    "could not create remote executor for stale deployment cleanup"
+                );
+            }
+        }
+    }
+}
+
+fn spawn_recovered_remote_cleanup_retry(db: Arc<SqlitePool>, kind: &'static str) {
+    tokio::spawn(async move {
+        for attempt in 1..=20 {
+            let pending = cleanup_recovered_remote_jobs(db.clone(), kind, attempt).await;
+            if pending == 0 {
+                return;
+            }
+            tokio::time::sleep(Duration::from_secs(30)).await;
+        }
+    });
+}
+
+async fn cleanup_recovered_remote_jobs(
+    db: Arc<SqlitePool>,
+    kind: &'static str,
+    attempt: usize,
+) -> usize {
+    let rows = match sqlx::query_as::<_, (i64, i64, String)>(
+        "SELECT id, server_id, pid FROM deployments WHERE status = 'ERROR' AND state = 'RECOVERED_AFTER_RESTART' AND application_id IS NOT NULL AND server_id IS NOT NULL AND pid IS NOT NULL",
+    )
+    .fetch_all(db.as_ref())
+    .await
+    {
+        Ok(rows) => rows,
+        Err(error) => {
+            tracing::error!(error = %error, "could not load recovered application remote jobs");
+            return 0;
+        }
+    };
+
+    let mut pending = 0;
+    for (deployment_id, server_id, pid_file) in rows {
+        match remote_executor(db.as_ref(), server_id).await {
+            Ok(executor) => match executor.kill_pid_file(&pid_file).await {
+                Ok(()) => {
+                    clear_deployment_pid(db.clone(), deployment_id).await;
+                    tracing::warn!(
+                        deployment_id,
+                        server_id,
+                        pid_file = %pid_file,
+                        kind,
+                        attempt,
+                        "cleaned recovered remote deployment job"
+                    );
+                }
+                Err(error) => {
+                    pending += 1;
+                    tracing::warn!(
+                        deployment_id,
+                        server_id,
+                        pid_file = %pid_file,
+                        error = %error,
+                        kind,
+                        attempt,
+                        "remote deployment cleanup retry failed"
+                    );
+                }
+            },
+            Err(error) => {
+                pending += 1;
+                tracing::warn!(
+                    deployment_id,
+                    server_id,
+                    pid_file = %pid_file,
+                    error = %error,
+                    kind,
+                    attempt,
+                    "could not create remote executor for recovered deployment cleanup retry"
+                );
+            }
+        }
+    }
+    pending
+}
+
+async fn clear_deployment_pid(db: Arc<SqlitePool>, deployment_id: i64) {
+    if let Err(error) = sqlx::query("UPDATE deployments SET pid = NULL WHERE id = ?")
+        .bind(deployment_id)
+        .execute(db.as_ref())
+        .await
+    {
+        tracing::error!(deployment_id, error = %error, "could not clear deployment pid file");
+    }
+}
+
+fn deployment_pid_file(deployment_id: i64) -> String {
+    format!("/tmp/rustploy-deployment-{deployment_id}.pid")
 }
 
 async fn remote_executor(db: &SqlitePool, server_id: i64) -> Result<RemoteExecutor, String> {

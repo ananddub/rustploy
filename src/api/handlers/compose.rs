@@ -257,6 +257,9 @@ impl ComposeController {
 fn map_sqlx_error(error: sqlx::Error) -> ApiError {
     match error {
         sqlx::Error::RowNotFound => (StatusCode::NOT_FOUND, "compose project not found".into()),
+        sqlx::Error::Protocol(message) if message.contains("already running") => {
+            (StatusCode::CONFLICT, message)
+        }
         sqlx::Error::Database(ref database_error) if database_error.is_foreign_key_violation() => {
             (StatusCode::NOT_FOUND, "related resource not found".into())
         }

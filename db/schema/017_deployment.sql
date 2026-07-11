@@ -39,3 +39,9 @@ CREATE INDEX idx_deployments_state ON deployments(state);
 CREATE INDEX idx_deployments_created_at ON deployments(created_at);
 CREATE INDEX idx_deployments_compose_id ON deployments(compose_id);
 CREATE INDEX idx_deployments_application_id ON deployments(application_id);
+CREATE UNIQUE INDEX idx_deployments_one_running_application
+	ON deployments(application_id)
+	WHERE status = 'RUNNING' AND application_id IS NOT NULL;
+CREATE UNIQUE INDEX idx_deployments_one_running_compose
+	ON deployments(compose_id)
+	WHERE status = 'RUNNING' AND compose_id IS NOT NULL;

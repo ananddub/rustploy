@@ -46,6 +46,18 @@ impl ApplicationState {
             });
     }
 
+    pub fn reset_default(&self, app_id: IdType, env_id: i64, project_id: i64) {
+        let app_deploy = AppDeploy {
+            app_id: app_id.clone(),
+            project_id,
+            env_id,
+            state: watch::channel(DeployState::Queue).0,
+            broadcast: broadcast::channel(100).0,
+            cancellation_token: CancellationToken::new(),
+        };
+        self.hashmap.insert(app_id, app_deploy);
+    }
+
     pub fn remove_state(&self, app_id: IdType) {
         self.hashmap.remove(&app_id);
     }

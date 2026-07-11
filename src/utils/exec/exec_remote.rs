@@ -20,6 +20,7 @@ pub struct RemoteExecutor {
     pool: Arc<SshSessionPool>,
     command_timeout: Duration,
     connect_timeout: Duration,
+    job_pid_file: Option<String>,
 }
 impl RemoteExecutor {
     pub fn new(
@@ -39,6 +40,7 @@ impl RemoteExecutor {
             pool: SshSessionPool::new(4),
             command_timeout: Duration::from_secs(300),
             connect_timeout: Duration::from_secs(15),
+            job_pid_file: None,
         }
     }
     pub fn with_sudo(mut self) -> Self {
@@ -70,6 +72,19 @@ impl RemoteExecutor {
     pub fn with_connect_timeout(mut self, timeout: Duration) -> Self {
         self.connect_timeout = timeout;
         self
+    }
+    pub fn with_job_pid_file(mut self, pid_file: impl Into<String>) -> Self {
+        self.job_pid_file = Some(pid_file.into());
+        self
+    }
+    pub async fn kill_pid_file(&self, pid_file: impl AsRef<str>) -> ExecResult<()> {
+        let command = remote_command(
+            "sh",
+            &["-c".into(), remote_cancel_script(pid_file.as_ref())],
+            self.sudo_password.is_some(),
+        );
+        self.execute_raw_once(command, true, Duration::from_secs(8))
+            .await
     }
     pub async fn run<I, S>(&self, program: &str, args: I) -> ExecResult<ExecOutput>
     where
@@ -205,9 +220,22 @@ impl RemoteExecutor {
             .await
             {
                 Ok(result) => result,
-                Err(_) => Err(ExecError::Timeout {
-                    seconds: self.command_timeout.as_secs(),
-                }),
+                Err(_) => {
+                    if cancel.is_some() {
+                        if let Some(pid_file) = &self.job_pid_file {
+                            if let Err(error) = self.kill_pid_file(pid_file).await {
+                                tracing::warn!(
+                                    error = %error,
+                                    pid_file = %pid_file,
+                                    "failed to kill timed out remote cancellable SSH job"
+                                );
+                            }
+                        }
+                    }
+                    Err(ExecError::Timeout {
+                        seconds: self.command_timeout.as_secs(),
+                    })
+                }
             };
             match result {
                 Ok(output) => {
@@ -251,7 +279,12 @@ impl RemoteExecutor {
             .await
             .map_err(|e| ExecError::Ssh(e.to_string()))?;
         let base_command = remote_command(program, args, self.sudo_password.is_some());
-        let cancel_job = cancel.map(|_| RemoteCancelJob::new());
+        let cancel_job = cancel.map(|_| {
+            self.job_pid_file
+                .as_ref()
+                .map(|pid_file| RemoteCancelJob::from_pid_file(pid_file.clone()))
+                .unwrap_or_else(RemoteCancelJob::new)
+        });
         let command = if let Some(job) = &cancel_job {
             cancellable_remote_command(&base_command, &job.pid_file)
         } else {
@@ -380,15 +413,7 @@ impl RemoteExecutor {
         let Some(job) = job else {
             return;
         };
-        let command = remote_command(
-            "sh",
-            &["-c".into(), remote_cancel_script(&job.pid_file)],
-            self.sudo_password.is_some(),
-        );
-        if let Err(error) = self
-            .execute_raw_once(command, true, Duration::from_secs(8))
-            .await
-        {
+        if let Err(error) = self.kill_pid_file(&job.pid_file).await {
             tracing::warn!(
                 error = %error,
                 pid_file = %job.pid_file,
@@ -484,6 +509,10 @@ impl RemoteCancelJob {
         Self {
             pid_file: format!("/tmp/rustploy-ssh-job-{}.pid", Uuid::new_v4()),
         }
+    }
+
+    fn from_pid_file(pid_file: String) -> Self {
+        Self { pid_file }
     }
 }
 
