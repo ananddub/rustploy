@@ -118,4 +118,7 @@ pub struct ServerConnectionResponseDto {
     pub connected: bool,
     pub reused_sessions: usize,
     pub max_pool_size: usize,
+    pub connections: usize,
+    pub active_channels: usize,
+    pub max_channels_per_session: usize,
 }

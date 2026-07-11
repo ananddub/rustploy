@@ -334,11 +334,36 @@ impl GitCli {
             })
             .collect())
     }
+    pub async fn remote_branches(&self, repository_url: &str) -> ExecResult<Vec<GitBranch>> {
+        parse_remote_branches(
+            &self
+                .run(["ls-remote", "--heads", repository_url])
+                .await?
+                .stdout,
+        )
+    }
     async fn prefixed(&self, prefix: &[&str], args: &[&str]) -> ExecResult<ExecOutput> {
         let mut command = prefix.to_vec();
         command.extend_from_slice(args);
         self.run(command).await
     }
+}
+
+fn parse_remote_branches(output: &str) -> ExecResult<Vec<GitBranch>> {
+    let mut branches = output
+        .lines()
+        .filter_map(|line| {
+            let (_, reference) = line.split_once(char::is_whitespace)?;
+            let name = reference.trim().strip_prefix("refs/heads/")?;
+            Some(GitBranch {
+                current: false,
+                name: name.to_owned(),
+            })
+        })
+        .collect::<Vec<_>>();
+    branches.sort_by(|a, b| a.name.cmp(&b.name));
+    branches.dedup_by(|a, b| a.name == b.name);
+    Ok(branches)
 }
 
 #[cfg(test)]
@@ -365,5 +390,28 @@ mod tests {
         let revision = git.rev_parse("HEAD").await.unwrap();
         assert_eq!(revision.len(), 40);
         assert!(git.status().await.unwrap().is_empty());
+    }
+
+    #[test]
+    fn parses_remote_branch_names_from_ls_remote_heads() {
+        let output = "\
+1111111111111111111111111111111111111111\trefs/heads/main
+2222222222222222222222222222222222222222\trefs/heads/feature/login
+3333333333333333333333333333333333333333\trefs/tags/v1.0.0
+";
+        let branches = parse_remote_branches(output).unwrap();
+        assert_eq!(
+            branches,
+            vec![
+                GitBranch {
+                    name: "feature/login".into(),
+                    current: false,
+                },
+                GitBranch {
+                    name: "main".into(),
+                    current: false,
+                },
+            ]
+        );
     }
 }

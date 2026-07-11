@@ -1,10 +1,9 @@
-use auto_route::{controller, get};
+use auto_route::controller;
 use axum::Json;
 use axum::extract::Query;
-// use git2::{Direction, Repository};
 use reqwest::StatusCode;
 use serde::Deserialize;
-use tempfile::TempDir;
+
 use crate::utils::git::GitCli;
 
 #[derive(Deserialize, poem_openapi::Object)]
@@ -23,19 +22,23 @@ impl Public {
     pub async fn list_branches(
         &self,
         Query(params): Query<BranchQuery>,
-    ) -> Result<Json<Vec<&str>>, StatusCode> {
-
-        let mut git = GitCli::new_local();
-        git.set_repository(params.query.clone());
-        let  remote = git.branches().await.map_err(|_| StatusCode::BAD_REQUEST)?;
-
-        let mut branches:Vec<&str> = Vec::new();
-
-        for head in remote.iter() {
-            branches.push(&head.name);
+    ) -> Result<Json<Vec<String>>, StatusCode> {
+        let repository_url = params.query.trim();
+        if repository_url.is_empty() {
+            return Err(StatusCode::BAD_REQUEST);
         }
 
-
-        Ok(Json(branches))
+        GitCli::new_local()
+            .remote_branches(repository_url)
+            .await
+            .map(|branches| Json(branches.into_iter().map(|branch| branch.name).collect()))
+            .map_err(|error| {
+                tracing::warn!(
+                    repository_url,
+                    error = %error,
+                    "could not list git remote branches"
+                );
+                StatusCode::BAD_REQUEST
+            })
     }
 }

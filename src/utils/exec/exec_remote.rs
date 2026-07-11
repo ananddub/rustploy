@@ -1,7 +1,7 @@
 use super::{
     ExecError, ExecExitStatus, ExecOutput, ExecResult, ExecStreamEvent, SshAuth, SshHostKey,
 };
-use crate::utils::session::SshSessionPool;
+use crate::utils::session::{SshSessionLease, SshSessionPool};
 use russh_extra::{Client, HostKeyPolicy, Identity, KeyboardInteractiveReply};
 use std::time::Duration;
 use std::{ffi::OsStr, sync::Arc};
@@ -56,6 +56,14 @@ impl RemoteExecutor {
     }
     pub fn with_pool_size(mut self, max_size: usize) -> Self {
         self.pool = SshSessionPool::new(max_size);
+        self
+    }
+    pub fn with_pool_size_and_channels(
+        mut self,
+        max_size: usize,
+        max_channels_per_session: usize,
+    ) -> Self {
+        self.pool = SshSessionPool::new_with_channels(max_size, max_channels_per_session);
         self
     }
     pub fn with_session_pool(mut self, pool: Arc<SshSessionPool>) -> Self {
@@ -202,20 +210,19 @@ impl RemoteExecutor {
     ) -> ExecResult<ExecOutput> {
         let mut last_error = None;
         for _ in 0..2 {
-            let (pooled, permit) = self.pool.acquire().await?;
-            let session = match pooled {
-                Some(session) => session,
-                None => match self.connect_session().await {
-                    Ok(session) => session,
-                    Err(error) => {
-                        drop(permit);
-                        return Err(error);
-                    }
-                },
+            let mut lease = self.pool.acquire().await?;
+            if let SshSessionLease::New { connection_permit } = lease {
+                lease = match self.connect_session().await {
+                    Ok(session) => self.pool.attach(session, connection_permit).await?,
+                    Err(error) => return Err(error),
+                };
+            }
+            let Some(session) = lease.session() else {
+                return Err(ExecError::Ssh("SSH session lease was not attached".into()));
             };
             let result = match tokio::time::timeout(
                 self.command_timeout,
-                self.execute_on_session(&session, program, args, stdin, stream.clone(), cancel),
+                self.execute_on_session(session, program, args, stdin, stream.clone(), cancel),
             )
             .await
             {
@@ -239,20 +246,19 @@ impl RemoteExecutor {
             };
             match result {
                 Ok(output) => {
-                    self.pool.release(session).await;
-                    drop(permit);
+                    drop(lease);
                     return Ok(output);
                 }
                 Err(error @ ExecError::Ssh(_)) => {
                     last_error = Some(error);
-                    drop(session);
-                    drop(permit);
+                    self.pool.discard(&lease).await;
+                    drop(lease);
                 }
                 Err(error) => {
-                    if !matches!(error, ExecError::Timeout { .. }) {
-                        self.pool.release(session).await;
+                    if matches!(error, ExecError::Timeout { .. }) {
+                        self.pool.discard(&lease).await;
                     }
-                    drop(permit);
+                    drop(lease);
                     return Err(error);
                 }
             }

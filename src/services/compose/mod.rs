@@ -1,4 +1,3 @@
-
 pub use types::{ComposeOperation, ComposeOperationResult, ComposeRecord};
 
 use std::sync::Arc;

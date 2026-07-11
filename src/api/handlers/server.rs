@@ -60,6 +60,9 @@ impl ServerController {
             connected: true,
             reused_sessions: pool.idle_count().await,
             max_pool_size: pool.max_size(),
+            connections: pool.connection_count().await,
+            active_channels: pool.active_channel_count().await,
+            max_channels_per_session: pool.max_channels_per_session(),
         }))
     }
 
@@ -137,13 +140,19 @@ impl ServerController {
                 connected: false,
                 reused_sessions: 0,
                 max_pool_size: 0,
+                connections: 0,
+                active_channels: 0,
+                max_channels_per_session: 0,
             }));
         };
         let pool = executor.session_pool();
         Ok(Json(ServerConnectionResponseDto {
-            connected: pool.idle_count().await > 0,
+            connected: pool.connection_count().await > 0,
             reused_sessions: pool.idle_count().await,
             max_pool_size: pool.max_size(),
+            connections: pool.connection_count().await,
+            active_channels: pool.active_channel_count().await,
+            max_channels_per_session: pool.max_channels_per_session(),
         }))
     }
 
