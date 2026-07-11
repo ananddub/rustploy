@@ -1,39 +1,23 @@
 import { type JSX, Show } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
-import { Pencil, Trash2, Server, FolderOpen, Rocket } from 'lucide-solid';
+import { PencilSimple, Trash, Cpu, FolderOpen, RocketLaunch, CaretRight } from 'phosphor-solid';
 import PageLayout from './PageLayout';
 
 type Tab = string;
 
 type Props = {
-  // Breadcrumb / header
   projectId: string;
   name: string;
   appName: string;
-
-  // Tab bar
   tabs: readonly Tab[];
   activeTab: Tab;
   onTabChange: (tab: Tab) => void;
-
-  // Keep-alive tabs (always mounted, shown/hidden via display)
-  keepAliveTabs?: readonly Tab[];
-
-  // Loading state
   loading: boolean;
-
-  // Actions (edit / delete buttons wired by parent)
   onEdit?: () => void;
   onDelete?: () => void;
-
   children: JSX.Element;
 };
 
-/**
- * ServicePageShell — shared chrome used by both ApplicationPage and ComposePage.
- * Renders the sidebar layout, breadcrumb, title row, tab bar, and loading state.
- * The parent provides the tab content as children.
- */
 export default function ServicePageShell(props: Props) {
   const navigate = useNavigate();
 
@@ -43,53 +27,55 @@ export default function ServicePageShell(props: Props) {
         <header class="px-6 pt-4 border-b border-base-300">
 
           {/* Breadcrumb */}
-          <div class="flex items-center gap-2 text-sm mb-3">
-            <Rocket class="w-4 h-4 text-base-content/40" />
+          <div class="flex items-center gap-1.5 text-xs mb-3 text-base-content/40">
+            <RocketLaunch size={13} />
             <button
               onClick={() => navigate('/dashboard')}
-              class="text-base-content/50 hover:text-base-content transition-colors"
+              class="hover:text-base-content transition-colors"
             >
               Dashboard
             </button>
-            <span class="text-base-content/20">/</span>
+            <CaretRight size={11} class="opacity-40" />
             <button
               onClick={() => navigate('/projects')}
-              class="text-base-content/50 hover:text-base-content transition-colors flex items-center gap-1"
+              class="hover:text-base-content transition-colors flex items-center gap-1"
             >
-              <FolderOpen class="w-3.5 h-3.5" /> Projects
+              <FolderOpen size={13} /> Projects
             </button>
-            <span class="text-base-content/20">/</span>
+            <CaretRight size={11} class="opacity-40" />
             <button
               onClick={() => navigate(`/projects/${props.projectId}`)}
-              class="text-base-content/50 hover:text-base-content transition-colors"
+              class="hover:text-base-content transition-colors"
             >
               Project
             </button>
-            <span class="text-base-content/20">/</span>
-            <span class="text-base-content font-medium">{props.name || '…'}</span>
+            <CaretRight size={11} class="opacity-40" />
+            <span class="text-base-content/70 font-medium">{props.name || '…'}</span>
           </div>
 
           {/* Title row */}
           <div class="flex items-center justify-between mb-3">
             <div>
-              <h1 class="text-lg font-semibold">{props.name || '…'}</h1>
+              <h1 class="text-lg font-semibold leading-tight">{props.name || '…'}</h1>
               <p class="text-xs text-base-content/40 mt-0.5 font-mono">{props.appName}</p>
             </div>
-            <div class="flex items-center gap-2">
-              <button class="btn btn-outline btn-sm gap-1.5 text-base-content/60">
-                <Server class="w-3.5 h-3.5" /> Rustploy Server
+            <div class="flex items-center gap-1.5">
+              <button class="btn btn-outline btn-sm gap-1.5 text-base-content/50 hover:text-base-content border-base-300 hover:border-base-content/30 hover:bg-base-200">
+                <Cpu size={13} /> Rustploy Server
               </button>
               <button
-                class="btn btn-ghost btn-xs text-base-content/40 hover:text-base-content"
+                class="p-1.5 rounded-md text-base-content/40 hover:text-base-content hover:bg-base-200 transition-all"
                 onClick={props.onEdit}
+                title="Edit"
               >
-                <Pencil class="w-3.5 h-3.5" />
+                <PencilSimple size={14} />
               </button>
               <button
-                class="btn btn-ghost btn-xs text-base-content/40 hover:text-error"
+                class="p-1.5 rounded-md text-base-content/40 hover:text-error hover:bg-error/10 transition-all"
                 onClick={props.onDelete}
+                title="Delete"
               >
-                <Trash2 class="w-3.5 h-3.5" />
+                <Trash size={14} />
               </button>
             </div>
           </div>
@@ -98,10 +84,10 @@ export default function ServicePageShell(props: Props) {
           <div class="flex overflow-x-auto -mb-px scrollbar-none">
             {props.tabs.map(tab => (
               <button
-                class={`px-4 py-2 text-sm whitespace-nowrap border-b-2 transition-colors ${
+                class={`px-4 py-2 text-sm whitespace-nowrap border-b-2 transition-all duration-150 ${
                   props.activeTab === tab
                     ? 'border-base-content text-base-content font-medium'
-                    : 'border-transparent text-base-content/50 hover:text-base-content'
+                    : 'border-transparent text-base-content/45 hover:text-base-content/80 hover:border-base-content/20'
                 }`}
                 onClick={() => props.onTabChange(tab)}
               >
@@ -114,11 +100,13 @@ export default function ServicePageShell(props: Props) {
         <main class="flex-1 px-6 py-6 overflow-y-auto">
           <Show when={props.loading}>
             <div class="flex justify-center py-20">
-              <span class="loading loading-spinner loading-md text-base-content/40" />
+              <span class="loading loading-spinner loading-md text-base-content/30" />
             </div>
           </Show>
           <Show when={!props.loading}>
-            {props.children}
+            <div class="animate-fade-up">
+              {props.children}
+            </div>
           </Show>
         </main>
       </div>

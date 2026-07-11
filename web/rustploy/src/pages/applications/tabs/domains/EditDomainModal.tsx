@@ -1,5 +1,5 @@
 import { createSignal, Show } from 'solid-js';
-import { Info, Copy } from 'lucide-solid';
+import { Lock, Copy, Info } from 'phosphor-solid';
 import { domainControllerPatch } from '../../../../client/sdk.gen';
 import type { DomainResponseDto, PatchDomainDto } from '../../../../client/types.gen';
 import Modal from '../../../../components/ui/Modal';
@@ -26,7 +26,6 @@ export default function EditDomainModal(props: Props) {
   const [customCertResolver, setCustomCertResolver] = createSignal(props.domain.custom_cert_resolver ?? '');
   const [customEntrypointEnabled, setCustomEntrypointEnabled] = createSignal(!!props.domain.custom_entrypoint);
   const [customEntrypoint, setCustomEntrypoint] = createSignal(props.domain.custom_entrypoint ?? '');
-
   const [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal('');
 
@@ -61,17 +60,12 @@ export default function EditDomainModal(props: Props) {
   };
 
   return (
-    <Modal
-      title="Domain"
-      subtitle="In this section you can edit this domain"
-      onClose={props.onClose}
-      width="max-w-lg"
-    >
+    <Modal title="Domain" subtitle="In this section you can edit this domain" onClose={props.onClose} width="max-w-lg">
       <form onSubmit={submit} class="flex flex-col gap-5">
 
         {/* Info banner */}
-        <div class="flex items-start gap-3 bg-blue-500/10 border border-blue-500/30 rounded-lg px-4 py-3">
-          <Info class="w-4 h-4 text-blue-400 mt-0.5 shrink-0" />
+        <div class="flex items-start gap-3 bg-blue-500/10 border border-blue-500/20 rounded-lg px-4 py-3">
+          <Info size={15} weight="fill" class="text-blue-400 mt-0.5 shrink-0" />
           <p class="text-sm text-blue-400 leading-snug">
             Whenever you make changes to domains, remember to redeploy your application to apply the changes.
           </p>
@@ -81,106 +75,59 @@ export default function EditDomainModal(props: Props) {
         <div>
           <label class={labelCls}>Host</label>
           <div class="flex items-center gap-2">
-            <input
-              class={`${inputCls} flex-1`}
-              placeholder="api.example.com"
-              value={host()}
-              onInput={e => setHost(e.currentTarget.value)}
-              required
-              autofocus
-            />
-            <button type="button" class="btn btn-square btn-sm btn-ghost border border-base-300 bg-base-300" title="Copy">
-              <Copy class="w-4 h-4 text-base-content/50" />
+            <input class={`${inputCls} flex-1`} placeholder="api.example.com" value={host()} onInput={e => setHost(e.currentTarget.value)} required autofocus />
+            <button type="button" class="btn btn-square btn-sm btn-ghost bg-base-300 hover:bg-base-200 border-base-300" title="Copy">
+              <Copy size={14} class="text-base-content/50" />
             </button>
           </div>
         </div>
 
-        {/* Path */}
-        <div>
-          <label class={labelCls}>Path</label>
-          <input
-            class={inputCls}
-            placeholder="/"
-            value={path()}
-            onInput={e => setPath(e.currentTarget.value)}
-          />
+        {/* Port + Domain Type (read-only) */}
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class={labelCls}>Container Port</label>
+            <input class={inputCls} placeholder="3000" type="number" min="1" max="65535" value={port()} onInput={e => setPort(e.currentTarget.value)} />
+          </div>
+          <div>
+            <label class={labelCls}>Domain Type</label>
+            <input class={`${inputCls} opacity-50 cursor-not-allowed`} value={props.domain.domain_type} disabled title="Cannot be changed after creation" />
+          </div>
         </div>
 
-        {/* Internal Path */}
-        <div>
-          <label class={labelCls}>Internal Path</label>
-          <p class="text-xs text-base-content/40 mb-1.5">
-            The path where your application expects to receive requests internally (defaults to "/")
-          </p>
-          <input
-            class={inputCls}
-            placeholder="/"
-            value={internalPath()}
-            onInput={e => setInternalPath(e.currentTarget.value)}
-          />
+        {/* Path + Internal Path */}
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class={labelCls}>Path</label>
+            <input class={inputCls} placeholder="/" value={path()} onInput={e => setPath(e.currentTarget.value)} />
+          </div>
+          <div>
+            <label class={labelCls}>Internal Path</label>
+            <input class={inputCls} placeholder="/" value={internalPath()} onInput={e => setInternalPath(e.currentTarget.value)} />
+          </div>
         </div>
 
         {/* Strip Path */}
         <div class="border border-base-300 rounded-lg px-4 py-3 flex items-start justify-between gap-4 bg-base-300/40">
           <div>
             <p class="text-sm font-medium text-base-content">Strip Path</p>
-            <p class="text-xs text-base-content/50 mt-0.5">
-              Remove the external path from the request before forwarding to the application
-            </p>
+            <p class="text-xs text-base-content/50 mt-0.5">Remove the external path from the request before forwarding to the application</p>
           </div>
-          <input
-            id="edit-strip-path"
-            type="checkbox"
-            class="toggle toggle-sm mt-0.5 shrink-0"
-            checked={stripPath()}
-            onChange={e => setStripPath(e.currentTarget.checked)}
-          />
-        </div>
-
-        {/* Container Port */}
-        <div>
-          <label class={labelCls}>Container Port</label>
-          <p class="text-xs text-base-content/40 mb-1.5">
-            The port where your application is running inside the container (e.g., 3000 for Node.js, 80 for Nginx, 8080 for Java)
-          </p>
-          <input
-            class={inputCls}
-            placeholder="3000"
-            type="number"
-            min="1"
-            max="65535"
-            value={port()}
-            onInput={e => setPort(e.currentTarget.value)}
-          />
+          <input id="edit-strip-path" type="checkbox" class="toggle toggle-sm mt-0.5 shrink-0" checked={stripPath()} onChange={e => setStripPath(e.currentTarget.checked)} />
         </div>
 
         {/* Custom Entrypoint */}
         <div class="border border-base-300 rounded-lg px-4 py-3 flex items-start justify-between gap-4 bg-base-300/40">
           <div>
             <p class="text-sm font-medium text-base-content">Custom Entrypoint</p>
-            <p class="text-xs text-base-content/50 mt-0.5">
-              Use custom entrypoint for domain<br />
-              "web" and/or "websecure" is used by default.
-            </p>
+            <p class="text-xs text-base-content/50 mt-0.5">Use custom entrypoint — "web" and/or "websecure" is used by default.</p>
           </div>
-          <input
-            id="edit-custom-ep"
-            type="checkbox"
-            class="toggle toggle-sm mt-0.5 shrink-0"
-            checked={customEntrypointEnabled()}
-            onChange={e => setCustomEntrypointEnabled(e.currentTarget.checked)}
-          />
+          <input id="edit-custom-ep" type="checkbox" class="toggle toggle-sm mt-0.5 shrink-0" checked={customEntrypointEnabled()} onChange={e => setCustomEntrypointEnabled(e.currentTarget.checked)} />
         </div>
 
         <Show when={customEntrypointEnabled()}>
           <div>
             <label class={labelCls}>Entrypoint</label>
-            <input
-              class={inputCls}
-              placeholder="websecure"
-              value={customEntrypoint()}
-              onInput={e => setCustomEntrypoint(e.currentTarget.value)}
-            />
+            <input class={inputCls} placeholder="websecure" value={customEntrypoint()} onInput={e => setCustomEntrypoint(e.currentTarget.value)} />
           </div>
         </Show>
 
@@ -188,27 +135,15 @@ export default function EditDomainModal(props: Props) {
         <div class="border border-base-300 rounded-lg px-4 py-3 flex items-start justify-between gap-4 bg-base-300/40">
           <div>
             <p class="text-sm font-medium text-base-content">HTTPS</p>
-            <p class="text-xs text-base-content/50 mt-0.5">
-              Automatically provision SSL Certificate.
-            </p>
+            <p class="text-xs text-base-content/50 mt-0.5">Automatically provision SSL Certificate.</p>
           </div>
-          <input
-            id="edit-https"
-            type="checkbox"
-            class="toggle toggle-sm mt-0.5 shrink-0"
-            checked={https()}
-            onChange={e => setHttps(e.currentTarget.checked)}
-          />
+          <input id="edit-https" type="checkbox" class="toggle toggle-sm mt-0.5 shrink-0" checked={https()} onChange={e => setHttps(e.currentTarget.checked)} />
         </div>
 
         <Show when={https()}>
           <div>
             <label class={labelCls}>Certificate Type</label>
-            <select
-              class="select select-bordered w-full bg-base-300 border-base-300 focus:border-base-content/30"
-              value={certificateType()}
-              onChange={e => setCertificateType(e.currentTarget.value)}
-            >
+            <select class="select select-bordered w-full bg-base-300 border-base-300" value={certificateType()} onChange={e => setCertificateType(e.currentTarget.value)}>
               <option value="none">None</option>
               <option value="letsencrypt">Let's Encrypt</option>
               <option value="custom">Custom</option>
@@ -217,12 +152,7 @@ export default function EditDomainModal(props: Props) {
           <Show when={certificateType() === 'custom'}>
             <div>
               <label class={labelCls}>Custom Cert Resolver</label>
-              <input
-                class={inputCls}
-                placeholder="myresolver"
-                value={customCertResolver()}
-                onInput={e => setCustomCertResolver(e.currentTarget.value)}
-              />
+              <input class={inputCls} placeholder="myresolver" value={customCertResolver()} onInput={e => setCustomCertResolver(e.currentTarget.value)} />
             </div>
           </Show>
         </Show>
@@ -230,53 +160,24 @@ export default function EditDomainModal(props: Props) {
         {/* Middlewares */}
         <div>
           <label class={labelCls}>
-            Middlewares{' '}
-            <span class="text-base-content/40 text-xs font-normal ml-1">?</span>
+            Middlewares <span class="text-base-content/35 text-xs font-normal ml-1">?</span>
           </label>
           <div class="flex items-center gap-2">
-            <input
-              class={`${inputCls} flex-1`}
-              placeholder="e.g., rate-limit@file, auth@file"
-              value={middlewares()}
-              onInput={e => setMiddlewares(e.currentTarget.value)}
-            />
-            <button
-              type="button"
-              class="btn btn-sm btn-ghost border border-base-300 bg-base-300 text-base-content/70 px-4"
-            >
-              Add
-            </button>
+            <input class={`${inputCls} flex-1`} placeholder="e.g., rate-limit@file, auth@file" value={middlewares()} onInput={e => setMiddlewares(e.currentTarget.value)} />
+            <button type="button" class="btn btn-sm btn-ghost bg-base-300 hover:bg-base-200 border-base-300 text-base-content/70 px-4">Add</button>
           </div>
-        </div>
-
-        {/* Domain Type — read only */}
-        <div>
-          <label class={labelCls}>Domain Type</label>
-          <input
-            class={`${inputCls} opacity-50 cursor-not-allowed`}
-            value={props.domain.domain_type}
-            disabled
-            title="Domain type cannot be changed after creation"
-          />
         </div>
 
         <Show when={error()}>
-          <div class="alert alert-error text-sm py-2">
-            <span>{error()}</span>
-          </div>
+          <div class="alert alert-error text-sm py-2"><span>{error()}</span></div>
         </Show>
 
         <div class="flex justify-end pt-1">
-          <button
-            type="submit"
-            class="btn btn-neutral btn-sm px-6 gap-1.5"
-            disabled={loading()}
-          >
+          <button type="submit" class="btn btn-neutral btn-sm px-6 gap-1.5" disabled={loading()}>
             {loading() && <span class="loading loading-spinner loading-xs" />}
             {loading() ? 'Saving…' : 'Save Changes'}
           </button>
         </div>
-
       </form>
     </Modal>
   );

@@ -1,45 +1,45 @@
 import { createSignal, onCleanup, createResource } from 'solid-js';
 import { useNavigate, useLocation } from '@solidjs/router';
 import {
-  Home, FolderOpen, Zap, Activity, Calendar, Globe, Network, Link2,
-  Server, Users, FileText, FileKey, Bot, Tag, GitBranch,
-  Database, Layers, Shield, BellRing, Settings, BookOpen,
-  LogOut, Bell, ChevronDown, Container, Rocket,
-} from 'lucide-solid';
+  House, FolderOpen, Lightning, ChartLine, Calendar, Globe, Terminal,
+  HardDrives, GlobeSimple, LinkSimple, Cpu, Users, FileText, Key,
+  GitBranch, Database, Stack, Shield, BellRinging, Gear, BookOpen,
+  SignOut, Bell, CaretDown, Package, RocketLaunch, Tag, Spinner,
+} from 'phosphor-solid';
 import { authSession, signOut } from '../../lib/auth';
 import { organizationControllerGet } from '../../client/sdk.gen';
 
 const navHome = [
-  { label: 'Home', icon: Home, path: '/dashboard' },
-  { label: 'Projects', icon: FolderOpen, path: '/projects' },
-  { label: 'Deployments', icon: Zap },
-  { label: 'Monitoring', icon: Activity },
-  { label: 'Schedules', icon: Calendar },
-  { label: 'Traefik File System', icon: Globe },
-  { label: 'Docker', icon: Container },
-  { label: 'Swarm', icon: Network },
-  { label: 'Requests', icon: Link2 },
+  { label: 'Home',               icon: House,       path: '/dashboard'       },
+  { label: 'Projects',           icon: FolderOpen,  path: '/projects'        },
+  { label: 'Deployments',        icon: Lightning                              },
+  { label: 'Monitoring',         icon: ChartLine                              },
+  { label: 'Schedules',          icon: Calendar                               },
+  { label: 'Traefik File System',icon: Globe                                  },
+  { label: 'Docker',             icon: Package                                },
+  { label: 'Swarm',              icon: GlobeSimple                            },
+  { label: 'Requests',           icon: LinkSimple                             },
 ];
 
 const navSettings = [
-  { label: 'Web Server', icon: Server },
-  { label: 'Profile', icon: Users },
-  { label: 'Remote Servers', icon: Globe, path: '/remote-servers' },
-  { label: 'Deployments', icon: Zap },
-  { label: 'Users', icon: Users },
-  { label: 'Audit Logs', icon: FileText },
-  { label: 'SSH Keys', icon: FileKey, path: '/ssh-keys' },
-  { label: 'AI', icon: Bot },
-  { label: 'Tags', icon: Tag },
-  { label: 'Git', icon: GitBranch },
-  { label: 'Registry', icon: Database },
-  { label: 'S3 Destinations', icon: Layers },
-  { label: 'Certificates', icon: Shield },
-  { label: 'Cluster', icon: Network },
-  { label: 'Notifications', icon: BellRing },
-  { label: 'License', icon: FileText },
-  { label: 'SSO', icon: Link2 },
-  { label: 'Whitelabeling', icon: Settings },
+  { label: 'Web Server',         icon: Cpu                                    },
+  { label: 'Profile',            icon: Users                                  },
+  { label: 'Remote Servers',     icon: HardDrives,  path: '/remote-servers'  },
+  { label: 'Deployments',        icon: Lightning                              },
+  { label: 'Users',              icon: Users                                  },
+  { label: 'Audit Logs',         icon: FileText                               },
+  { label: 'SSH Keys',           icon: Key,         path: '/ssh-keys'        },
+  { label: 'AI',                 icon: Terminal                               },
+  { label: 'Tags',               icon: Tag                                    },
+  { label: 'Git',                icon: GitBranch                              },
+  { label: 'Registry',           icon: Database                               },
+  { label: 'S3 Destinations',    icon: Stack                                  },
+  { label: 'Certificates',       icon: Shield                                 },
+  { label: 'Cluster',            icon: GlobeSimple                            },
+  { label: 'Notifications',      icon: BellRinging                            },
+  { label: 'License',            icon: FileText                               },
+  { label: 'SSO',                icon: LinkSimple                             },
+  { label: 'Whitelabeling',      icon: Gear                                   },
 ];
 
 type Props = {
@@ -57,17 +57,14 @@ export default function Sidebar(props: Props) {
   const userEmail = () => session()?.user.email || '';
   const initials = () => userName().slice(0, 2).toUpperCase();
 
-  // Fetch org
   const [org] = createResource(async () => {
     const s = session();
     if (!s) return null;
-    const res = await organizationControllerGet({
-      path: { id: s.user.group_id },
-    });
+    const res = await organizationControllerGet({ path: { id: s.user.group_id } });
     return res.data ?? null;
   });
 
-  const orgName = () => org()?.name ?? '...';
+  const orgName = () => org()?.name ?? '…';
   const orgInitial = () => orgName().slice(0, 1).toUpperCase();
 
   const handleLogout = async () => {
@@ -100,6 +97,13 @@ export default function Sidebar(props: Props) {
     return location.pathname.startsWith(path);
   };
 
+  const navItemCls = (path?: string) =>
+    `w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-all duration-150 text-left outline-none ${
+      isActive(path)
+        ? 'bg-base-300 text-base-content font-medium'
+        : 'text-base-content/55 hover:bg-base-200 hover:text-base-content'
+    }`;
+
   return (
     <aside
       style={{ width: `${width()}px`, 'min-width': `${width()}px` }}
@@ -111,53 +115,51 @@ export default function Sidebar(props: Props) {
           <div class="w-5 h-5 rounded bg-primary/20 flex items-center justify-center text-primary text-xs font-bold shrink-0">
             {orgInitial()}
           </div>
-          <span class="truncate">{orgName()}</span>
+          <span class="truncate">
+            {org.loading ? <Spinner size={12} class="animate-spin opacity-40" /> : orgName()}
+          </span>
         </div>
         <div class="flex gap-1 text-base-content/40">
-          <ChevronDown class="w-3.5 h-3.5" />
-          <Bell class="w-3.5 h-3.5" />
+          <CaretDown size={14} />
+          <Bell size={14} />
         </div>
       </div>
 
       {/* Nav */}
       <nav class="flex-1 overflow-y-auto py-2 px-2 space-y-0.5">
         <p class="text-[10px] uppercase tracking-widest text-base-content/30 px-2 pt-2 pb-1">Home</p>
-        {navHome.map((item) => (
+        {navHome.map((item, i) => (
           <button
-            class={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm transition-colors text-left
-              ${isActive(item.path)
-                ? 'bg-base-300 text-base-content font-medium'
-                : 'text-base-content/60 hover:bg-base-200 hover:text-base-content'}`}
+            class={navItemCls(item.path)}
+            style={{ 'animation-delay': `${i * 20}ms` }}
             onClick={() => item.path && navigate(item.path)}
           >
-            <item.icon class="w-3.5 h-3.5 shrink-0" />
+            <item.icon size={14} weight={isActive(item.path) ? 'fill' : 'regular'} class="shrink-0" />
             <span class="truncate">{item.label}</span>
           </button>
         ))}
 
         <p class="text-[10px] uppercase tracking-widest text-base-content/30 px-2 pt-4 pb-1">Settings</p>
-        {navSettings.map((item) => (
+        {navSettings.map((item, i) => (
           <button
-            class={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm transition-colors text-left
-              ${isActive(item.path)
-                ? 'bg-base-300 text-base-content font-medium'
-                : 'text-base-content/60 hover:bg-base-200 hover:text-base-content'}`}
+            class={navItemCls(item.path)}
+            style={{ 'animation-delay': `${(navHome.length + i) * 20}ms` }}
             onClick={() => item.path && navigate(item.path)}
           >
-            <item.icon class="w-3.5 h-3.5 shrink-0" />
+            <item.icon size={14} weight={isActive(item.path) ? 'fill' : 'regular'} class="shrink-0" />
             <span class="truncate">{item.label}</span>
           </button>
         ))}
 
         <p class="text-[10px] uppercase tracking-widest text-base-content/30 px-2 pt-4 pb-1">Extra</p>
-        <button class="w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm text-base-content/60 hover:bg-base-200 hover:text-base-content transition-colors text-left">
-          <BookOpen class="w-3.5 h-3.5 shrink-0" />
+        <button class={navItemCls()}>
+          <BookOpen size={14} class="shrink-0" />
           <span>Documentation</span>
         </button>
       </nav>
 
       {/* User footer */}
-      <div class="border-t border-base-300 px-3 py-2">
+      <div class="border-t border-base-300 px-3 py-2.5">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2 min-w-0">
             <div class="w-7 h-7 rounded-full bg-primary text-primary-content flex items-center justify-center text-xs font-bold shrink-0">
@@ -168,17 +170,21 @@ export default function Sidebar(props: Props) {
               <p class="text-[10px] text-base-content/40 truncate">{userEmail()}</p>
             </div>
           </div>
-          <button onClick={handleLogout} class="text-base-content/40 hover:text-error transition-colors ml-1" title="Logout">
-            <LogOut class="w-3.5 h-3.5" />
+          <button
+            onClick={handleLogout}
+            class="text-base-content/40 hover:text-error transition-colors ml-1 p-1 rounded hover:bg-error/10"
+            title="Logout"
+          >
+            <SignOut size={14} />
           </button>
         </div>
-        <p class="text-[10px] text-base-content/20 mt-1">Version v0.1.0</p>
+        <p class="text-[10px] text-base-content/20 mt-1.5">v0.1.0</p>
       </div>
 
       {/* Drag handle */}
       <div
         onMouseDown={onDragStart}
-        class={`absolute top-0 right-0 h-full w-1 cursor-col-resize z-10 hover:bg-primary/50 transition-colors ${dragging() ? 'bg-primary/70' : ''}`}
+        class={`absolute top-0 right-0 h-full w-1 cursor-col-resize z-10 transition-colors hover:bg-primary/40 ${dragging() ? 'bg-primary/60' : ''}`}
       />
     </aside>
   );
