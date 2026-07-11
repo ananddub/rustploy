@@ -5,7 +5,8 @@ import type { CreateDomainDto, DomainResponseDto } from '../../../../client/type
 import Modal from '../../../../components/ui/Modal';
 
 type Props = {
-  appId: number;
+  appId?: number;       // set for applications
+  composeId?: number;   // set for compose services
   onClose: () => void;
   onCreated: (d: DomainResponseDto) => void;
 };
@@ -39,6 +40,7 @@ export default function AddDomainModal(props: Props) {
     try {
       const body: CreateDomainDto = {
         application_id: props.appId,
+        compose_id: props.composeId,
         host: host().trim(),
         https: https(),
         path: path() || '/',

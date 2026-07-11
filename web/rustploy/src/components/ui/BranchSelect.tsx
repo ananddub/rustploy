@@ -44,7 +44,7 @@ export default function BranchSelect(props: Props) {
 
   const [branches, { refetch }] = createResource(fetchKey, async (key) => {
     if (!key?.url) return [];
-    const res = await publicListBranches({ query: { query: key.url } });
+    const res = await publicListBranches({ query: { query: { query: key.url } } });
     const raw = (res.data as string[] | undefined) ?? [];
     return raw
       .filter(b => b !== 'HEAD' && !b.startsWith('refs/tags/'))

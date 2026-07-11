@@ -1,4 +1,4 @@
-import { Suspense, type Component } from 'solid-js';
+import { Suspense, type Component, type JSX } from 'solid-js';
 import { client } from './client/client.gen';
 import { authSession, refreshAccessToken, clearAuthSession } from './lib/auth';
 
@@ -38,7 +38,7 @@ client.interceptors.response.use(async (response, request) => {
   });
 });
 
-const App: Component<{ children: Element }> = (props) => {
+const App: Component<{ children: JSX.Element }> = (props) => {
   return (
     <main>
       <Suspense>{props.children}</Suspense>
