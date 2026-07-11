@@ -157,6 +157,26 @@ export type CreateDatabaseDto = {
 };
 
 /**
+ * CreateDomainDto
+ */
+export type CreateDomainDto = {
+    application_id?: number;
+    certificate_type: string;
+    compose_id?: number;
+    custom_cert_resolver?: string;
+    custom_entrypoint?: string;
+    domain_type: string;
+    host: string;
+    https: boolean;
+    internal_path: string;
+    middlewares: string;
+    path: string;
+    port?: number;
+    service_name?: string;
+    strip_path: boolean;
+};
+
+/**
  * CreateEnvironmentDto
  */
 export type CreateEnvironmentDto = {
@@ -240,6 +260,29 @@ export type DatabaseResponseDto = {
     name: string;
     replicas: number;
     server_id?: number;
+    updated_at: number;
+};
+
+/**
+ * DomainResponseDto
+ */
+export type DomainResponseDto = {
+    application_id?: number;
+    certificate_type: string;
+    compose_id?: number;
+    created_at: number;
+    custom_cert_resolver?: string;
+    custom_entrypoint?: string;
+    domain_type: string;
+    host: string;
+    https: boolean;
+    id: number;
+    internal_path?: string;
+    middlewares: string;
+    path?: string;
+    port?: number;
+    service_name?: string;
+    strip_path: boolean;
     updated_at: number;
 };
 
@@ -461,6 +504,23 @@ export type PatchDockerSourceDto = {
 };
 
 /**
+ * PatchDomainDto
+ */
+export type PatchDomainDto = {
+    certificate_type?: string;
+    custom_cert_resolver?: string;
+    custom_entrypoint?: string;
+    host?: string;
+    https?: boolean;
+    internal_path?: string;
+    middlewares?: string;
+    path?: string;
+    port?: number;
+    service_name?: string;
+    strip_path?: boolean;
+};
+
+/**
  * PatchDropSourceDto
  */
 export type PatchDropSourceDto = {
@@ -571,6 +631,14 @@ export type PatchSshKeyDto = {
 };
 
 /**
+ * PortAvailabilityDto
+ */
+export type PortAvailabilityDto = {
+    available: boolean;
+    port: number;
+};
+
+/**
  * ProjectResponseDto
  */
 export type ProjectResponseDto = {
@@ -621,6 +689,63 @@ export type RemoteServerResponseDto = {
 };
 
 /**
+ * ServerAuditDto
+ */
+export type ServerAuditDto = {
+    architecture: string;
+    base_directory_exists: boolean;
+    buildpacks: ToolStateDto;
+    docker: ToolStateDto;
+    docker_group_member: boolean;
+    git: ToolStateDto;
+    network_exists: boolean;
+    nixpacks: ToolStateDto;
+    os_id: string;
+    ports: Array<PortAvailabilityDto>;
+    railpack: ToolStateDto;
+    rclone: ToolStateDto;
+    swarm_active: boolean;
+};
+
+/**
+ * ServerConnectionDto
+ */
+export type ServerConnectionDto = {
+    host_key_fingerprint?: string;
+    pool_size?: number;
+    sudo_password?: string;
+};
+
+/**
+ * ServerConnectionResponseDto
+ */
+export type ServerConnectionResponseDto = {
+    connected: boolean;
+    max_pool_size: number;
+    reused_sessions: number;
+};
+
+/**
+ * SetupOutcomeDto
+ */
+export type SetupOutcomeDto = {
+    audit: ServerAuditDto;
+    completed: Array<string>;
+};
+
+/**
+ * SetupServerDto
+ */
+export type SetupServerDto = {
+    acme_email?: string;
+    advertise_addr?: string;
+    host_key_fingerprint?: string;
+    install_dependencies: boolean;
+    pool_size?: number;
+    sudo_password?: string;
+};
+
+/**
  * SignupDto
  */
 export type SignupDto = {
@@ -651,6 +776,14 @@ export type SshKeyResponseDto = {
 export type TokenPair = {
     access_token: string;
     refresh_token: string;
+};
+
+/**
+ * ToolStateDto
+ */
+export type ToolStateDto = {
+    installed: boolean;
+    version?: string;
 };
 
 export type ApplicationControllerCreateData = {
@@ -1539,6 +1672,110 @@ export type DatabaseControllerStopResponses = {
 
 export type DatabaseControllerStopResponse = DatabaseControllerStopResponses[keyof DatabaseControllerStopResponses];
 
+export type DomainControllerCreateData = {
+    body: CreateDomainDto;
+    path?: never;
+    query?: never;
+    url: '/domains';
+};
+
+export type DomainControllerCreateResponses = {
+    /**
+     * Successful response
+     */
+    200: DomainResponseDto;
+};
+
+export type DomainControllerCreateResponse = DomainControllerCreateResponses[keyof DomainControllerCreateResponses];
+
+export type DomainControllerListByApplicationData = {
+    body?: never;
+    path: {
+        application_id: number;
+    };
+    query?: never;
+    url: '/domains/application/{application_id}';
+};
+
+export type DomainControllerListByApplicationResponses = {
+    /**
+     * Successful response
+     */
+    200: Array<DomainResponseDto>;
+};
+
+export type DomainControllerListByApplicationResponse = DomainControllerListByApplicationResponses[keyof DomainControllerListByApplicationResponses];
+
+export type DomainControllerListByComposeData = {
+    body?: never;
+    path: {
+        compose_id: number;
+    };
+    query?: never;
+    url: '/domains/compose/{compose_id}';
+};
+
+export type DomainControllerListByComposeResponses = {
+    /**
+     * Successful response
+     */
+    200: Array<DomainResponseDto>;
+};
+
+export type DomainControllerListByComposeResponse = DomainControllerListByComposeResponses[keyof DomainControllerListByComposeResponses];
+
+export type DomainControllerDeleteData = {
+    body?: never;
+    path: {
+        id: number;
+    };
+    query?: never;
+    url: '/domains/{id}';
+};
+
+export type DomainControllerDeleteResponses = {
+    /**
+     * Successful response
+     */
+    200: unknown;
+};
+
+export type DomainControllerGetData = {
+    body?: never;
+    path: {
+        id: number;
+    };
+    query?: never;
+    url: '/domains/{id}';
+};
+
+export type DomainControllerGetResponses = {
+    /**
+     * Successful response
+     */
+    200: DomainResponseDto;
+};
+
+export type DomainControllerGetResponse = DomainControllerGetResponses[keyof DomainControllerGetResponses];
+
+export type DomainControllerPatchData = {
+    body: PatchDomainDto;
+    path: {
+        id: number;
+    };
+    query?: never;
+    url: '/domains/{id}';
+};
+
+export type DomainControllerPatchResponses = {
+    /**
+     * Successful response
+     */
+    200: DomainResponseDto;
+};
+
+export type DomainControllerPatchResponse = DomainControllerPatchResponses[keyof DomainControllerPatchResponses];
+
 export type EnvironmentControllerCreateData = {
     body: CreateEnvironmentDto;
     path?: never;
@@ -1968,6 +2205,94 @@ export type RemoteServerControllerTestConnectionResponses = {
 };
 
 export type RemoteServerControllerTestConnectionResponse = RemoteServerControllerTestConnectionResponses[keyof RemoteServerControllerTestConnectionResponses];
+
+export type ServerControllerAuditData = {
+    body: ServerConnectionDto;
+    path: {
+        id: number;
+    };
+    query?: never;
+    url: '/servers/{id}/audit';
+};
+
+export type ServerControllerAuditResponses = {
+    /**
+     * Successful response
+     */
+    200: ServerAuditDto;
+};
+
+export type ServerControllerAuditResponse = ServerControllerAuditResponses[keyof ServerControllerAuditResponses];
+
+export type ServerControllerClearSessionsData = {
+    body?: never;
+    path: {
+        id: number;
+    };
+    query?: never;
+    url: '/servers/{id}/sessions';
+};
+
+export type ServerControllerClearSessionsResponses = {
+    /**
+     * Successful response
+     */
+    200: unknown;
+};
+
+export type ServerControllerSessionsData = {
+    body?: never;
+    path: {
+        id: number;
+    };
+    query?: never;
+    url: '/servers/{id}/sessions';
+};
+
+export type ServerControllerSessionsResponses = {
+    /**
+     * Successful response
+     */
+    200: ServerConnectionResponseDto;
+};
+
+export type ServerControllerSessionsResponse = ServerControllerSessionsResponses[keyof ServerControllerSessionsResponses];
+
+export type ServerControllerSetupData = {
+    body: SetupServerDto;
+    path: {
+        id: number;
+    };
+    query?: never;
+    url: '/servers/{id}/setup';
+};
+
+export type ServerControllerSetupResponses = {
+    /**
+     * Successful response
+     */
+    200: SetupOutcomeDto;
+};
+
+export type ServerControllerSetupResponse = ServerControllerSetupResponses[keyof ServerControllerSetupResponses];
+
+export type ServerControllerTestConnectionData = {
+    body: ServerConnectionDto;
+    path: {
+        id: number;
+    };
+    query?: never;
+    url: '/servers/{id}/test-connection';
+};
+
+export type ServerControllerTestConnectionResponses = {
+    /**
+     * Successful response
+     */
+    200: ServerConnectionResponseDto;
+};
+
+export type ServerControllerTestConnectionResponse = ServerControllerTestConnectionResponses[keyof ServerControllerTestConnectionResponses];
 
 export type SshKeyControllerListData = {
     body?: never;
