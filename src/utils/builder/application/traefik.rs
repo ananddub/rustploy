@@ -35,7 +35,11 @@ pub fn application_config(app: &ApplicationSpec) -> Value {
                 .unwrap_or_else(|| json!({}));
         }
         routers.insert(names.0, router);
-        services.insert(names.1,json!({"loadBalancer":{"servers":[{"url":format!("http://{}:{}",app.service_name(),domain.port)}],"passHostHeader":true}}));
+        let service_target = domain
+            .service_name
+            .clone()
+            .unwrap_or_else(|| app.service_name());
+        services.insert(names.1,json!({"loadBalancer":{"servers":[{"url":format!("http://{}:{}",service_target,domain.port)}],"passHostHeader":true}}));
     }
     json!({"http":{"routers":routers,"services":services,"middlewares":middlewares}})
 }
@@ -84,6 +88,7 @@ mod tests {
                 host: "api.example.com".into(),
                 https: true,
                 port: 3000,
+                service_name: None,
                 path: "/v1".into(),
                 internal_path: "/api".into(),
                 strip_path: true,

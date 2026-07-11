@@ -2,6 +2,7 @@ use super::spec::*;
 use crate::db::models::{domains::Domain, mounts::Mount};
 use sqlx::SqlitePool;
 use std::{collections::BTreeMap, sync::Arc};
+use crate::utils::builder::env::generate_env_app;
 
 #[derive(Clone)]
 pub struct ApplicationSpecAdapter {
@@ -26,9 +27,9 @@ impl ApplicationSpecAdapter {
     ) -> Result<ApplicationSpec, String> {
         let source = source(&app)?;
         let build = build(&app)?;
-        let mut environment = parse_env(&app.environment_env);
-        environment.extend(parse_env(&app.project_env));
-        environment.extend(parse_env(app.env_var.as_deref().unwrap_or("")));
+        let mut environment = generate_env_app(app.environment_env.clone(), app.project_env.clone(), app.env_var.clone().as_deref().unwrap_or("").into());
+        // environment.extend(parse_env(&app.project_env));
+        // environment.extend(parse_env(app.env_var.as_deref().unwrap_or("")));
         let registry = registry_auth(&app);
         let image = if app.source_type == "DOCKER" {
             app.docker_image.clone().ok_or("Docker image is required")?
