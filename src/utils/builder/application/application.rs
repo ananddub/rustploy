@@ -55,43 +55,55 @@ impl ApplicationBuilder {
 
         self.emit(BuilderEvent::Preparing).await;
         self.cancelled(cancel)?;
-        self.prepare_source(spec).await?;
+        self.prepare_source(spec, cancel).await?;
         self.emit(BuilderEvent::SourceReady).await;
 
         self.cancelled(cancel)?;
         self.emit(BuilderEvent::Building).await;
-        self.build_image(spec).await?;
+        self.build_image(spec, cancel).await?;
         self.emit(BuilderEvent::ImageReady).await;
 
         self.cancelled(cancel)?;
         let app_dir = format!("/etc/rustploy/applications/{}", spec.app_name);
-        self.executor.run("mkdir", ["-p", app_dir.as_str()]).await?;
-        self.prepare_file_mounts(spec).await?;
+        self.executor
+            .run_cancelled("mkdir", ["-p", app_dir.as_str()], cancel)
+            .await?;
+        self.prepare_file_mounts(spec, cancel).await?;
 
         let stack_file = format!("{app_dir}/stack.yml");
         let stack_yaml = serde_yaml::to_string(&stack_spec(spec))
             .map_err(|e| ExecError::Json(serde_json::Error::io(std::io::Error::other(e))))?;
-        self.write_file(&stack_file, stack_yaml.as_bytes()).await?;
+        self.write_file_cancelled(&stack_file, stack_yaml.as_bytes(), cancel)
+            .await?;
 
         self.emit(BuilderEvent::Deploying).await;
-        self.docker
-            .stack_deploy(&[
-                "--compose-file",
-                stack_file.as_str(),
-                "--with-registry-auth",
-                spec.stack_name.as_str(),
-            ])
-            .await?;
+        if let Err(error) = self
+            .stack_deploy_with_retry(
+                &[
+                    "--compose-file",
+                    stack_file.as_str(),
+                    "--with-registry-auth",
+                    spec.stack_name.as_str(),
+                ],
+                cancel,
+            )
+            .await
+        {
+            self.rollback_application(spec, None).await;
+            self.emit(BuilderEvent::Failed(error.to_string())).await;
+            return Err(error);
+        }
 
         self.cancelled(cancel)?;
         let traefik_file = format!("/etc/rustploy/traefik/dynamic/{}.json", spec.app_name);
         let routing = serde_json::to_vec_pretty(&traefik::application_config(spec))?;
-        self.write_file(&traefik_file, &routing).await?;
+        self.write_file_cancelled(&traefik_file, &routing, cancel)
+            .await?;
         self.emit(BuilderEvent::Routing).await;
 
         self.emit(BuilderEvent::HealthCheck).await;
         if let Err(error) = self.wait_healthy(spec, cancel).await {
-            let _ = self.executor.run("rm", ["-f", traefik_file.as_str()]).await;
+            self.rollback_application(spec, Some(&traefik_file)).await;
             self.emit(BuilderEvent::Failed(error.to_string())).await;
             return Err(error);
         }
@@ -106,12 +118,18 @@ impl ApplicationBuilder {
         })
     }
 
-    pub(super) async fn write_file(&self, path: &str, content: &[u8]) -> ExecResult<()> {
+    pub(super) async fn write_file_cancelled(
+        &self,
+        path: &str,
+        content: &[u8],
+        cancel: &CancellationToken,
+    ) -> ExecResult<()> {
         self.executor
-            .run_with_stdin(
+            .run_with_stdin_cancelled(
                 "sh",
                 ["-c", "umask 077; cat > \"$1\"", "rustploy-write", path],
                 content,
+                cancel,
             )
             .await?;
         Ok(())
@@ -125,6 +143,36 @@ impl ApplicationBuilder {
         }
     }
 
+    async fn stack_deploy_with_retry(
+        &self,
+        args: &[&str],
+        cancel: &CancellationToken,
+    ) -> ExecResult<()> {
+        let mut attempts = 0;
+        loop {
+            self.cancelled(cancel)?;
+            attempts += 1;
+            match self.docker.stack_deploy_cancelled(args, cancel).await {
+                Ok(_) => return Ok(()),
+                Err(error) if attempts < 4 && is_transient_docker_error(&error.to_string()) => {
+                    tracing::warn!(attempts, error = %error, "docker stack deploy failed transiently; retrying");
+                    tokio::time::sleep(Duration::from_secs(2 * attempts)).await;
+                }
+                Err(error) => return Err(error),
+            }
+        }
+    }
+
+    async fn rollback_application(&self, spec: &ApplicationSpec, traefik_file: Option<&str>) {
+        if let Some(path) = traefik_file {
+            let _ = self.executor.run("rm", ["-f", path]).await;
+        }
+        let service = spec.service_name();
+        if let Err(error) = self.docker.service_rollback(&[service.as_str()]).await {
+            tracing::warn!(service = %service, error = %error, "application rollback attempt failed");
+        }
+    }
+
     async fn emit(&self, event: BuilderEvent) {
         if let Some(sender) = &self.events {
             let _ = sender.send(event.clone()).await;
@@ -135,6 +183,21 @@ impl ApplicationBuilder {
             let _ = state.send_state(id.clone(), deploy_state);
         }
     }
+}
+
+fn is_transient_docker_error(message: &str) -> bool {
+    let message = message.to_ascii_lowercase();
+    [
+        "cannot connect to the docker daemon",
+        "docker daemon",
+        "connection refused",
+        "connection reset",
+        "service unavailable",
+        "temporarily unavailable",
+        "context deadline exceeded",
+    ]
+    .iter()
+    .any(|needle| message.contains(needle))
 }
 
 fn builder_event_state(event: &BuilderEvent) -> Option<DeployState> {

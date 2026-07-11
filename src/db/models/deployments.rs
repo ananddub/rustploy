@@ -16,6 +16,8 @@ pub struct Deployment {
     pub description: Option<String>,
     #[sqlx_gen(sql_type = "deployments_status_enum", column_default = "'RUNNING'")]
     pub status: String,
+    #[sqlx_gen(sql_type = "TEXT", column_default = "'QUEUE'")]
+    pub state: String,
     #[sqlx_gen(sql_type = "TEXT")]
     pub log_path: String,
     #[sqlx_gen(sql_type = "TEXT")]
@@ -26,6 +28,8 @@ pub struct Deployment {
     pub is_preview_deployment: i64,
     #[sqlx_gen(sql_type = "INTEGER")]
     pub started_at: Option<i64>,
+    #[sqlx_gen(sql_type = "INTEGER")]
+    pub last_state_at: Option<i64>,
     #[sqlx_gen(sql_type = "INTEGER")]
     pub finished_at: Option<i64>,
     #[sqlx_gen(sql_type = "INTEGER")]

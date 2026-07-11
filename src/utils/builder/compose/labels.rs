@@ -7,19 +7,24 @@ use crate::utils::{
     exec::{ExecError, ExecResult},
 };
 use serde_yaml::{Mapping, Value};
+use tokio_util::sync::CancellationToken;
 
 const TRAEFIK_NETWORK: &str = "rustploy-network";
 
 pub(super) async fn write_labeled_compose(
     builder: &ComposeBuilder,
     spec: &ComposeSpec,
+    cancel: &CancellationToken,
 ) -> ExecResult<()> {
     if spec.domains.is_empty() {
         return Ok(());
     }
 
     let compose_path = spec.compose_file_path();
-    let output = builder.executor.run("cat", [compose_path.as_str()]).await?;
+    let output = builder
+        .executor
+        .run_cancelled("cat", [compose_path.as_str()], cancel)
+        .await?;
     let mut document = serde_yaml::from_str::<Value>(&output.stdout)
         .map_err(|error| command_error(format!("invalid compose yaml: {error}")))?;
 
@@ -27,7 +32,9 @@ pub(super) async fn write_labeled_compose(
 
     let content = serde_yaml::to_string(&document)
         .map_err(|error| ExecError::Json(serde_json::Error::io(std::io::Error::other(error))))?;
-    builder.write_file(&compose_path, content.as_bytes()).await
+    builder
+        .write_file_cancelled(&compose_path, content.as_bytes(), cancel)
+        .await
 }
 
 fn inject_domain_labels(document: &mut Value, spec: &ComposeSpec) -> ExecResult<()> {

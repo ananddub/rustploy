@@ -4,23 +4,29 @@ use crate::utils::{
     exec::ExecResult,
     git::GitCli,
 };
+use tokio_util::sync::CancellationToken;
 
 impl ApplicationBuilder {
-    pub(super) async fn prepare_source(&self, spec: &ApplicationSpec) -> ExecResult<()> {
+    pub(super) async fn prepare_source(
+        &self,
+        spec: &ApplicationSpec,
+        cancel: &CancellationToken,
+    ) -> ExecResult<()> {
         match &spec.source {
             SourceSpec::Docker { image, registry } => {
                 if let Some(auth) = registry {
                     self.docker
-                        .image_pull_authenticated(
-                            &auth.registry,
-                            &auth.username,
-                            &auth.password,
-                            image,
-                            &[],
-                        )
+                        .login(Some(&auth.registry), &auth.username, &auth.password)
                         .await?;
+                    let pull = self.docker.image_pull_cancelled(&[image], cancel).await;
+                    let logout = self.docker.logout(Some(&auth.registry)).await;
+                    match (pull, logout) {
+                        (Err(error), _) => return Err(error),
+                        (Ok(_), Err(error)) => return Err(error),
+                        (Ok(_), Ok(_)) => {}
+                    }
                 } else {
-                    self.docker.image_pull(&[image]).await?;
+                    self.docker.image_pull_cancelled(&[image], cancel).await?;
                 }
             }
             SourceSpec::Git {
@@ -37,7 +43,8 @@ impl ApplicationBuilder {
                     .await
                     .is_ok()
                 {
-                    git.fetch(&["--prune", "origin", branch]).await?;
+                    git.fetch_cancelled(&["--prune", "origin", branch], cancel)
+                        .await?;
                     git.reset(&["--hard", "FETCH_HEAD"]).await?;
                 } else {
                     if let Some(parent) = std::path::Path::new(&spec.work_directory).parent() {
@@ -46,10 +53,11 @@ impl ApplicationBuilder {
                             .await?;
                     }
                     GitCli::from_executor(self.executor.clone())
-                        .clone_repository(
+                        .clone_repository_cancelled(
                             url,
                             Some(&spec.work_directory),
                             &["--branch", branch, "--single-branch"],
+                            cancel,
                         )
                         .await?;
                 }

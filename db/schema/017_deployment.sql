@@ -5,11 +5,14 @@ CREATE TABLE deployments (
 	description TEXT,
 	-- status: RUNNING | DONE | ERROR | CANCELLED
 	status TEXT NOT NULL DEFAULT 'RUNNING',
+	-- Last live builder state, e.g. QUEUE | BUILDING | DEPLOYING | HEALTH_CHECK
+	state TEXT NOT NULL DEFAULT 'QUEUE',
 	log_path TEXT NOT NULL,
 	pid TEXT,
 	error_message TEXT,
 	is_preview_deployment INTEGER NOT NULL DEFAULT 0,
 	started_at INTEGER,
+	last_state_at INTEGER,
 	finished_at INTEGER,
 	-- Foreign keys
 	application_id INTEGER REFERENCES applications(id) ON DELETE CASCADE,
@@ -32,6 +35,7 @@ CREATE TABLE rollbacks (
 -- Indexes for rollbacks
 CREATE INDEX idx_rollbacks_deployment_id ON rollbacks(deployment_id);
 CREATE INDEX idx_deployments_status ON deployments(status);
+CREATE INDEX idx_deployments_state ON deployments(state);
 CREATE INDEX idx_deployments_created_at ON deployments(created_at);
 CREATE INDEX idx_deployments_compose_id ON deployments(compose_id);
 CREATE INDEX idx_deployments_application_id ON deployments(application_id);

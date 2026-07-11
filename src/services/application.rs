@@ -5,6 +5,7 @@ use std::{
 };
 
 use auto_di::{resolve, singleton};
+use sqlx::Row;
 use sqlx::SqlitePool;
 use uuid::Uuid;
 
@@ -16,11 +17,12 @@ use crate::api::dto::application::{
 use crate::utils::{
     builder::{
         adapter::ApplicationSpecAdapter, application::ApplicationBuilder, custom_type::IdType,
-        hash_state::ApplicationState,
+        hash_state::ApplicationState, spec::BuilderEvent,
     },
     exec::{CommandExecutor, LocalExecutor, RemoteExecutor, SshAuth, SshHostKey},
     session::RemoteExecutorRegistry,
 };
+use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 #[derive(Debug, Clone)]
@@ -110,6 +112,7 @@ pub struct ApplicationService {
 #[singleton]
 impl ApplicationService {
     fn new(db: Arc<SqlitePool>) -> Self {
+        spawn_recover_stale_deployments(db.clone());
         Self { db }
     }
 
@@ -482,24 +485,25 @@ impl ApplicationService {
         .await?;
 
         let log_path = format!("logs/applications/{}/{}.log", id, Uuid::new_v4());
-        let deployment = sqlx::query!(
-            r#"INSERT INTO deployments (title, description, status, log_path, application_id, server_id, started_at)
-               VALUES (?, ?, 'RUNNING', ?, ?, ?, strftime('%s', 'now'))
-               RETURNING id AS "id!: i64""#,
-            operation.title(),
-            Some(format!("{} requested for {}", operation.as_str(), app.name)),
-            log_path,
-            id,
-            app.server_id
+        let deployment = sqlx::query(
+            r#"INSERT INTO deployments (title, description, status, state, log_path, application_id, server_id, started_at, last_state_at)
+               VALUES (?, ?, 'RUNNING', 'QUEUE', ?, ?, ?, strftime('%s', 'now'), strftime('%s', 'now'))
+               RETURNING id"#,
         )
+        .bind(operation.title())
+        .bind(Some(format!("{} requested for {}", operation.as_str(), app.name)))
+        .bind(log_path)
+        .bind(id)
+        .bind(app.server_id)
         .fetch_one(&mut *tx)
         .await?;
 
         tx.commit().await?;
-        self.spawn_operation(id, deployment.id, operation);
+        let deployment_id: i64 = deployment.get("id");
+        self.spawn_operation(id, deployment_id, operation);
         Ok(ApplicationOperationResult {
             application: app,
-            deployment_id: Some(deployment.id),
+            deployment_id: Some(deployment_id),
             operation,
         })
     }
@@ -512,9 +516,14 @@ impl ApplicationService {
     ) {
         let db = self.db.clone();
         tokio::spawn(async move {
-            let result = execute_operation(db.clone(), application_id, operation).await;
+            let result =
+                execute_operation(db.clone(), application_id, deployment_id, operation).await;
             let (application_status, deployment_status, error_message) = match result {
                 Ok(()) => ("DONE", "DONE", None),
+                Err(error) if is_cancelled_error(&error) => {
+                    tracing::warn!(application_id, deployment_id, operation = operation.as_str(), error = %error, "application operation cancelled");
+                    ("ERROR", "CANCELLED", Some(error))
+                }
                 Err(error) => {
                     tracing::error!(application_id, deployment_id, operation = operation.as_str(), error = %error, "application operation failed");
                     ("ERROR", "ERROR", Some(error))
@@ -529,8 +538,9 @@ impl ApplicationService {
                 tracing::error!(application_id, error = %error, "could not persist application status");
             }
             if let Err(error) = sqlx::query(
-                "UPDATE deployments SET status = ?, error_message = ?, finished_at = strftime('%s', 'now') WHERE id = ?",
+                "UPDATE deployments SET status = ?, state = ?, error_message = ?, finished_at = strftime('%s', 'now'), last_state_at = strftime('%s', 'now') WHERE id = ?",
             )
+            .bind(deployment_status)
             .bind(deployment_status)
             .bind(error_message)
             .bind(deployment_id)
@@ -554,6 +564,7 @@ impl ApplicationService {
 async fn execute_operation(
     db: Arc<SqlitePool>,
     application_id: i64,
+    deployment_id: i64,
     _operation: ApplicationOperation,
 ) -> Result<(), String> {
     let spec = ApplicationSpecAdapter::new(db.clone())
@@ -583,12 +594,80 @@ async fn execute_operation(
         Some(server_id) => CommandExecutor::Remote(remote_executor(db.as_ref(), server_id).await?),
         None => CommandExecutor::Local(LocalExecutor::new()),
     };
+    let (events_tx, events_rx) = mpsc::channel(64);
+    tokio::spawn(record_builder_events(db.clone(), deployment_id, events_rx));
     ApplicationBuilder::new(executor)
         .with_state(state, app_key)
+        .with_events(events_tx)
         .deploy(&spec, &cancel)
         .await
         .map(|_| ())
         .map_err(|error| error.to_string())
+}
+
+async fn record_builder_events(
+    db: Arc<SqlitePool>,
+    deployment_id: i64,
+    mut events: mpsc::Receiver<BuilderEvent>,
+) {
+    while let Some(event) = events.recv().await {
+        let state = builder_event_state(&event);
+        let message = match &event {
+            BuilderEvent::Failed(error) => Some(error.as_str()),
+            _ => None,
+        };
+        if let Err(error) = sqlx::query(
+            "UPDATE deployments SET state = ?, error_message = COALESCE(?, error_message), last_state_at = strftime('%s', 'now') WHERE id = ? AND status = 'RUNNING'",
+        )
+        .bind(state)
+        .bind(message)
+        .bind(deployment_id)
+        .execute(db.as_ref())
+        .await
+        {
+            tracing::error!(deployment_id, error = %error, "could not persist deployment builder event");
+        }
+    }
+}
+
+fn builder_event_state(event: &BuilderEvent) -> &'static str {
+    match event {
+        BuilderEvent::Preparing => "PREPARING",
+        BuilderEvent::SourceReady => "SOURCE_READY",
+        BuilderEvent::Building => "BUILDING",
+        BuilderEvent::ImageReady => "IMAGE_READY",
+        BuilderEvent::Deploying => "DEPLOYING",
+        BuilderEvent::Routing => "ROUTING",
+        BuilderEvent::HealthCheck => "HEALTH_CHECK",
+        BuilderEvent::Deployed => "DEPLOYED",
+        BuilderEvent::Cancelled => "CANCELLED",
+        BuilderEvent::Failed(_) => "FAILED",
+    }
+}
+
+fn is_cancelled_error(error: &str) -> bool {
+    error.to_ascii_lowercase().contains("cancel")
+}
+
+fn spawn_recover_stale_deployments(db: Arc<SqlitePool>) {
+    tokio::spawn(async move {
+        if let Err(error) = sqlx::query(
+            "UPDATE deployments SET status = 'ERROR', state = 'RECOVERED_AFTER_RESTART', error_message = COALESCE(error_message, 'server restarted while deployment was running'), finished_at = strftime('%s', 'now'), last_state_at = strftime('%s', 'now') WHERE status = 'RUNNING' AND application_id IS NOT NULL",
+        )
+        .execute(db.as_ref())
+        .await
+        {
+            tracing::error!(error = %error, "could not recover stale application deployments");
+        }
+        if let Err(error) = sqlx::query(
+            "UPDATE applications SET app_status = 'ERROR' WHERE app_status = 'RUNNING' AND id IN (SELECT application_id FROM deployments WHERE state = 'RECOVERED_AFTER_RESTART' AND application_id IS NOT NULL)",
+        )
+        .execute(db.as_ref())
+        .await
+        {
+            tracing::error!(error = %error, "could not recover stale application statuses");
+        }
+    });
 }
 
 async fn remote_executor(db: &SqlitePool, server_id: i64) -> Result<RemoteExecutor, String> {

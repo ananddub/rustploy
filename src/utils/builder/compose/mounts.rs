@@ -6,23 +6,32 @@ use crate::utils::{
     },
     exec::{ExecError, ExecResult},
 };
+use tokio_util::sync::CancellationToken;
 
 impl ComposeBuilder {
-    pub(super) async fn prepare_runtime_files(&self, spec: &ComposeSpec) -> ExecResult<()> {
+    pub(super) async fn prepare_runtime_files(
+        &self,
+        spec: &ComposeSpec,
+        cancel: &CancellationToken,
+    ) -> ExecResult<()> {
         if let Some(parent) = std::path::Path::new(&spec.env_file).parent() {
             self.executor
-                .run("mkdir", ["-p", parent.to_string_lossy().as_ref()])
+                .run_cancelled("mkdir", ["-p", parent.to_string_lossy().as_ref()], cancel)
                 .await?;
         }
-        self.write_file(&spec.env_file, env_file(spec).as_bytes())
+        self.write_file_cancelled(&spec.env_file, env_file(spec).as_bytes(), cancel)
             .await?;
         for mount in &spec.mounts {
-            self.prepare_file_mount(mount).await?;
+            self.prepare_file_mount(mount, cancel).await?;
         }
         Ok(())
     }
 
-    async fn prepare_file_mount(&self, mount: &MountSpec) -> ExecResult<()> {
+    async fn prepare_file_mount(
+        &self,
+        mount: &MountSpec,
+        cancel: &CancellationToken,
+    ) -> ExecResult<()> {
         if !matches!(mount.kind, MountKind::File) {
             return Ok(());
         }
@@ -33,7 +42,7 @@ impl ComposeBuilder {
                 stderr: "invalid file mount source".into(),
             })?;
         self.executor
-            .run("mkdir", ["-p", parent.to_string_lossy().as_ref()])
+            .run_cancelled("mkdir", ["-p", parent.to_string_lossy().as_ref()], cancel)
             .await?;
         let content = mount
             .content
@@ -42,7 +51,8 @@ impl ComposeBuilder {
                 code: None,
                 stderr: format!("file mount {} has no content", mount.target),
             })?;
-        self.write_file(&mount.source, content.as_bytes()).await
+        self.write_file_cancelled(&mount.source, content.as_bytes(), cancel)
+            .await
     }
 }
 

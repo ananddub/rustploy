@@ -5,6 +5,7 @@ use crate::utils::exec::{
 };
 use std::{ffi::OsStr, path::PathBuf};
 use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
 
 #[derive(Clone, Debug)]
 pub struct GitCli {
@@ -80,6 +81,19 @@ impl GitCli {
             .run(&self.executable, self.arguments(args))
             .await
     }
+    pub async fn run_cancelled<I, S>(
+        &self,
+        args: I,
+        cancel: &CancellationToken,
+    ) -> ExecResult<ExecOutput>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<OsStr>,
+    {
+        self.executor
+            .run_cancelled(&self.executable, self.arguments(args), cancel)
+            .await
+    }
     pub async fn run_with_stdin<I, S>(
         &self,
         args: I,
@@ -139,6 +153,21 @@ impl GitCli {
         }
         self.run(args).await
     }
+    pub async fn clone_repository_cancelled(
+        &self,
+        url: &str,
+        destination: Option<&str>,
+        options: &[&str],
+        cancel: &CancellationToken,
+    ) -> ExecResult<ExecOutput> {
+        let mut args = vec!["clone"];
+        args.extend_from_slice(options);
+        args.push(url);
+        if let Some(destination) = destination {
+            args.push(destination);
+        }
+        self.run_cancelled(args, cancel).await
+    }
     pub async fn clone_repository_stream(
         &self,
         url: &str,
@@ -156,6 +185,15 @@ impl GitCli {
     }
     pub async fn fetch(&self, args: &[&str]) -> ExecResult<ExecOutput> {
         self.prefixed(&["fetch"], args).await
+    }
+    pub async fn fetch_cancelled(
+        &self,
+        args: &[&str],
+        cancel: &CancellationToken,
+    ) -> ExecResult<ExecOutput> {
+        let mut command = vec!["fetch"];
+        command.extend_from_slice(args);
+        self.run_cancelled(command, cancel).await
     }
     pub async fn fetch_stream(
         &self,

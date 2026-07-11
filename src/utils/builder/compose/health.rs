@@ -15,7 +15,7 @@ impl ComposeBuilder {
         let deadline = Instant::now() + self.health_timeout;
         loop {
             self.cancelled(cancel)?;
-            let output = match spec.runtime {
+            let health_result = match spec.runtime {
                 ComposeRuntime::Stack => {
                     self.docker
                         .stack_ps(&[
@@ -25,7 +25,7 @@ impl ComposeBuilder {
                             "{{json .}}",
                             spec.stack_name.as_str(),
                         ])
-                        .await?
+                        .await
                 }
                 ComposeRuntime::Compose => {
                     self.docker
@@ -38,8 +38,20 @@ impl ComposeBuilder {
                             spec.compose_file_path().as_str(),
                             "ps",
                         ])
-                        .await?
+                        .await
                 }
+            };
+            let output = match health_result {
+                Ok(output) => output,
+                Err(error)
+                    if Instant::now() < deadline
+                        && is_transient_docker_error(&error.to_string()) =>
+                {
+                    tracing::warn!(error = %error, "compose health check failed transiently; retrying");
+                    tokio::time::sleep(Duration::from_secs(2)).await;
+                    continue;
+                }
+                Err(error) => return Err(error),
             };
             if output.stdout.contains("Running") || output.stdout.contains("running") {
                 return Ok(());
@@ -58,4 +70,19 @@ impl ComposeBuilder {
             tokio::time::sleep(Duration::from_secs(2)).await;
         }
     }
+}
+
+fn is_transient_docker_error(message: &str) -> bool {
+    let message = message.to_ascii_lowercase();
+    [
+        "cannot connect to the docker daemon",
+        "docker daemon",
+        "connection refused",
+        "connection reset",
+        "service unavailable",
+        "temporarily unavailable",
+        "context deadline exceeded",
+    ]
+    .iter()
+    .any(|needle| message.contains(needle))
 }

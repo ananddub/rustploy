@@ -5,6 +5,7 @@ use tokio::{
     process::Command,
     sync::mpsc,
 };
+use tokio_util::sync::CancellationToken;
 
 #[derive(Clone, Debug, Default)]
 pub struct LocalExecutor;
@@ -28,6 +29,34 @@ impl LocalExecutor {
     {
         checked(self.command(program, args).output().await?)
     }
+    pub async fn run_cancelled<I, S>(
+        &self,
+        program: &str,
+        args: I,
+        cancel: &CancellationToken,
+    ) -> ExecResult<ExecOutput>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<OsStr>,
+    {
+        let mut c = self.command(program, args);
+        c.stdout(Stdio::piped()).stderr(Stdio::piped());
+        let mut child = c.spawn()?;
+        let stdout = child.stdout.take();
+        let stderr = child.stderr.take();
+        tokio::select! {
+            status = child.wait() => {
+                let stdout = read_pipe(stdout).await?;
+                let stderr = read_pipe(stderr).await?;
+                checked(std::process::Output { status: status?, stdout, stderr })
+            },
+            _ = cancel.cancelled() => {
+                let _ = child.kill().await;
+                let _ = child.wait().await;
+                Err(ExecError::StreamCancelled)
+            }
+        }
+    }
     pub async fn run_with_stdin<I, S>(
         &self,
         program: &str,
@@ -50,6 +79,40 @@ impl LocalExecutor {
             .write_all(stdin.as_ref())
             .await?;
         checked(child.wait_with_output().await?)
+    }
+    pub async fn run_with_stdin_cancelled<I, S>(
+        &self,
+        program: &str,
+        args: I,
+        stdin: impl AsRef<[u8]>,
+        cancel: &CancellationToken,
+    ) -> ExecResult<ExecOutput>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<OsStr>,
+    {
+        let mut c = self.command(program, args);
+        c.stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        let mut child = c.spawn()?;
+        if let Some(mut child_stdin) = child.stdin.take() {
+            child_stdin.write_all(stdin.as_ref()).await?;
+        }
+        let stdout = child.stdout.take();
+        let stderr = child.stderr.take();
+        tokio::select! {
+            status = child.wait() => {
+                let stdout = read_pipe(stdout).await?;
+                let stderr = read_pipe(stderr).await?;
+                checked(std::process::Output { status: status?, stdout, stderr })
+            },
+            _ = cancel.cancelled() => {
+                let _ = child.kill().await;
+                let _ = child.wait().await;
+                Err(ExecError::StreamCancelled)
+            }
+        }
     }
     pub async fn run_stream(
         &self,
@@ -112,6 +175,15 @@ impl LocalExecutor {
         }
         Ok(status)
     }
+}
+async fn read_pipe(
+    pipe: Option<impl tokio::io::AsyncRead + Unpin>,
+) -> Result<Vec<u8>, std::io::Error> {
+    let mut data = Vec::new();
+    if let Some(mut pipe) = pipe {
+        pipe.read_to_end(&mut data).await?;
+    }
+    Ok(data)
 }
 fn checked(output: std::process::Output) -> ExecResult<ExecOutput> {
     let result = ExecOutput {

@@ -2,10 +2,18 @@ use super::{
     ComposeContainer, DockerCli, DockerExitStatus, DockerOutput, DockerResult, DockerStreamEvent,
 };
 use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
 
 impl DockerCli {
     pub async fn compose(&self, args: &[&str]) -> DockerResult<DockerOutput> {
         self.prefixed(&["compose"], args).await
+    }
+    pub async fn compose_cancelled(
+        &self,
+        args: &[&str],
+        cancel: &CancellationToken,
+    ) -> DockerResult<DockerOutput> {
+        self.prefixed_cancelled(&["compose"], args, cancel).await
     }
     pub async fn compose_up(&self, args: &[&str]) -> DockerResult<DockerOutput> {
         self.prefixed(&["compose", "up"], args).await

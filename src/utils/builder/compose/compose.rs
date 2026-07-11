@@ -59,21 +59,27 @@ impl ComposeBuilder {
         validate_spec(spec)?;
         self.emit(BuilderEvent::Preparing).await;
         self.cancelled(cancel)?;
-        self.prepare_source(spec).await?;
+        self.prepare_source(spec, cancel).await?;
         self.emit(BuilderEvent::SourceReady).await;
-        self.prepare_runtime_files(spec).await?;
-        write_labeled_compose(self, spec).await?;
+        self.prepare_runtime_files(spec, cancel).await?;
+        write_labeled_compose(self, spec, cancel).await?;
 
         self.emit(BuilderEvent::Deploying).await;
-        match spec.runtime {
-            ComposeRuntime::Stack => self.deploy_stack(spec).await?,
-            ComposeRuntime::Compose => self.deploy_compose(spec).await?,
+        let deploy_result = match spec.runtime {
+            ComposeRuntime::Stack => self.deploy_stack(spec, cancel).await,
+            ComposeRuntime::Compose => self.deploy_compose(spec, cancel).await,
+        };
+        if let Err(error) = deploy_result {
+            self.cleanup_failed_deploy(spec).await;
+            self.emit(BuilderEvent::Failed(error.to_string())).await;
+            return Err(error);
         }
 
         self.emit(BuilderEvent::Routing).await;
 
         self.emit(BuilderEvent::HealthCheck).await;
         if let Err(error) = self.wait_healthy(spec, cancel).await {
+            self.cleanup_failed_deploy(spec).await;
             self.emit(BuilderEvent::Failed(error.to_string())).await;
             return Err(error);
         }
@@ -111,27 +117,30 @@ impl ComposeBuilder {
         Ok(())
     }
 
-    async fn deploy_stack(&self, spec: &ComposeSpec) -> ExecResult<()> {
-        self.executor
-            .run(
-                "sh",
-                [
-                    "-c",
-                    "docker compose --env-file \"$1\" --file \"$2\" config > \"$3\" && docker stack deploy --compose-file \"$3\" --with-registry-auth \"$4\"",
-                    "rustploy-compose-stack",
-                    spec.env_file.as_str(),
-                    spec.compose_file_path().as_str(),
-                    spec.rendered_stack_file.as_str(),
-                    spec.stack_name.as_str(),
-                ],
-            )
-            .await?;
-        Ok(())
+    async fn deploy_stack(&self, spec: &ComposeSpec, cancel: &CancellationToken) -> ExecResult<()> {
+        self.run_with_retry(
+            "sh",
+            &[
+                "-c",
+                "docker compose --env-file \"$1\" --file \"$2\" config > \"$3\" && docker stack deploy --compose-file \"$3\" --with-registry-auth \"$4\"",
+                "rustploy-compose-stack",
+                spec.env_file.as_str(),
+                spec.compose_file_path().as_str(),
+                spec.rendered_stack_file.as_str(),
+                spec.stack_name.as_str(),
+            ],
+            cancel,
+        )
+        .await
     }
 
-    async fn deploy_compose(&self, spec: &ComposeSpec) -> ExecResult<()> {
-        self.docker
-            .compose(&[
+    async fn deploy_compose(
+        &self,
+        spec: &ComposeSpec,
+        cancel: &CancellationToken,
+    ) -> ExecResult<()> {
+        self.docker_compose_with_retry(
+            &[
                 "--project-name",
                 spec.stack_name.as_str(),
                 "--env-file",
@@ -140,17 +149,24 @@ impl ComposeBuilder {
                 spec.compose_file_path().as_str(),
                 "up",
                 "--detach",
-            ])
-            .await?;
-        Ok(())
+            ],
+            cancel,
+        )
+        .await
     }
 
-    pub(super) async fn write_file(&self, path: &str, content: &[u8]) -> ExecResult<()> {
+    pub(super) async fn write_file_cancelled(
+        &self,
+        path: &str,
+        content: &[u8],
+        cancel: &CancellationToken,
+    ) -> ExecResult<()> {
         self.executor
-            .run_with_stdin(
+            .run_with_stdin_cancelled(
                 "sh",
                 ["-c", "umask 077; cat > \"$1\"", "rustploy-write", path],
                 content,
+                cancel,
             )
             .await?;
         Ok(())
@@ -161,6 +177,74 @@ impl ComposeBuilder {
             Err(ExecError::StreamCancelled)
         } else {
             Ok(())
+        }
+    }
+
+    async fn docker_compose_with_retry(
+        &self,
+        args: &[&str],
+        cancel: &CancellationToken,
+    ) -> ExecResult<()> {
+        let mut attempts = 0;
+        loop {
+            attempts += 1;
+            self.cancelled(cancel)?;
+            match self.docker.compose_cancelled(args, cancel).await {
+                Ok(_) => return Ok(()),
+                Err(error) if attempts < 4 && is_transient_docker_error(&error.to_string()) => {
+                    tracing::warn!(attempts, error = %error, "docker compose command failed transiently; retrying");
+                    tokio::time::sleep(Duration::from_secs(2 * attempts)).await;
+                }
+                Err(error) => return Err(error),
+            }
+        }
+    }
+
+    async fn run_with_retry(
+        &self,
+        program: &str,
+        args: &[&str],
+        cancel: &CancellationToken,
+    ) -> ExecResult<()> {
+        let mut attempts = 0;
+        loop {
+            attempts += 1;
+            self.cancelled(cancel)?;
+            match self.executor.run_cancelled(program, args, cancel).await {
+                Ok(_) => return Ok(()),
+                Err(error) if attempts < 4 && is_transient_docker_error(&error.to_string()) => {
+                    tracing::warn!(attempts, error = %error, "docker command failed transiently; retrying");
+                    tokio::time::sleep(Duration::from_secs(2 * attempts)).await;
+                }
+                Err(error) => return Err(error),
+            }
+        }
+    }
+
+    async fn cleanup_failed_deploy(&self, spec: &ComposeSpec) {
+        match spec.runtime {
+            ComposeRuntime::Stack => {
+                if let Err(error) = self.docker.stack_remove(&[spec.stack_name.as_str()]).await {
+                    tracing::warn!(stack = %spec.stack_name, error = %error, "compose stack cleanup failed");
+                }
+            }
+            ComposeRuntime::Compose => {
+                if let Err(error) = self
+                    .docker
+                    .compose(&[
+                        "--project-name",
+                        spec.stack_name.as_str(),
+                        "--env-file",
+                        spec.env_file.as_str(),
+                        "--file",
+                        spec.compose_file_path().as_str(),
+                        "down",
+                    ])
+                    .await
+                {
+                    tracing::warn!(compose = %spec.stack_name, error = %error, "compose cleanup failed");
+                }
+            }
         }
     }
 
@@ -183,4 +267,19 @@ impl ComposeBuilder {
             let _ = state.send_state(id.clone(), deploy_state);
         }
     }
+}
+
+fn is_transient_docker_error(message: &str) -> bool {
+    let message = message.to_ascii_lowercase();
+    [
+        "cannot connect to the docker daemon",
+        "docker daemon",
+        "connection refused",
+        "connection reset",
+        "service unavailable",
+        "temporarily unavailable",
+        "context deadline exceeded",
+    ]
+    .iter()
+    .any(|needle| message.contains(needle))
 }

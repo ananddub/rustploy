@@ -4,6 +4,7 @@ use super::{
 };
 use serde::de::DeserializeOwned;
 use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
 
 impl DockerCli {
     pub async fn swarm_init(&self, args: &[&str]) -> DockerResult<DockerOutput> {
@@ -86,6 +87,14 @@ impl DockerCli {
     }
     pub async fn stack_deploy(&self, args: &[&str]) -> DockerResult<DockerOutput> {
         self.prefixed(&["stack", "deploy"], args).await
+    }
+    pub async fn stack_deploy_cancelled(
+        &self,
+        args: &[&str],
+        cancel: &CancellationToken,
+    ) -> DockerResult<DockerOutput> {
+        self.prefixed_cancelled(&["stack", "deploy"], args, cancel)
+            .await
     }
     pub async fn stack_deploy_stream(
         &self,

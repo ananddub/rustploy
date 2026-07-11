@@ -6,6 +6,7 @@ use russh_extra::{Client, HostKeyPolicy, Identity, KeyboardInteractiveReply};
 use std::time::Duration;
 use std::{ffi::OsStr, sync::Arc};
 use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
 
 #[derive(Clone, Debug)]
 pub struct RemoteExecutor {
@@ -75,7 +76,20 @@ impl RemoteExecutor {
         S: AsRef<OsStr>,
     {
         let args = collect(args);
-        self.execute(program, &args, &[], None).await
+        self.execute(program, &args, &[], None, None).await
+    }
+    pub async fn run_cancelled<I, S>(
+        &self,
+        program: &str,
+        args: I,
+        cancel: &CancellationToken,
+    ) -> ExecResult<ExecOutput>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<OsStr>,
+    {
+        let args = collect(args);
+        self.execute(program, &args, &[], None, Some(cancel)).await
     }
     pub async fn run_with_stdin<I, S>(
         &self,
@@ -88,7 +102,23 @@ impl RemoteExecutor {
         S: AsRef<OsStr>,
     {
         let args = collect(args);
-        self.execute(program, &args, stdin.as_ref(), None).await
+        self.execute(program, &args, stdin.as_ref(), None, None)
+            .await
+    }
+    pub async fn run_with_stdin_cancelled<I, S>(
+        &self,
+        program: &str,
+        args: I,
+        stdin: impl AsRef<[u8]>,
+        cancel: &CancellationToken,
+    ) -> ExecResult<ExecOutput>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<OsStr>,
+    {
+        let args = collect(args);
+        self.execute(program, &args, stdin.as_ref(), None, Some(cancel))
+            .await
     }
     pub async fn run_stream(
         &self,
@@ -96,7 +126,10 @@ impl RemoteExecutor {
         args: &[String],
         sender: mpsc::Sender<ExecStreamEvent>,
     ) -> ExecResult<ExecExitStatus> {
-        Ok(self.execute(program, args, &[], Some(sender)).await?.status)
+        Ok(self
+            .execute(program, args, &[], Some(sender), None)
+            .await?
+            .status)
     }
     async fn connect_session(&self) -> ExecResult<russh_extra::Session> {
         let mut builder = Client::builder()
@@ -149,6 +182,7 @@ impl RemoteExecutor {
         args: &[String],
         stdin: &[u8],
         stream: Option<mpsc::Sender<ExecStreamEvent>>,
+        cancel: Option<&CancellationToken>,
     ) -> ExecResult<ExecOutput> {
         let mut last_error = None;
         for _ in 0..2 {
@@ -165,7 +199,7 @@ impl RemoteExecutor {
             };
             let result = match tokio::time::timeout(
                 self.command_timeout,
-                self.execute_on_session(&session, program, args, stdin, stream.clone()),
+                self.execute_on_session(&session, program, args, stdin, stream.clone(), cancel),
             )
             .await
             {
@@ -204,6 +238,7 @@ impl RemoteExecutor {
         args: &[String],
         stdin: &[u8],
         stream: Option<mpsc::Sender<ExecStreamEvent>>,
+        cancel: Option<&CancellationToken>,
     ) -> ExecResult<ExecOutput> {
         use russh_extra::russh::ChannelMsg;
         let guard = session
@@ -239,7 +274,20 @@ impl RemoteExecutor {
         let mut stderr = Vec::new();
         let mut exit = None;
         loop {
-            let message = if let Some(sender) = &stream {
+            let message = if let Some(cancel) = cancel {
+                if let Some(sender) = &stream {
+                    tokio::select! {
+                        message=channel.wait()=>message,
+                        _=sender.closed()=>{let _=channel.close().await;return Err(ExecError::StreamCancelled);},
+                        _=cancel.cancelled()=>{let _=channel.close().await;return Err(ExecError::StreamCancelled);}
+                    }
+                } else {
+                    tokio::select! {
+                        message=channel.wait()=>message,
+                        _=cancel.cancelled()=>{let _=channel.close().await;return Err(ExecError::StreamCancelled);}
+                    }
+                }
+            } else if let Some(sender) = &stream {
                 tokio::select! {message=channel.wait()=>message,_=sender.closed()=>{let _=channel.close().await;return Err(ExecError::StreamCancelled);}}
             } else {
                 channel.wait().await

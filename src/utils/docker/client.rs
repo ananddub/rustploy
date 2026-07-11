@@ -3,6 +3,7 @@ use crate::utils::exec::{CommandExecutor, LocalExecutor, RemoteExecutor, SshAuth
 use serde::de::DeserializeOwned;
 use std::{ffi::OsStr, path::PathBuf};
 use tokio::{process::Command, sync::mpsc};
+use tokio_util::sync::CancellationToken;
 
 pub type RemoteDockerConfig = RemoteExecutor;
 pub type RemoteHostKey = SshHostKey;
@@ -106,6 +107,20 @@ impl DockerCli {
         let args = self.arguments(args);
         self.executor.run(&self.executable, args).await
     }
+    pub async fn run_cancelled<I, S>(
+        &self,
+        args: I,
+        cancel: &CancellationToken,
+    ) -> DockerResult<DockerOutput>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<OsStr>,
+    {
+        let args = self.arguments(args);
+        self.executor
+            .run_cancelled(&self.executable, args, cancel)
+            .await
+    }
     pub async fn run_with_stdin<I, S>(
         &self,
         args: I,
@@ -171,6 +186,16 @@ impl DockerCli {
         let mut command = prefix.to_vec();
         command.extend_from_slice(args);
         self.run(command).await
+    }
+    pub(crate) async fn prefixed_cancelled(
+        &self,
+        prefix: &[&str],
+        args: &[&str],
+        cancel: &CancellationToken,
+    ) -> DockerResult<DockerOutput> {
+        let mut command = prefix.to_vec();
+        command.extend_from_slice(args);
+        self.run_cancelled(command, cancel).await
     }
     pub(crate) async fn list<T: DeserializeOwned>(
         &self,

@@ -3,6 +3,7 @@ use super::{
 };
 use serde::de::DeserializeOwned;
 use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
 
 impl DockerCli {
     pub async fn images(&self, all: bool, filters: &[&str]) -> DockerResult<Vec<ImageSummary>> {
@@ -17,6 +18,14 @@ impl DockerCli {
     }
     pub async fn image_pull(&self, args: &[&str]) -> DockerResult<DockerOutput> {
         self.prefixed(&["image", "pull"], args).await
+    }
+    pub async fn image_pull_cancelled(
+        &self,
+        args: &[&str],
+        cancel: &CancellationToken,
+    ) -> DockerResult<DockerOutput> {
+        self.prefixed_cancelled(&["image", "pull"], args, cancel)
+            .await
     }
     /// Logs in with stdin, pulls the image, then removes the temporary registry session.
     pub async fn image_pull_authenticated(
@@ -82,6 +91,14 @@ impl DockerCli {
     }
     pub async fn image_build(&self, args: &[&str]) -> DockerResult<DockerOutput> {
         self.prefixed(&["image", "build"], args).await
+    }
+    pub async fn image_build_cancelled(
+        &self,
+        args: &[&str],
+        cancel: &CancellationToken,
+    ) -> DockerResult<DockerOutput> {
+        self.prefixed_cancelled(&["image", "build"], args, cancel)
+            .await
     }
     pub async fn image_build_stream(
         &self,

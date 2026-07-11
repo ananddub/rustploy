@@ -1,6 +1,7 @@
 use super::{ExecResult, LocalExecutor, RemoteExecutor};
 use std::{ffi::OsStr, process::ExitStatus};
 use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
 
 #[derive(Debug)]
 pub enum ExecExitStatus {
@@ -118,6 +119,51 @@ impl CommandExecutor {
         match self {
             Self::Local(e) => e.run_with_stdin(program, &args, stdin).await,
             Self::Remote(e) => e.run_with_stdin(program, &args, stdin).await,
+        }
+    }
+    pub async fn run_cancelled<I, S>(
+        &self,
+        program: &str,
+        args: I,
+        cancel: &CancellationToken,
+    ) -> ExecResult<ExecOutput>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<OsStr>,
+    {
+        let args = args
+            .into_iter()
+            .map(|v| v.as_ref().to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        match self {
+            Self::Local(e) => e.run_cancelled(program, &args, cancel).await,
+            Self::Remote(e) => e.run_cancelled(program, &args, cancel).await,
+        }
+    }
+    pub async fn run_with_stdin_cancelled<I, S>(
+        &self,
+        program: &str,
+        args: I,
+        stdin: impl AsRef<[u8]>,
+        cancel: &CancellationToken,
+    ) -> ExecResult<ExecOutput>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<OsStr>,
+    {
+        let args = args
+            .into_iter()
+            .map(|v| v.as_ref().to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        match self {
+            Self::Local(e) => {
+                e.run_with_stdin_cancelled(program, &args, stdin, cancel)
+                    .await
+            }
+            Self::Remote(e) => {
+                e.run_with_stdin_cancelled(program, &args, stdin, cancel)
+                    .await
+            }
         }
     }
     pub async fn run_stream<I, S>(
