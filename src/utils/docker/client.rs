@@ -1,32 +1,65 @@
-use super::{DockerError, DockerOutput, DockerResult};
+use super::{DockerError, DockerExitStatus, DockerOutput, DockerResult, DockerStreamEvent};
+use crate::utils::exec::{CommandExecutor, LocalExecutor, RemoteExecutor, SshAuth, SshHostKey};
 use serde::de::DeserializeOwned;
-use std::{ffi::OsStr, path::PathBuf, process::Stdio};
-use tokio::{io::AsyncWriteExt, process::Command};
+use std::{ffi::OsStr, path::PathBuf};
+use tokio::{process::Command, sync::mpsc};
+
+pub type RemoteDockerConfig = RemoteExecutor;
+pub type RemoteHostKey = SshHostKey;
 
 #[derive(Clone, Debug)]
 pub struct DockerCli {
-    executable: PathBuf,
+    executor: CommandExecutor,
+    executable: String,
     global_args: Vec<String>,
 }
-
 impl Default for DockerCli {
     fn default() -> Self {
-        Self::new()
+        Self::new_local()
     }
 }
-
 impl DockerCli {
-    pub fn new() -> Self {
+    pub fn new_local() -> Self {
         Self {
+            executor: CommandExecutor::Local(LocalExecutor::new()),
             executable: "docker".into(),
-            global_args: Vec::new(),
+            global_args: vec![],
         }
     }
     pub fn with_executable(executable: impl Into<PathBuf>) -> Self {
         Self {
-            executable: executable.into(),
-            global_args: Vec::new(),
+            executor: CommandExecutor::Local(LocalExecutor::new()),
+            executable: executable.into().to_string_lossy().into_owned(),
+            global_args: vec![],
         }
+    }
+    pub fn new_remote(
+        host: impl Into<String>,
+        port: u16,
+        username: impl Into<String>,
+        auth: SshAuth,
+        host_key: SshHostKey,
+    ) -> Self {
+        Self::from_remote_executor(RemoteExecutor::new(host, port, username, auth, host_key))
+    }
+    pub fn from_remote_executor(executor: RemoteExecutor) -> Self {
+        Self {
+            executor: CommandExecutor::Remote(executor),
+            executable: "docker".into(),
+            global_args: vec![],
+        }
+    }
+    pub fn with_remote_sudo(mut self) -> Self {
+        if let CommandExecutor::Remote(remote) = self.executor {
+            self.executor = CommandExecutor::Remote(remote.with_sudo());
+        }
+        self
+    }
+    pub fn with_remote_sudo_password(mut self, password: impl Into<String>) -> Self {
+        if let CommandExecutor::Remote(remote) = self.executor {
+            self.executor = CommandExecutor::Remote(remote.with_sudo_password(password));
+        }
+        self
     }
     pub fn with_host(mut self, host: impl Into<String>) -> Self {
         self.global_args.extend(["--host".into(), host.into()]);
@@ -37,22 +70,28 @@ impl DockerCli {
             .extend(["--context".into(), context.into()]);
         self
     }
-    pub fn command<I, S>(&self, args: I) -> Command
+    pub fn command<I, S>(&self, args: I) -> DockerResult<Command>
     where
         I: IntoIterator<Item = S>,
         S: AsRef<OsStr>,
     {
-        let mut command = Command::new(&self.executable);
-        command.args(&self.global_args).args(args);
-        command
+        match &self.executor {
+            CommandExecutor::Local(local) => {
+                let arguments = self.arguments(args);
+                Ok(local.command(&self.executable, arguments))
+            }
+            CommandExecutor::Remote(_) => Err(DockerError::Ssh(
+                "a local process cannot be created for a remote client; use run_stream".into(),
+            )),
+        }
     }
     pub async fn run<I, S>(&self, args: I) -> DockerResult<DockerOutput>
     where
         I: IntoIterator<Item = S>,
         S: AsRef<OsStr>,
     {
-        let output = self.command(args).output().await?;
-        Self::checked_output(output)
+        let args = self.arguments(args);
+        self.executor.run(&self.executable, args).await
     }
     pub async fn run_with_stdin<I, S>(
         &self,
@@ -63,19 +102,38 @@ impl DockerCli {
         I: IntoIterator<Item = S>,
         S: AsRef<OsStr>,
     {
-        let mut command = self.command(args);
-        command
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
-        let mut child = command.spawn()?;
-        child
-            .stdin
-            .take()
-            .expect("piped stdin")
-            .write_all(stdin.as_ref())
-            .await?;
-        Self::checked_output(child.wait_with_output().await?)
+        let args = self.arguments(args);
+        self.executor
+            .run_with_stdin(&self.executable, args, stdin)
+            .await
+    }
+    pub async fn run_stream<I, S>(
+        &self,
+        args: I,
+        sender: mpsc::Sender<DockerStreamEvent>,
+    ) -> DockerResult<DockerExitStatus>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<OsStr>,
+    {
+        let args = self.arguments(args);
+        self.executor
+            .run_stream(&self.executable, args, sender)
+            .await
+    }
+    fn arguments<I, S>(&self, args: I) -> Vec<String>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<OsStr>,
+    {
+        self.global_args
+            .iter()
+            .cloned()
+            .chain(
+                args.into_iter()
+                    .map(|v| v.as_ref().to_string_lossy().into_owned()),
+            )
+            .collect()
     }
     pub(crate) async fn json<T: DeserializeOwned>(&self, args: &[&str]) -> DockerResult<T> {
         Ok(serde_json::from_str(&self.run(args).await?.stdout)?)
@@ -118,19 +176,5 @@ impl DockerCli {
             args.extend(["--filter", filter]);
         }
         self.run(args).await
-    }
-    fn checked_output(output: std::process::Output) -> DockerResult<DockerOutput> {
-        let result = DockerOutput {
-            status: output.status,
-            stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
-            stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
-        };
-        if !result.success() {
-            return Err(DockerError::CommandFailed {
-                code: result.status.code(),
-                stderr: result.stderr.trim().into(),
-            });
-        }
-        Ok(result)
     }
 }

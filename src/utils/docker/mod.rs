@@ -8,6 +8,7 @@ mod swarm;
 mod system;
 mod types;
 
-pub use client::DockerCli;
-pub use error::{DockerError, DockerOutput, DockerResult};
+pub use crate::utils::exec::SshAuth;
+pub use client::{DockerCli, RemoteDockerConfig, RemoteHostKey};
+pub use error::{DockerError, DockerExitStatus, DockerOutput, DockerResult, DockerStreamEvent};
 pub use types::*;

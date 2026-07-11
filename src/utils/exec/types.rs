@@ -1,0 +1,142 @@
+use super::{ExecResult, LocalExecutor, RemoteExecutor};
+use std::{ffi::OsStr, process::ExitStatus};
+use tokio::sync::mpsc;
+
+#[derive(Debug)]
+pub enum ExecExitStatus {
+    Local(ExitStatus),
+    Remote(u32),
+}
+impl ExecExitStatus {
+    pub fn success(&self) -> bool {
+        match self {
+            Self::Local(s) => s.success(),
+            Self::Remote(c) => *c == 0,
+        }
+    }
+    pub fn code(&self) -> Option<i32> {
+        match self {
+            Self::Local(s) => s.code(),
+            Self::Remote(c) => Some(*c as i32),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct ExecOutput {
+    pub status: ExecExitStatus,
+    pub stdout: String,
+    pub stderr: String,
+}
+impl ExecOutput {
+    pub fn success(&self) -> bool {
+        self.status.success()
+    }
+    pub fn stdout_trimmed(&self) -> &str {
+        self.stdout.trim()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ExecStreamEvent {
+    Stdout(Vec<u8>),
+    Stderr(Vec<u8>),
+}
+
+#[derive(Clone, Debug)]
+pub enum SshAuth {
+    Password(String),
+    KeyPair {
+        private_key: String,
+        public_key: Option<String>,
+        passphrase: Option<String>,
+    },
+    Agent,
+}
+impl SshAuth {
+    pub fn password(value: impl Into<String>) -> Self {
+        Self::Password(value.into())
+    }
+    pub fn key_pair(private_key: impl Into<String>, public_key: impl Into<String>) -> Self {
+        Self::KeyPair {
+            private_key: private_key.into(),
+            public_key: Some(public_key.into()),
+            passphrase: None,
+        }
+    }
+    pub fn private_key(private_key: impl Into<String>) -> Self {
+        Self::KeyPair {
+            private_key: private_key.into(),
+            public_key: None,
+            passphrase: None,
+        }
+    }
+    pub fn with_passphrase(mut self, value: impl Into<String>) -> Self {
+        if let Self::KeyPair { passphrase, .. } = &mut self {
+            *passphrase = Some(value.into());
+        }
+        self
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum SshHostKey {
+    PinnedSha256(String),
+    InsecureAcceptAny,
+}
+
+#[derive(Clone, Debug)]
+pub enum CommandExecutor {
+    Local(LocalExecutor),
+    Remote(RemoteExecutor),
+}
+impl CommandExecutor {
+    pub async fn run<I, S>(&self, program: &str, args: I) -> ExecResult<ExecOutput>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<OsStr>,
+    {
+        match self {
+            Self::Local(e) => e.run(program, args).await,
+            Self::Remote(e) => e.run(program, args).await,
+        }
+    }
+    pub async fn run_with_stdin<I, S>(
+        &self,
+        program: &str,
+        args: I,
+        stdin: impl AsRef<[u8]>,
+    ) -> ExecResult<ExecOutput>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<OsStr>,
+    {
+        let args = args
+            .into_iter()
+            .map(|v| v.as_ref().to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        match self {
+            Self::Local(e) => e.run_with_stdin(program, &args, stdin).await,
+            Self::Remote(e) => e.run_with_stdin(program, &args, stdin).await,
+        }
+    }
+    pub async fn run_stream<I, S>(
+        &self,
+        program: &str,
+        args: I,
+        sender: mpsc::Sender<ExecStreamEvent>,
+    ) -> ExecResult<ExecExitStatus>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<OsStr>,
+    {
+        let args = args
+            .into_iter()
+            .map(|v| v.as_ref().to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        match self {
+            Self::Local(e) => e.run_stream(program, &args, sender).await,
+            Self::Remote(e) => e.run_stream(program, &args, sender).await,
+        }
+    }
+}

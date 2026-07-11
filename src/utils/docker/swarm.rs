@@ -1,8 +1,9 @@
 use super::{
-    ConfigSummary, DockerCli, DockerOutput, DockerResult, NodeSummary, SecretSummary,
-    ServiceSummary, StackSummary,
+    ConfigSummary, DockerCli, DockerExitStatus, DockerOutput, DockerResult, DockerStreamEvent,
+    NodeSummary, SecretSummary, ServiceSummary, StackSummary,
 };
 use serde::de::DeserializeOwned;
+use tokio::sync::mpsc;
 
 impl DockerCli {
     pub async fn swarm_init(&self, args: &[&str]) -> DockerResult<DockerOutput> {
@@ -45,6 +46,15 @@ impl DockerCli {
     pub async fn service_logs(&self, args: &[&str]) -> DockerResult<DockerOutput> {
         self.prefixed(&["service", "logs"], args).await
     }
+    pub async fn service_logs_stream(
+        &self,
+        args: &[&str],
+        sender: mpsc::Sender<DockerStreamEvent>,
+    ) -> DockerResult<DockerExitStatus> {
+        let mut command = vec!["service", "logs"];
+        command.extend_from_slice(args);
+        self.run_stream(command, sender).await
+    }
     pub async fn service_ps(&self, args: &[&str]) -> DockerResult<DockerOutput> {
         self.prefixed(&["service", "ps"], args).await
     }
@@ -76,6 +86,15 @@ impl DockerCli {
     }
     pub async fn stack_deploy(&self, args: &[&str]) -> DockerResult<DockerOutput> {
         self.prefixed(&["stack", "deploy"], args).await
+    }
+    pub async fn stack_deploy_stream(
+        &self,
+        args: &[&str],
+        sender: mpsc::Sender<DockerStreamEvent>,
+    ) -> DockerResult<DockerExitStatus> {
+        let mut command = vec!["stack", "deploy"];
+        command.extend_from_slice(args);
+        self.run_stream(command, sender).await
     }
     pub async fn stack_remove(&self, args: &[&str]) -> DockerResult<DockerOutput> {
         self.prefixed(&["stack", "rm"], args).await

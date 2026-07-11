@@ -1,5 +1,8 @@
-use super::{DockerCli, DockerOutput, DockerResult, ImageSummary};
+use super::{
+    DockerCli, DockerExitStatus, DockerOutput, DockerResult, DockerStreamEvent, ImageSummary,
+};
 use serde::de::DeserializeOwned;
+use tokio::sync::mpsc;
 
 impl DockerCli {
     pub async fn images(&self, all: bool, filters: &[&str]) -> DockerResult<Vec<ImageSummary>> {
@@ -15,11 +18,38 @@ impl DockerCli {
     pub async fn image_pull(&self, args: &[&str]) -> DockerResult<DockerOutput> {
         self.prefixed(&["image", "pull"], args).await
     }
+    pub async fn image_pull_stream(
+        &self,
+        args: &[&str],
+        sender: mpsc::Sender<DockerStreamEvent>,
+    ) -> DockerResult<DockerExitStatus> {
+        let mut command = vec!["image", "pull"];
+        command.extend_from_slice(args);
+        self.run_stream(command, sender).await
+    }
     pub async fn image_push(&self, args: &[&str]) -> DockerResult<DockerOutput> {
         self.prefixed(&["image", "push"], args).await
     }
+    pub async fn image_push_stream(
+        &self,
+        args: &[&str],
+        sender: mpsc::Sender<DockerStreamEvent>,
+    ) -> DockerResult<DockerExitStatus> {
+        let mut command = vec!["image", "push"];
+        command.extend_from_slice(args);
+        self.run_stream(command, sender).await
+    }
     pub async fn image_build(&self, args: &[&str]) -> DockerResult<DockerOutput> {
         self.prefixed(&["image", "build"], args).await
+    }
+    pub async fn image_build_stream(
+        &self,
+        args: &[&str],
+        sender: mpsc::Sender<DockerStreamEvent>,
+    ) -> DockerResult<DockerExitStatus> {
+        let mut command = vec!["image", "build"];
+        command.extend_from_slice(args);
+        self.run_stream(command, sender).await
     }
     pub async fn image_tag(&self, args: &[&str]) -> DockerResult<DockerOutput> {
         self.prefixed(&["image", "tag"], args).await

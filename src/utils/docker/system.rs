@@ -85,4 +85,37 @@ mod tests {
             DockerError::CommandFailed { code: Some(17), .. }
         ));
     }
+
+    #[tokio::test]
+    async fn streams_stdout_and_stderr_without_utf8_assumptions() {
+        let dir = fake_docker("printf 'out'; printf '\\377err' >&2");
+        let docker = DockerCli::with_executable(dir.path().join("docker"));
+        let (sender, mut receiver) = tokio::sync::mpsc::channel(4);
+        let task = tokio::spawn(async move { docker.run_stream(["logs"], sender).await });
+        let mut events = Vec::new();
+        while let Some(event) = receiver.recv().await {
+            events.push(event);
+        }
+        assert!(task.await.unwrap().unwrap().success());
+        assert!(events.iter().any(|event| matches!(event, crate::utils::docker::DockerStreamEvent::Stdout(bytes) if bytes == b"out")));
+        assert!(events.iter().any(|event| matches!(event, crate::utils::docker::DockerStreamEvent::Stderr(bytes) if bytes.ends_with(b"err"))));
+    }
+
+    #[tokio::test]
+    #[ignore = "requires an explicitly configured SSH Docker test host"]
+    async fn remote_docker_version_over_password_ssh() {
+        let host = std::env::var("RUSTPLOY_TEST_SSH_HOST").expect("SSH host");
+        let user = std::env::var("RUSTPLOY_TEST_SSH_USER").expect("SSH user");
+        let password = std::env::var("RUSTPLOY_TEST_SSH_PASSWORD").expect("SSH password");
+        let docker = DockerCli::new_remote(
+            host,
+            22,
+            user,
+            crate::utils::docker::SshAuth::password(password),
+            crate::utils::docker::RemoteHostKey::InsecureAcceptAny,
+        )
+        .with_remote_sudo();
+        let version = docker.version().await.unwrap();
+        assert!(!version.client.version.is_empty() || !version.server.version.is_empty());
+    }
 }

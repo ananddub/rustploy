@@ -1,5 +1,8 @@
-use super::{ContainerSummary, DockerCli, DockerOutput, DockerResult};
+use super::{
+    ContainerSummary, DockerCli, DockerExitStatus, DockerOutput, DockerResult, DockerStreamEvent,
+};
 use serde::de::DeserializeOwned;
+use tokio::sync::mpsc;
 
 impl DockerCli {
     pub async fn containers(
@@ -87,10 +90,31 @@ impl DockerCli {
         let output = self.run(args).await?;
         Ok(format!("{}{}", output.stdout, output.stderr))
     }
+    pub async fn container_logs_stream(
+        &self,
+        target: &str,
+        options: &[&str],
+        sender: mpsc::Sender<DockerStreamEvent>,
+    ) -> DockerResult<DockerExitStatus> {
+        let mut args = vec!["container", "logs"];
+        args.extend_from_slice(options);
+        args.push(target);
+        self.run_stream(args, sender).await
+    }
     pub async fn container_exec(&self, target: &str, args: &[&str]) -> DockerResult<DockerOutput> {
         let mut command = vec!["container", "exec", target];
         command.extend_from_slice(args);
         self.run(command).await
+    }
+    pub async fn container_exec_stream(
+        &self,
+        target: &str,
+        args: &[&str],
+        sender: mpsc::Sender<DockerStreamEvent>,
+    ) -> DockerResult<DockerExitStatus> {
+        let mut command = vec!["container", "exec", target];
+        command.extend_from_slice(args);
+        self.run_stream(command, sender).await
     }
     pub async fn container_prune(&self, filters: &[&str]) -> DockerResult<DockerOutput> {
         self.prune("container", filters).await
