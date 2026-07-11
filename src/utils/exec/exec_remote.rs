@@ -1,8 +1,10 @@
 use super::{
     ExecError, ExecExitStatus, ExecOutput, ExecResult, ExecStreamEvent, SshAuth, SshHostKey,
 };
+use crate::utils::session::SshSessionPool;
 use russh_extra::{Client, HostKeyPolicy, Identity, KeyboardInteractiveReply};
-use std::ffi::OsStr;
+use std::time::Duration;
+use std::{ffi::OsStr, sync::Arc};
 use tokio::sync::mpsc;
 
 #[derive(Clone, Debug)]
@@ -13,6 +15,9 @@ pub struct RemoteExecutor {
     auth: SshAuth,
     host_key: SshHostKey,
     sudo_password: Option<String>,
+    pool: Arc<SshSessionPool>,
+    command_timeout: Duration,
+    connect_timeout: Duration,
 }
 impl RemoteExecutor {
     pub fn new(
@@ -29,6 +34,9 @@ impl RemoteExecutor {
             auth,
             host_key,
             sudo_password: None,
+            pool: SshSessionPool::new(4),
+            command_timeout: Duration::from_secs(300),
+            connect_timeout: Duration::from_secs(15),
         }
     }
     pub fn with_sudo(mut self) -> Self {
@@ -40,6 +48,25 @@ impl RemoteExecutor {
     }
     pub fn with_sudo_password(mut self, password: impl Into<String>) -> Self {
         self.sudo_password = Some(password.into());
+        self
+    }
+    pub fn with_pool_size(mut self, max_size: usize) -> Self {
+        self.pool = SshSessionPool::new(max_size);
+        self
+    }
+    pub fn with_session_pool(mut self, pool: Arc<SshSessionPool>) -> Self {
+        self.pool = pool;
+        self
+    }
+    pub fn session_pool(&self) -> Arc<SshSessionPool> {
+        self.pool.clone()
+    }
+    pub fn with_command_timeout(mut self, timeout: Duration) -> Self {
+        self.command_timeout = timeout;
+        self
+    }
+    pub fn with_connect_timeout(mut self, timeout: Duration) -> Self {
+        self.connect_timeout = timeout;
         self
     }
     pub async fn run<I, S>(&self, program: &str, args: I) -> ExecResult<ExecOutput>
@@ -71,7 +98,7 @@ impl RemoteExecutor {
     ) -> ExecResult<ExecExitStatus> {
         Ok(self.execute(program, args, &[], Some(sender)).await?.status)
     }
-    async fn session(&self) -> ExecResult<russh_extra::Session> {
+    async fn connect_session(&self) -> ExecResult<russh_extra::Session> {
         let mut builder = Client::builder()
             .endpoint((self.host.clone(), self.port))
             .username(self.username.clone());
@@ -109,11 +136,12 @@ impl RemoteExecutor {
             ),
             SshHostKey::InsecureAcceptAny => builder.accept_any_host_key(),
         };
-        builder
-            .build()
-            .connect()
-            .await
-            .map_err(|e| ExecError::Ssh(e.to_string()))
+        match tokio::time::timeout(self.connect_timeout, builder.build().connect()).await {
+            Ok(result) => result.map_err(|e| ExecError::Ssh(e.to_string())),
+            Err(_) => Err(ExecError::Timeout {
+                seconds: self.connect_timeout.as_secs(),
+            }),
+        }
     }
     async fn execute(
         &self,
@@ -122,8 +150,62 @@ impl RemoteExecutor {
         stdin: &[u8],
         stream: Option<mpsc::Sender<ExecStreamEvent>>,
     ) -> ExecResult<ExecOutput> {
+        let mut last_error = None;
+        for _ in 0..2 {
+            let (pooled, permit) = self.pool.acquire().await?;
+            let session = match pooled {
+                Some(session) => session,
+                None => match self.connect_session().await {
+                    Ok(session) => session,
+                    Err(error) => {
+                        drop(permit);
+                        return Err(error);
+                    }
+                },
+            };
+            let result = match tokio::time::timeout(
+                self.command_timeout,
+                self.execute_on_session(&session, program, args, stdin, stream.clone()),
+            )
+            .await
+            {
+                Ok(result) => result,
+                Err(_) => Err(ExecError::Timeout {
+                    seconds: self.command_timeout.as_secs(),
+                }),
+            };
+            match result {
+                Ok(output) => {
+                    self.pool.release(session).await;
+                    drop(permit);
+                    return Ok(output);
+                }
+                Err(error @ ExecError::Ssh(_)) => {
+                    last_error = Some(error);
+                    drop(session);
+                    drop(permit);
+                }
+                Err(error) => {
+                    if !matches!(error, ExecError::Timeout { .. }) {
+                        self.pool.release(session).await;
+                    }
+                    drop(permit);
+                    return Err(error);
+                }
+            }
+        }
+        Err(last_error
+            .unwrap_or_else(|| ExecError::Ssh("SSH execution failed after reconnect".into())))
+    }
+    async fn execute_on_session(
+        &self,
+        session: &russh_extra::Session,
+        program: &str,
+        args: &[String],
+        stdin: &[u8],
+        stream: Option<mpsc::Sender<ExecStreamEvent>>,
+    ) -> ExecResult<ExecOutput> {
         use russh_extra::russh::ChannelMsg;
-        let session = self.session().await?;
         let guard = session
             .russh_handle()
             .await
@@ -194,11 +276,21 @@ impl RemoteExecutor {
                         stderr.extend_from_slice(&data)
                     }
                 }
-                ChannelMsg::ExitStatus { exit_status } => exit = Some(exit_status),
+                ChannelMsg::ExitStatus { exit_status } => {
+                    exit = Some(exit_status);
+                    break;
+                }
+                ChannelMsg::ExitSignal { .. } => {
+                    let _ = channel.close().await;
+                    return Err(ExecError::Ssh(
+                        "remote command terminated by a signal".into(),
+                    ));
+                }
                 ChannelMsg::Close => break,
                 _ => {}
             }
         }
+        let _ = channel.close().await;
         let status =
             ExecExitStatus::Remote(exit.ok_or_else(|| {
                 ExecError::Ssh("remote command ended without an exit status".into())

@@ -1,4 +1,8 @@
-use std::sync::Arc;
+use std::{
+    collections::hash_map::DefaultHasher,
+    hash::{Hash, Hasher},
+    sync::Arc,
+};
 
 use auto_di::singleton;
 use sqlx::SqlitePool;
@@ -9,6 +13,12 @@ use crate::api::dto::application::{
     PatchCustomGitSourceDto, PatchDockerSourceDto, PatchDropSourceDto, PatchGiteaSourceDto,
     PatchGithubSourceDto, PatchGitlabSourceDto, PatchResourceConfigDto,
 };
+use crate::utils::{
+    builder::{adapter::ApplicationSpecAdapter, application::ApplicationBuilder},
+    exec::{CommandExecutor, LocalExecutor, RemoteExecutor, SshAuth, SshHostKey},
+    session::RemoteExecutorRegistry,
+};
+use tokio_util::sync::CancellationToken;
 
 #[derive(Debug, Clone)]
 pub struct ApplicationRecord {
@@ -483,11 +493,50 @@ impl ApplicationService {
         .await?;
 
         tx.commit().await?;
+        self.spawn_operation(id, deployment.id, operation);
         Ok(ApplicationOperationResult {
             application: app,
             deployment_id: Some(deployment.id),
             operation,
         })
+    }
+
+    fn spawn_operation(
+        &self,
+        application_id: i64,
+        deployment_id: i64,
+        operation: ApplicationOperation,
+    ) {
+        let db = self.db.clone();
+        tokio::spawn(async move {
+            let result = execute_operation(db.clone(), application_id, operation).await;
+            let (application_status, deployment_status, error_message) = match result {
+                Ok(()) => ("DONE", "DONE", None),
+                Err(error) => {
+                    tracing::error!(application_id, deployment_id, operation = operation.as_str(), error = %error, "application operation failed");
+                    ("ERROR", "ERROR", Some(error))
+                }
+            };
+            if let Err(error) = sqlx::query("UPDATE applications SET app_status = ? WHERE id = ?")
+                .bind(application_status)
+                .bind(application_id)
+                .execute(db.as_ref())
+                .await
+            {
+                tracing::error!(application_id, error = %error, "could not persist application status");
+            }
+            if let Err(error) = sqlx::query(
+                "UPDATE deployments SET status = ?, error_message = ?, finished_at = strftime('%s', 'now') WHERE id = ?",
+            )
+            .bind(deployment_status)
+            .bind(error_message)
+            .bind(deployment_id)
+            .execute(db.as_ref())
+            .await
+            {
+                tracing::error!(deployment_id, error = %error, "could not persist deployment status");
+            }
+        });
     }
 
     pub async fn delete(&self, id: i64) -> sqlx::Result<()> {
@@ -497,6 +546,65 @@ impl ApplicationService {
             .await?;
         Ok(())
     }
+}
+
+async fn execute_operation(
+    db: Arc<SqlitePool>,
+    application_id: i64,
+    _operation: ApplicationOperation,
+) -> Result<(), String> {
+    let spec = ApplicationSpecAdapter::new(db.clone())
+        .load(application_id)
+        .await
+        .map_err(|error| format!("could not load deployment configuration: {error}"))?;
+    let server_id =
+        sqlx::query_scalar::<_, Option<i64>>("SELECT server_id FROM applications WHERE id = ?")
+            .bind(application_id)
+            .fetch_one(db.as_ref())
+            .await
+            .map_err(|error| format!("could not resolve deployment server: {error}"))?;
+    let executor = match server_id {
+        Some(server_id) => CommandExecutor::Remote(remote_executor(db.as_ref(), server_id).await?),
+        None => CommandExecutor::Local(LocalExecutor::new()),
+    };
+    ApplicationBuilder::new(executor)
+        .deploy(&spec, &CancellationToken::new())
+        .await
+        .map(|_| ())
+        .map_err(|error| error.to_string())
+}
+
+async fn remote_executor(db: &SqlitePool, server_id: i64) -> Result<RemoteExecutor, String> {
+    let row = sqlx::query_as::<_, (String, i64, String, String, String)>(
+        r#"SELECT s.ip_address, s.port, s.username, k.private_key, k.public_key
+           FROM servers s JOIN ssh_keys k ON k.id = s.ssh_key_id WHERE s.id = ?"#,
+    )
+    .bind(server_id)
+    .fetch_one(db)
+    .await
+    .map_err(|error| format!("could not load SSH credentials: {error}"))?;
+    let mut hasher = DefaultHasher::new();
+    row.hash(&mut hasher);
+    let version = hasher.finish();
+    if let Some(executor) = RemoteExecutorRegistry::global().get(server_id, version) {
+        return Ok(executor);
+    }
+    let port = u16::try_from(row.1).map_err(|_| "SSH port must be between 0 and 65535")?;
+    tracing::warn!(
+        server_id,
+        "deployment SSH host key verification is disabled because no fingerprint is stored for this server"
+    );
+    let executor = RemoteExecutor::new(
+        row.0,
+        port,
+        row.2,
+        SshAuth::key_pair(row.3, row.4),
+        SshHostKey::InsecureAcceptAny,
+    )
+    .with_pool_size(4)
+    .with_sudo();
+    RemoteExecutorRegistry::global().insert(server_id, version, executor.clone());
+    Ok(executor)
 }
 
 async fn select_application_by_id(db: &SqlitePool, id: i64) -> sqlx::Result<ApplicationRecord> {

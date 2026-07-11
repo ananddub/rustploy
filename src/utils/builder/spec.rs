@@ -1,0 +1,140 @@
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
+
+#[derive(Clone, Debug)]
+pub enum SourceSpec {
+    Docker {
+        image: String,
+        registry: Option<RegistryAuth>,
+    },
+    Git {
+        url: String,
+        branch: String,
+        submodules: bool,
+    },
+}
+#[derive(Clone, Debug)]
+pub struct RegistryAuth {
+    pub registry: String,
+    pub username: String,
+    pub password: String,
+}
+#[derive(Clone, Debug)]
+pub enum BuildStrategy {
+    Dockerfile {
+        dockerfile: String,
+        context: String,
+        target: Option<String>,
+        no_cache: bool,
+    },
+    Nixpacks,
+    Paketo,
+    Railpack {
+        version: String,
+    },
+    Static {
+        publish_directory: String,
+        spa: bool,
+    },
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct ResourceSpec {
+    pub memory_limit: Option<String>,
+    pub memory_reservation: Option<String>,
+    pub cpu_limit: Option<String>,
+    pub cpu_reservation: Option<String>,
+}
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct HealthSpec {
+    pub command: Vec<String>,
+    pub interval: Option<String>,
+    pub timeout: Option<String>,
+    pub retries: Option<u32>,
+    pub start_period: Option<String>,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum MountKind {
+    Bind,
+    Volume,
+    File,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct MountSpec {
+    #[serde(rename = "type")]
+    pub kind: MountKind,
+    pub source: String,
+    pub target: String,
+    #[serde(default)]
+    pub read_only: bool,
+    #[serde(skip)]
+    pub content: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+pub struct DomainSpec {
+    pub key: String,
+    pub host: String,
+    pub https: bool,
+    pub port: u16,
+    pub path: String,
+    pub internal_path: String,
+    pub strip_path: bool,
+    pub entrypoint: Option<String>,
+    pub certificate_type: String,
+    pub custom_cert_resolver: Option<String>,
+    pub middlewares: Vec<String>,
+}
+
+#[derive(Clone, Debug)]
+pub struct ApplicationSpec {
+    pub app_name: String,
+    pub stack_name: String,
+    pub source: SourceSpec,
+    pub build: Option<BuildStrategy>,
+    pub work_directory: String,
+    pub image: String,
+    pub environment: BTreeMap<String, String>,
+    pub build_args: BTreeMap<String, String>,
+    pub build_secrets: BTreeMap<String, String>,
+    pub command: Option<Vec<String>>,
+    pub args: Vec<String>,
+    pub replicas: u32,
+    pub network: String,
+    pub mounts: Vec<MountSpec>,
+    pub domains: Vec<DomainSpec>,
+    pub resources: ResourceSpec,
+    pub healthcheck: Option<HealthSpec>,
+    pub placement_constraints: Vec<String>,
+    pub stop_grace_period: Option<String>,
+}
+
+impl ApplicationSpec {
+    pub fn service_name(&self) -> String {
+        format!("{}_{}", self.stack_name, self.app_name)
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct DeploymentResult {
+    pub app_name: String,
+    pub image: String,
+    pub service_name: String,
+    pub stack_file: String,
+    pub traefik_file: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum BuilderEvent {
+    Preparing,
+    SourceReady,
+    Building,
+    ImageReady,
+    Deploying,
+    Routing,
+    HealthCheck,
+    Deployed,
+    Cancelled,
+    Failed(String),
+}

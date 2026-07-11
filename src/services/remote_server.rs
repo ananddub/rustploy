@@ -44,6 +44,16 @@ impl ServerService {
         .await
     }
 
+    pub async fn connection_details(
+        &self,
+        id: i64,
+    ) -> sqlx::Result<(Server, crate::db::models::ssh_keys::SshKey)> {
+        let server = self.get_by_id(id).await?;
+        let key_id = server.ssh_key_id.ok_or(sqlx::Error::RowNotFound)?;
+        let key=sqlx::query_as!(crate::db::models::ssh_keys::SshKey,r#"SELECT id AS "id?", name, description, private_key, public_key, last_used_at, created_at, updated_at FROM ssh_keys WHERE id = ?"#,key_id).fetch_one(self.db.as_ref()).await?;
+        Ok((server, key))
+    }
+
     pub async fn create(&self, input: CreateRemoteServerDto) -> sqlx::Result<Server> {
         let app_name = generate_app_name(&input.name);
 

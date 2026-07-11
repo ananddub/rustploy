@@ -27,6 +27,13 @@ impl GitCli {
             repository: None,
         }
     }
+    pub fn from_executor(executor: CommandExecutor) -> Self {
+        Self {
+            executor,
+            executable: "git".into(),
+            repository: None,
+        }
+    }
     pub fn new_remote(
         host: impl Into<String>,
         port: u16,

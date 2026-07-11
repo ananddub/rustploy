@@ -1,1 +1,244 @@
+use crate::{
+    api::dto::server::{
+        ServerAuditDto, ServerConnectionDto, ServerConnectionResponseDto, SetupOutcomeDto,
+        SetupServerDto,
+    },
+    services::remote_server::ServerService,
+    utils::{
+        exec::{ExecError, RemoteExecutor, SshAuth, SshHostKey},
+        jwt::claim::Claims,
+        session::RemoteExecutorRegistry,
+        setup::{ServerSetup, SetupConfig},
+    },
+};
+use auto_route::controller;
+use axum::{Json, extract::Path, http::StatusCode};
+use std::{
+    collections::hash_map::DefaultHasher,
+    hash::{Hash, Hasher},
+    sync::Arc,
+};
 
+type ApiError = (StatusCode, String);
+
+pub struct ServerController {
+    service: Arc<ServerService>,
+}
+
+#[controller("/servers")]
+impl ServerController {
+    fn new(service: Arc<ServerService>) -> Self {
+        Self { service }
+    }
+
+    #[post("/{id}/test-connection")]
+    async fn test_connection(
+        &self,
+        _claims: Claims,
+        Path(id): Path<i64>,
+        Json(body): Json<ServerConnectionDto>,
+    ) -> Result<Json<ServerConnectionResponseDto>, ApiError> {
+        let executor = self
+            .executor(
+                id,
+                &body.host_key_fingerprint,
+                body.sudo_password.as_deref(),
+                body.pool_size,
+                false,
+            )
+            .await?;
+        executor
+            .run("true", std::iter::empty::<&str>())
+            .await
+            .map_err(map_exec_error)?;
+        self.service
+            .touch_test_connection(id)
+            .await
+            .map_err(map_sqlx_error)?;
+        let pool = executor.session_pool();
+        Ok(Json(ServerConnectionResponseDto {
+            connected: true,
+            reused_sessions: pool.idle_count().await,
+            max_pool_size: pool.max_size(),
+        }))
+    }
+
+    #[post("/{id}/audit")]
+    async fn audit(
+        &self,
+        _claims: Claims,
+        Path(id): Path<i64>,
+        Json(body): Json<ServerConnectionDto>,
+    ) -> Result<Json<ServerAuditDto>, ApiError> {
+        let executor = self
+            .executor(
+                id,
+                &body.host_key_fingerprint,
+                body.sudo_password.as_deref(),
+                body.pool_size,
+                false,
+            )
+            .await?;
+        let audit = ServerSetup::new_remote(executor, SetupConfig::default())
+            .audit()
+            .await
+            .map_err(map_exec_error)?;
+        self.service
+            .touch_test_connection(id)
+            .await
+            .map_err(map_sqlx_error)?;
+        Ok(Json(audit.into()))
+    }
+
+    #[post("/{id}/setup")]
+    async fn setup(
+        &self,
+        _claims: Claims,
+        Path(id): Path<i64>,
+        Json(body): Json<SetupServerDto>,
+    ) -> Result<Json<SetupOutcomeDto>, ApiError> {
+        let executor = self
+            .executor(
+                id,
+                &body.host_key_fingerprint,
+                body.sudo_password.as_deref(),
+                body.pool_size,
+                true,
+            )
+            .await?;
+        let mut config = SetupConfig::default();
+        config.advertise_addr = body.advertise_addr;
+        if let Some(email) = body.acme_email {
+            config.acme_email = email;
+        }
+        let outcome = ServerSetup::new_remote(executor, config)
+            .setup_all(body.install_dependencies)
+            .await
+            .map_err(map_exec_error)?;
+        self.service
+            .set_status(id, "ACTIVE")
+            .await
+            .map_err(map_sqlx_error)?;
+        self.service
+            .touch_test_connection(id)
+            .await
+            .map_err(map_sqlx_error)?;
+        Ok(Json(outcome.into()))
+    }
+
+    #[get("/{id}/sessions")]
+    async fn sessions(
+        &self,
+        _claims: Claims,
+        Path(id): Path<i64>,
+    ) -> Result<Json<ServerConnectionResponseDto>, ApiError> {
+        let Some(executor) = RemoteExecutorRegistry::global().current(id) else {
+            return Ok(Json(ServerConnectionResponseDto {
+                connected: false,
+                reused_sessions: 0,
+                max_pool_size: 0,
+            }));
+        };
+        let pool = executor.session_pool();
+        Ok(Json(ServerConnectionResponseDto {
+            connected: pool.idle_count().await > 0,
+            reused_sessions: pool.idle_count().await,
+            max_pool_size: pool.max_size(),
+        }))
+    }
+
+    #[delete("/{id}/sessions")]
+    async fn clear_sessions(&self, _claims: Claims, Path(id): Path<i64>) -> StatusCode {
+        if let Some(executor) = RemoteExecutorRegistry::global().remove(id) {
+            executor.session_pool().clear().await;
+        }
+        StatusCode::NO_CONTENT
+    }
+
+    async fn executor(
+        &self,
+        id: i64,
+        host_key: &Option<String>,
+        sudo_password: Option<&str>,
+        pool_size: Option<usize>,
+        require_sudo: bool,
+    ) -> Result<RemoteExecutor, ApiError> {
+        let (server, key) = self
+            .service
+            .connection_details(id)
+            .await
+            .map_err(map_sqlx_error)?;
+        if key.private_key.trim().is_empty() {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "selected SSH key has no private key".into(),
+            ));
+        }
+        let port = u16::try_from(server.port).map_err(|_| {
+            (
+                StatusCode::BAD_REQUEST,
+                "SSH port must be between 0 and 65535".into(),
+            )
+        })?;
+        let host_policy = match host_key {
+            Some(fingerprint) => SshHostKey::PinnedSha256(fingerprint.clone()),
+            None => {
+                tracing::warn!(
+                    server_id = id,
+                    "SSH host key verification disabled; provide host_key_fingerprint"
+                );
+                SshHostKey::InsecureAcceptAny
+            }
+        };
+        let mut hasher = DefaultHasher::new();
+        server.ip_address.hash(&mut hasher);
+        server.port.hash(&mut hasher);
+        server.username.hash(&mut hasher);
+        key.private_key.hash(&mut hasher);
+        key.public_key.hash(&mut hasher);
+        host_key.hash(&mut hasher);
+        sudo_password.hash(&mut hasher);
+        pool_size.hash(&mut hasher);
+        require_sudo.hash(&mut hasher);
+        let version = hasher.finish();
+        if let Some(executor) = RemoteExecutorRegistry::global().get(id, version) {
+            return Ok(executor);
+        }
+        let auth = SshAuth::key_pair(key.private_key, key.public_key);
+        let mut executor =
+            RemoteExecutor::new(server.ip_address, port, server.username, auth, host_policy)
+                .with_pool_size(pool_size.unwrap_or(4).clamp(1, 32));
+        executor = if let Some(password) = sudo_password {
+            executor.with_sudo_password(password)
+        } else if require_sudo {
+            executor.with_sudo()
+        } else {
+            executor
+        };
+        RemoteExecutorRegistry::global().insert(id, version, executor.clone());
+        Ok(executor)
+    }
+}
+
+fn map_exec_error(error: ExecError) -> ApiError {
+    tracing::error!(error=%error,"remote server command failed");
+    match error {
+        ExecError::CommandFailed { .. } => (StatusCode::BAD_GATEWAY, error.to_string()),
+        ExecError::Ssh(_) => (StatusCode::BAD_GATEWAY, error.to_string()),
+        ExecError::StreamCancelled => (StatusCode::REQUEST_TIMEOUT, error.to_string()),
+        ExecError::Timeout { .. } => (StatusCode::GATEWAY_TIMEOUT, error.to_string()),
+        _ => (StatusCode::INTERNAL_SERVER_ERROR, error.to_string()),
+    }
+}
+fn map_sqlx_error(error: sqlx::Error) -> ApiError {
+    match error {
+        sqlx::Error::RowNotFound => (StatusCode::NOT_FOUND, "server or SSH key not found".into()),
+        other => {
+            tracing::error!(error=%other,"server database operation failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "database operation failed".into(),
+            )
+        }
+    }
+}

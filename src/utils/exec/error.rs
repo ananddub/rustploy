@@ -10,6 +10,8 @@ pub enum ExecError {
     Ssh(String),
     #[error("command stream consumer disconnected")]
     StreamCancelled,
+    #[error("command timed out after {seconds} seconds")]
+    Timeout { seconds: u64 },
     #[error("command output parsing failed: {0}")]
     Json(#[from] serde_json::Error),
 }

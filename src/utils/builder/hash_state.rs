@@ -2,6 +2,7 @@ use crate::utils::builder::custom_type::{AppDeploy, DeployState, IdType};
 use auto_di::singleton;
 use dashmap::DashMap;
 use tokio::sync::{broadcast, watch};
+use tokio_util::sync::CancellationToken;
 
 pub struct ApplicationState {
     pub hashmap: DashMap<IdType, AppDeploy>,
@@ -24,11 +25,22 @@ impl ApplicationState {
             env_id,
             state: watch::channel(DeployState::Queue).0,
             broadcast: broadcast::channel(100).0,
+            cancellation_token: CancellationToken::new(),
         };
         self.hashmap.insert(app_id, app_deploy);
     }
+
     pub fn remove_state(&self, app_id: IdType) {
         self.hashmap.remove(&app_id);
+    }
+
+    pub fn stop(&self, app_id: AppDeploy) -> Result<(), String> {
+        self.hashmap
+            .get(&app_id.app_id)
+            .map(|entry| {
+                entry.cancellation_token.cancel();
+            })
+            .ok_or_else(|| "AppDeploy not found".to_string())
     }
 
     pub fn state_recv(&self, app_id: IdType) -> Option<watch::Receiver<DeployState>> {

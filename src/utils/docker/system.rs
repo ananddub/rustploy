@@ -115,7 +115,16 @@ mod tests {
             crate::utils::docker::RemoteHostKey::InsecureAcceptAny,
         )
         .with_remote_sudo();
-        let version = docker.version().await.unwrap();
+        let version = tokio::time::timeout(std::time::Duration::from_secs(10), docker.version())
+            .await
+            .unwrap()
+            .unwrap();
         assert!(!version.client.version.is_empty() || !version.server.version.is_empty());
+        let second = tokio::time::timeout(std::time::Duration::from_secs(10), docker.version())
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(!second.client.version.is_empty() || !second.server.version.is_empty());
+        assert_eq!(docker.session_pool().unwrap().idle_count().await, 1);
     }
 }
