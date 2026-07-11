@@ -78,6 +78,7 @@ pub struct DomainSpec {
     pub host: String,
     pub https: bool,
     pub port: u16,
+    pub service_name: Option<String>,
     pub path: String,
     pub internal_path: String,
     pub strip_path: bool,

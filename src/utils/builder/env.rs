@@ -2,9 +2,27 @@ use auto_di::resolve;
 use minijinja::{Environment, Value, context};
 use serde::Serialize;
 use sqlx::SqlitePool;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
-pub async fn generate_env_app(
+pub fn generate_env_app(
+    db_env: String,
+    db_project: String,
+    db_app: String,
+) -> BTreeMap<String, String> {
+    let map: HashMap<String, String> = convert_env_to_map(&db_env);
+    let pro_env = fix_env(
+        context! {
+            enviroment => map,
+            ENVIROMENT => map
+        },
+        &db_project,
+    );
+    let pro_map: HashMap<String, String> = convert_env_to_map(&pro_env);
+    let app_env = fix_env(env_project_map(map, pro_map), &db_app);
+    convert_env_to_btree_map(&app_env)
+}
+
+pub async fn generate_env_app_with_id(
     env_id: i64,
     pr_id: i64,
     app_id: i64,
@@ -25,6 +43,7 @@ pub async fn generate_env_app(
         .await
         .ok()
         .unwrap();
+
     let map: HashMap<String, String> = convert_env_to_map(&db_env.env_var);
 
     let pro_env = fix_env(
@@ -90,6 +109,17 @@ pub async fn generate_env_compose(
 }
 
 fn convert_env_to_map(text: &str) -> HashMap<String, String> {
+    text.lines()
+        .filter_map(|line| {
+            let mut parts = line.splitn(2, '=');
+            let key = parts.next()?.trim().to_string();
+            let value = parts.next()?.trim().to_string();
+            Some((key, value))
+        })
+        .collect()
+}
+
+fn convert_env_to_btree_map(text: &str) -> BTreeMap<String, String> {
     text.lines()
         .filter_map(|line| {
             let mut parts = line.splitn(2, '=');

@@ -4,7 +4,7 @@ use std::{
     sync::Arc,
 };
 
-use auto_di::singleton;
+use auto_di::{resolve, singleton};
 use sqlx::SqlitePool;
 use uuid::Uuid;
 
@@ -14,7 +14,10 @@ use crate::api::dto::application::{
     PatchGithubSourceDto, PatchGitlabSourceDto, PatchResourceConfigDto,
 };
 use crate::utils::{
-    builder::{adapter::ApplicationSpecAdapter, application::ApplicationBuilder},
+    builder::{
+        adapter::ApplicationSpecAdapter, application::ApplicationBuilder, custom_type::IdType,
+        hash_state::ApplicationState,
+    },
     exec::{CommandExecutor, LocalExecutor, RemoteExecutor, SshAuth, SshHostKey},
     session::RemoteExecutorRegistry,
 };
@@ -557,18 +560,32 @@ async fn execute_operation(
         .load(application_id)
         .await
         .map_err(|error| format!("could not load deployment configuration: {error}"))?;
-    let server_id =
-        sqlx::query_scalar::<_, Option<i64>>("SELECT server_id FROM applications WHERE id = ?")
-            .bind(application_id)
-            .fetch_one(db.as_ref())
-            .await
-            .map_err(|error| format!("could not resolve deployment server: {error}"))?;
+    let (environment_id, project_id, server_id) = sqlx::query_as::<_, (i64, i64, Option<i64>)>(
+        r#"SELECT a.environment_id, e.project_id, a.server_id
+           FROM applications a JOIN environments e ON e.id = a.environment_id
+           WHERE a.id = ?"#,
+    )
+    .bind(application_id)
+    .fetch_one(db.as_ref())
+    .await
+    .map_err(|error| format!("could not resolve deployment context: {error}"))?;
+
+    let app_key = IdType::AppId(application_id);
+    let state = resolve::<ApplicationState>()
+        .await
+        .map_err(|error| format!("could not resolve application state: {error}"))?;
+    state.ensure_default(app_key.clone(), environment_id, project_id);
+    let cancel = state
+        .cancellation_token(app_key.clone())
+        .unwrap_or_else(CancellationToken::new);
+
     let executor = match server_id {
         Some(server_id) => CommandExecutor::Remote(remote_executor(db.as_ref(), server_id).await?),
         None => CommandExecutor::Local(LocalExecutor::new()),
     };
     ApplicationBuilder::new(executor)
-        .deploy(&spec, &CancellationToken::new())
+        .with_state(state, app_key)
+        .deploy(&spec, &cancel)
         .await
         .map(|_| ())
         .map_err(|error| error.to_string())

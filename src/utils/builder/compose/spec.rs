@@ -1,0 +1,57 @@
+use crate::utils::builder::spec::{DomainSpec, MountSpec};
+use std::collections::BTreeMap;
+
+#[derive(Clone, Debug)]
+pub enum ComposeSource {
+    Raw {
+        content: String,
+    },
+    Git {
+        url: String,
+        branch: String,
+        submodules: bool,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ComposeRuntime {
+    Compose,
+    Stack,
+}
+
+#[derive(Clone, Debug)]
+pub struct ComposeSpec {
+    pub app_name: String,
+    pub stack_name: String,
+    pub source: ComposeSource,
+    pub runtime: ComposeRuntime,
+    pub work_directory: String,
+    pub compose_path: String,
+    pub rendered_stack_file: String,
+    pub env_file: String,
+    pub environment: BTreeMap<String, String>,
+    pub mounts: Vec<MountSpec>,
+    pub domains: Vec<DomainSpec>,
+}
+
+impl ComposeSpec {
+    pub fn compose_file_path(&self) -> String {
+        match self.source {
+            ComposeSource::Raw { .. } => self.compose_path.clone(),
+            ComposeSource::Git { .. } => format!(
+                "{}/{}",
+                self.work_directory.trim_end_matches('/'),
+                self.compose_path
+                    .trim_start_matches("./")
+                    .trim_start_matches('/')
+            ),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct ComposeDeploymentResult {
+    pub app_name: String,
+    pub stack_name: String,
+    pub compose_file: String,
+}

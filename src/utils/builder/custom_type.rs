@@ -1,6 +1,6 @@
 use std::error::Error;
 use tokio::sync::broadcast;
-use tokio::sync::watch::{Receiver, Sender};
+use tokio::sync::watch::Sender;
 use tokio_util::sync::CancellationToken;
 use tower::util::BoxCloneService;
 
@@ -13,8 +13,14 @@ pub struct AppDeploy {
     pub project_id: i64,
     pub env_id: i64,
     pub state: Sender<DeployState>,
-    pub broadcast: broadcast::Sender<String>,
+    pub broadcast: broadcast::Sender<DeployEvent>,
     pub cancellation_token: CancellationToken,
+}
+
+#[derive(Debug)]
+pub struct DeploySubscription {
+    pub state: tokio::sync::watch::Receiver<DeployState>,
+    pub events: broadcast::Receiver<DeployEvent>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -77,4 +83,11 @@ pub enum DeployState {
     CleaningUp,
     CleanupComplete,
     Failed(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DeployEvent {
+    StateChanged(DeployState),
+    Log(String),
+    Message(String),
 }

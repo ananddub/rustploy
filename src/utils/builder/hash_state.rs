@@ -1,9 +1,12 @@
-use crate::utils::builder::custom_type::{AppDeploy, DeployState, IdType};
+use crate::utils::builder::custom_type::{
+    AppDeploy, DeployEvent, DeployState, DeploySubscription, IdType,
+};
 use auto_di::singleton;
 use dashmap::DashMap;
 use tokio::sync::{broadcast, watch};
 use tokio_util::sync::CancellationToken;
 
+#[derive(Debug)]
 pub struct ApplicationState {
     pub hashmap: DashMap<IdType, AppDeploy>,
 }
@@ -30,6 +33,19 @@ impl ApplicationState {
         self.hashmap.insert(app_id, app_deploy);
     }
 
+    pub fn ensure_default(&self, app_id: IdType, env_id: i64, project_id: i64) {
+        self.hashmap
+            .entry(app_id.clone())
+            .or_insert_with(|| AppDeploy {
+                app_id,
+                project_id,
+                env_id,
+                state: watch::channel(DeployState::Queue).0,
+                broadcast: broadcast::channel(100).0,
+                cancellation_token: CancellationToken::new(),
+            });
+    }
+
     pub fn remove_state(&self, app_id: IdType) {
         self.hashmap.remove(&app_id);
     }
@@ -43,19 +59,32 @@ impl ApplicationState {
             .ok_or_else(|| "AppDeploy not found".to_string())
     }
 
+    pub fn cancellation_token(&self, app_id: IdType) -> Option<CancellationToken> {
+        self.hashmap
+            .get(&app_id)
+            .map(|entry| entry.cancellation_token.clone())
+    }
+
     pub fn state_recv(&self, app_id: IdType) -> Option<watch::Receiver<DeployState>> {
         self.hashmap
             .get(&app_id)
-            .map(|entry| entry.state.subscribe().clone())
+            .map(|entry| entry.state.subscribe())
     }
 
-    pub async fn broadcast_recv(&self, app_id: IdType) -> Option<broadcast::Receiver<String>> {
+    pub fn broadcast_recv(&self, app_id: IdType) -> Option<broadcast::Receiver<DeployEvent>> {
         self.hashmap
             .get(&app_id)
             .map(|entry| entry.broadcast.subscribe())
     }
 
-    pub fn get_broadcast_send(&self, app_id: IdType) -> Option<broadcast::Sender<String>> {
+    pub fn subscribe(&self, app_id: IdType) -> Option<DeploySubscription> {
+        self.hashmap.get(&app_id).map(|entry| DeploySubscription {
+            state: entry.state.subscribe(),
+            events: entry.broadcast.subscribe(),
+        })
+    }
+
+    pub fn get_broadcast_send(&self, app_id: IdType) -> Option<broadcast::Sender<DeployEvent>> {
         self.hashmap
             .get(&app_id)
             .map(|entry| entry.broadcast.clone())
@@ -64,15 +93,28 @@ impl ApplicationState {
         self.hashmap.get(&app_id).map(|entry| entry.state.clone())
     }
 
-    pub fn send_state(&self, app_id: IdType, state: DeployState) {
-        self.hashmap.get(&app_id).map(|entry| {
-            let _ = entry.state.send(state);
-        });
+    pub fn send_state(&self, app_id: IdType, state: DeployState) -> Result<(), String> {
+        let Some(entry) = self.hashmap.get(&app_id) else {
+            return Err("AppDeploy not found".to_string());
+        };
+        let _ = entry.state.send(state.clone());
+        let _ = entry.broadcast.send(DeployEvent::StateChanged(state));
+        Ok(())
     }
 
-    pub fn send_broadcast(&self, app_id: IdType, event: String) {
-        self.hashmap.get(&app_id).map(|entry| {
-            let _ = entry.broadcast.send(event.clone());
-        });
+    pub fn send_event(&self, app_id: IdType, event: DeployEvent) -> Result<(), String> {
+        let Some(entry) = self.hashmap.get(&app_id) else {
+            return Err("AppDeploy not found".to_string());
+        };
+        let _ = entry.broadcast.send(event);
+        Ok(())
+    }
+
+    pub fn send_log(&self, app_id: IdType, line: impl Into<String>) -> Result<(), String> {
+        self.send_event(app_id, DeployEvent::Log(line.into()))
+    }
+
+    pub fn send_broadcast(&self, app_id: IdType, event: String) -> Result<(), String> {
+        self.send_event(app_id, DeployEvent::Message(event))
     }
 }

@@ -1,6 +1,10 @@
-use std::sync::Arc;
+use std::{
+    collections::hash_map::DefaultHasher,
+    hash::{Hash, Hasher},
+    sync::Arc,
+};
 
-use auto_di::singleton;
+use auto_di::{resolve, singleton};
 use sqlx::SqlitePool;
 use uuid::Uuid;
 
@@ -9,6 +13,16 @@ use crate::api::dto::compose::{
     PatchComposeDto, PatchComposeGiteaSourceDto, PatchComposeGithubSourceDto,
     PatchComposeGitlabSourceDto, PatchComposeRawSourceDto,
 };
+use crate::utils::{
+    builder::{
+        compose::{ComposeBuilder, adapter::ComposeSpecAdapter},
+        custom_type::IdType,
+        hash_state::ApplicationState,
+    },
+    exec::{CommandExecutor, LocalExecutor, RemoteExecutor, SshAuth, SshHostKey},
+    session::RemoteExecutorRegistry,
+};
+use tokio_util::sync::CancellationToken;
 
 #[derive(Debug, Clone)]
 pub struct ComposeRecord {
@@ -380,11 +394,46 @@ impl ComposeService {
         .await?;
 
         tx.commit().await?;
+        self.spawn_operation(id, deployment.id, operation);
         Ok(ComposeOperationResult {
             compose,
             deployment_id: Some(deployment.id),
             operation,
         })
+    }
+
+    fn spawn_operation(&self, compose_id: i64, deployment_id: i64, operation: ComposeOperation) {
+        let db = self.db.clone();
+        tokio::spawn(async move {
+            let result = execute_operation(db.clone(), compose_id, operation).await;
+            let (compose_status, deployment_status, error_message) = match result {
+                Ok(()) => ("DONE", "DONE", None),
+                Err(error) => {
+                    tracing::error!(compose_id, deployment_id, operation = operation.as_str(), error = %error, "compose operation failed");
+                    ("ERROR", "ERROR", Some(error))
+                }
+            };
+            if let Err(error) =
+                sqlx::query("UPDATE compose_projects SET compose_status = ? WHERE id = ?")
+                    .bind(compose_status)
+                    .bind(compose_id)
+                    .execute(db.as_ref())
+                    .await
+            {
+                tracing::error!(compose_id, error = %error, "could not persist compose status");
+            }
+            if let Err(error) = sqlx::query(
+                "UPDATE deployments SET status = ?, error_message = ?, finished_at = strftime('%s', 'now') WHERE id = ?",
+            )
+            .bind(deployment_status)
+            .bind(error_message)
+            .bind(deployment_id)
+            .execute(db.as_ref())
+            .await
+            {
+                tracing::error!(deployment_id, error = %error, "could not persist compose deployment status");
+            }
+        });
     }
 
     pub async fn delete(&self, id: i64) -> sqlx::Result<()> {
@@ -394,6 +443,80 @@ impl ComposeService {
             .await?;
         Ok(())
     }
+}
+
+async fn execute_operation(
+    db: Arc<SqlitePool>,
+    compose_id: i64,
+    operation: ComposeOperation,
+) -> Result<(), String> {
+    let spec = ComposeSpecAdapter::new(db.clone())
+        .load(compose_id)
+        .await
+        .map_err(|error| format!("could not load compose deployment configuration: {error}"))?;
+    let (environment_id, project_id, server_id) = sqlx::query_as::<_, (i64, i64, Option<i64>)>(
+        r#"SELECT c.environment_id, e.project_id, c.server_id
+           FROM compose_projects c JOIN environments e ON e.id = c.environment_id
+           WHERE c.id = ?"#,
+    )
+    .bind(compose_id)
+    .fetch_one(db.as_ref())
+    .await
+    .map_err(|error| format!("could not resolve compose context: {error}"))?;
+    let compose_key = IdType::ComposeId(compose_id);
+    let state = resolve::<ApplicationState>()
+        .await
+        .map_err(|error| format!("could not resolve application state: {error}"))?;
+    state.ensure_default(compose_key.clone(), environment_id, project_id);
+    let cancel = state
+        .cancellation_token(compose_key.clone())
+        .unwrap_or_else(CancellationToken::new);
+    let executor = match server_id {
+        Some(server_id) => CommandExecutor::Remote(remote_executor(db.as_ref(), server_id).await?),
+        None => CommandExecutor::Local(LocalExecutor::new()),
+    };
+    let builder = ComposeBuilder::new(executor).with_state(state, compose_key);
+    match operation {
+        ComposeOperation::Stop => builder.stop(&spec).await.map_err(|error| error.to_string()),
+        _ => builder
+            .deploy(&spec, &cancel)
+            .await
+            .map(|_| ())
+            .map_err(|error| error.to_string()),
+    }
+}
+
+async fn remote_executor(db: &SqlitePool, server_id: i64) -> Result<RemoteExecutor, String> {
+    let row = sqlx::query_as::<_, (String, i64, String, String, String)>(
+        r#"SELECT s.ip_address, s.port, s.username, k.private_key, k.public_key
+           FROM servers s JOIN ssh_keys k ON k.id = s.ssh_key_id WHERE s.id = ?"#,
+    )
+    .bind(server_id)
+    .fetch_one(db)
+    .await
+    .map_err(|error| format!("could not load SSH credentials: {error}"))?;
+    let mut hasher = DefaultHasher::new();
+    row.hash(&mut hasher);
+    let version = hasher.finish();
+    if let Some(executor) = RemoteExecutorRegistry::global().get(server_id, version) {
+        return Ok(executor);
+    }
+    let port = u16::try_from(row.1).map_err(|_| "SSH port must be between 0 and 65535")?;
+    tracing::warn!(
+        server_id,
+        "compose deployment SSH host key verification is disabled because no fingerprint is stored for this server"
+    );
+    let executor = RemoteExecutor::new(
+        row.0,
+        port,
+        row.2,
+        SshAuth::key_pair(row.3, row.4),
+        SshHostKey::InsecureAcceptAny,
+    )
+    .with_pool_size(4)
+    .with_sudo();
+    RemoteExecutorRegistry::global().insert(server_id, version, executor.clone());
+    Ok(executor)
 }
 
 async fn select_compose_by_id(db: &SqlitePool, id: i64) -> sqlx::Result<ComposeRecord> {

@@ -1,21 +1,61 @@
-use super::spec::*;
-use crate::db::models::{domains::Domain, mounts::Mount};
+use crate::utils::builder::env::generate_env_app;
+use crate::utils::builder::spec::{
+    BuildStrategy, DomainSpec, MountKind, MountSpec, RegistryAuth, ResourceSpec,
+};
+use crate::{
+    db::models::{domains::Domain, mounts::Mount},
+    utils::builder::spec::{ApplicationSpec, SourceSpec},
+};
 use sqlx::SqlitePool;
 use std::{collections::BTreeMap, sync::Arc};
-use crate::utils::builder::env::generate_env_app;
 
 #[derive(Clone)]
 pub struct ApplicationSpecAdapter {
     db: Arc<SqlitePool>,
 }
+
 impl ApplicationSpecAdapter {
     pub fn new(db: Arc<SqlitePool>) -> Self {
         Self { db }
     }
+
     pub async fn load(&self, application_id: i64) -> sqlx::Result<ApplicationSpec> {
-        let app=sqlx::query_as::<_,AppRow>(r#"SELECT a.id,a.app_name,a.source_type,a.build_type,a.build_args,a.build_secrets,a.dockerfile,a.docker_context_path,a.docker_build_stage,a.publish_directory,a.is_static_spa,a.command,a.args,a.env_var,a.build_path,a.clean_cache,a.memory_reservation,a.memory_limit,a.cpu_reservation,a.cpu_limit,a.replicas,a.health_check_swarm,a.placement_swarm,a.stop_grace_period_swarm,a.repository,a.owner,a.branch,a.gitlab_repository,a.gitlab_owner,a.gitlab_branch,a.gitea_repository,a.gitea_owner,a.gitea_branch,a.bitbucket_repository,a.bitbucket_owner,a.bitbucket_branch,a.docker_image,a.docker_username,a.docker_password,a.registry_url,a.custom_git_url,a.custom_git_branch,a.registry_id,e.env_var AS environment_env,p.env_var AS project_env,r.image_prefix AS registry_image_prefix,r.username AS registry_username,r.password AS registry_password,r.registry_url AS joined_registry_url FROM applications a JOIN environments e ON e.id=a.environment_id JOIN projects p ON p.id=e.project_id LEFT JOIN registries r ON r.id=a.registry_id WHERE a.id=?"#).bind(application_id).fetch_one(self.db.as_ref()).await?;
-        let domains=sqlx::query_as::<_,Domain>("SELECT id,host,https,port,path,internal_path,custom_entrypoint,service_name,custom_cert_resolver,strip_path,middlewares,domain_type,certificate_type,application_id,compose_id,created_at,updated_at FROM domains WHERE application_id=? ORDER BY id").bind(application_id).fetch_all(self.db.as_ref()).await?;
-        let mounts=sqlx::query_as::<_,Mount>("SELECT id,mount_type,service_type,host_path,volume_name,file_path,content,mount_path,postgres_id,mysql_id,mariadb_id,mongo_id,redis_id,libsql_id,compose_id,application_id,created_at,updated_at FROM mounts WHERE application_id=? ORDER BY id").bind(application_id).fetch_all(self.db.as_ref()).await?;
+        let app = sqlx::query_as::<_, AppRow>(
+            r#"SELECT
+               a.app_name, a.source_type, a.build_type, a.build_args, a.build_secrets,
+               a.dockerfile, a.docker_context_path, a.docker_build_stage,
+               a.publish_directory, a.is_static_spa, a.command, a.args, a.env_var,
+               a.clean_cache, a.memory_reservation, a.memory_limit,
+               a.cpu_reservation, a.cpu_limit, a.replicas, a.health_check_swarm,
+               a.placement_swarm, a.stop_grace_period_swarm, a.repository, a.owner,
+               a.branch, a.gitlab_repository, a.gitlab_owner, a.gitlab_branch,
+               a.gitea_repository, a.gitea_branch, a.bitbucket_repository,
+               a.bitbucket_owner, a.bitbucket_branch, a.docker_image, a.docker_username,
+               a.docker_password, a.registry_url, a.custom_git_url, a.custom_git_branch,
+               e.env_var AS environment_env, p.env_var AS project_env,
+               r.image_prefix AS registry_image_prefix, r.username AS registry_username,
+               r.password AS registry_password, r.registry_url AS joined_registry_url
+               FROM applications a
+               JOIN environments e ON e.id = a.environment_id
+               JOIN projects p ON p.id = e.project_id
+               LEFT JOIN registries r ON r.id = a.registry_id
+               WHERE a.id = ?"#,
+        )
+        .bind(application_id)
+        .fetch_one(self.db.as_ref())
+        .await?;
+        let domains = sqlx::query_as::<_, Domain>(
+            "SELECT id,host,https,port,path,internal_path,custom_entrypoint,service_name,custom_cert_resolver,strip_path,middlewares,domain_type,certificate_type,application_id,compose_id,created_at,updated_at FROM domains WHERE application_id=? ORDER BY id",
+        )
+        .bind(application_id)
+        .fetch_all(self.db.as_ref())
+        .await?;
+        let mounts = sqlx::query_as::<_, Mount>(
+            "SELECT id,mount_type,service_type,host_path,volume_name,file_path,content,mount_path,postgres_id,mysql_id,mariadb_id,mongo_id,redis_id,libsql_id,compose_id,application_id,created_at,updated_at FROM mounts WHERE application_id=? ORDER BY id",
+        )
+        .bind(application_id)
+        .fetch_all(self.db.as_ref())
+        .await?;
         self.convert(app, domains, mounts)
             .map_err(sqlx::Error::Protocol)
     }
@@ -27,9 +67,11 @@ impl ApplicationSpecAdapter {
     ) -> Result<ApplicationSpec, String> {
         let source = source(&app)?;
         let build = build(&app)?;
-        let mut environment = generate_env_app(app.environment_env.clone(), app.project_env.clone(), app.env_var.clone().as_deref().unwrap_or("").into());
-        // environment.extend(parse_env(&app.project_env));
-        // environment.extend(parse_env(app.env_var.as_deref().unwrap_or("")));
+        let environment = generate_env_app(
+            app.environment_env.clone(),
+            app.project_env.clone(),
+            app.env_var.clone().as_deref().unwrap_or("").into(),
+        );
         let registry = registry_auth(&app);
         let image = if app.source_type == "DOCKER" {
             app.docker_image.clone().ok_or("Docker image is required")?
@@ -104,7 +146,6 @@ impl ApplicationSpecAdapter {
 
 #[derive(sqlx::FromRow)]
 struct AppRow {
-    id: i64,
     app_name: String,
     source_type: String,
     build_type: String,
@@ -118,7 +159,6 @@ struct AppRow {
     command: Option<String>,
     args: Option<String>,
     env_var: Option<String>,
-    build_path: Option<String>,
     clean_cache: i64,
     memory_reservation: Option<String>,
     memory_limit: Option<String>,
@@ -135,7 +175,6 @@ struct AppRow {
     gitlab_owner: Option<String>,
     gitlab_branch: Option<String>,
     gitea_repository: Option<String>,
-    gitea_owner: Option<String>,
     gitea_branch: Option<String>,
     bitbucket_repository: Option<String>,
     bitbucket_owner: Option<String>,
@@ -146,7 +185,6 @@ struct AppRow {
     registry_url: Option<String>,
     custom_git_url: Option<String>,
     custom_git_branch: Option<String>,
-    registry_id: Option<i64>,
     environment_env: String,
     project_env: String,
     registry_image_prefix: Option<String>,
@@ -262,6 +300,7 @@ fn domain(d: Domain) -> Result<DomainSpec, String> {
         host: d.host,
         https: d.https != 0,
         port: u16::try_from(d.port.unwrap_or(3000)).map_err(|_| "invalid domain port")?,
+        service_name: d.service_name,
         path: d.path.unwrap_or_else(|| "/".into()),
         internal_path: d.internal_path.unwrap_or_else(|| "/".into()),
         strip_path: d.strip_path != 0,

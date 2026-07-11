@@ -1,4 +1,4 @@
-use super::spec::{ApplicationSpec, DomainSpec};
+use crate::utils::builder::spec::{ApplicationSpec, DomainSpec};
 use serde_json::{Map, Value, json};
 
 pub fn application_config(app: &ApplicationSpec) -> Value {
