@@ -508,6 +508,35 @@ impl ApplicationService {
         })
     }
 
+    pub async fn cancel_operation(&self, id: i64) -> sqlx::Result<bool> {
+        self.get_by_id(id).await?;
+        let has_running_deployment = sqlx::query_scalar::<_, i64>(
+            "SELECT EXISTS(SELECT 1 FROM deployments WHERE application_id = ? AND status = 'RUNNING')",
+        )
+        .bind(id)
+        .fetch_one(self.db.as_ref())
+        .await?
+            != 0;
+        if !has_running_deployment {
+            return Ok(false);
+        }
+
+        let state = resolve::<ApplicationState>()
+            .await
+            .map_err(|error| sqlx::Error::Protocol(error.to_string()))?;
+        if !state.cancel_by_id(IdType::AppId(id)) {
+            return Ok(false);
+        }
+
+        sqlx::query(
+            "UPDATE deployments SET state = 'CANCEL_REQUESTED', last_state_at = strftime('%s', 'now') WHERE application_id = ? AND status = 'RUNNING'",
+        )
+        .bind(id)
+        .execute(self.db.as_ref())
+        .await?;
+        Ok(true)
+    }
+
     fn spawn_operation(
         &self,
         application_id: i64,

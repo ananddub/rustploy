@@ -59,6 +59,15 @@ impl ApplicationState {
             .ok_or_else(|| "AppDeploy not found".to_string())
     }
 
+    pub fn cancel_by_id(&self, app_id: IdType) -> bool {
+        self.hashmap
+            .get(&app_id)
+            .map(|entry| {
+                entry.cancellation_token.cancel();
+            })
+            .is_some()
+    }
+
     pub fn cancellation_token(&self, app_id: IdType) -> Option<CancellationToken> {
         self.hashmap
             .get(&app_id)

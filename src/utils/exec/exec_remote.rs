@@ -7,6 +7,7 @@ use std::time::Duration;
 use std::{ffi::OsStr, sync::Arc};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
+use uuid::Uuid;
 
 #[derive(Clone, Debug)]
 pub struct RemoteExecutor {
@@ -249,7 +250,13 @@ impl RemoteExecutor {
             .channel_open_session()
             .await
             .map_err(|e| ExecError::Ssh(e.to_string()))?;
-        let command = remote_command(program, args, self.sudo_password.is_some());
+        let base_command = remote_command(program, args, self.sudo_password.is_some());
+        let cancel_job = cancel.map(|_| RemoteCancelJob::new());
+        let command = if let Some(job) = &cancel_job {
+            cancellable_remote_command(&base_command, &job.pid_file)
+        } else {
+            base_command
+        };
         channel
             .exec(true, command.into_bytes())
             .await
@@ -278,13 +285,25 @@ impl RemoteExecutor {
                 if let Some(sender) = &stream {
                     tokio::select! {
                         message=channel.wait()=>message,
-                        _=sender.closed()=>{let _=channel.close().await;return Err(ExecError::StreamCancelled);},
-                        _=cancel.cancelled()=>{let _=channel.close().await;return Err(ExecError::StreamCancelled);}
+                        _=sender.closed()=>{
+                            self.cancel_remote_job(cancel_job.as_ref()).await;
+                            let _=channel.close().await;
+                            return Err(ExecError::StreamCancelled);
+                        },
+                        _=cancel.cancelled()=>{
+                            self.cancel_remote_job(cancel_job.as_ref()).await;
+                            let _=channel.close().await;
+                            return Err(ExecError::StreamCancelled);
+                        }
                     }
                 } else {
                     tokio::select! {
                         message=channel.wait()=>message,
-                        _=cancel.cancelled()=>{let _=channel.close().await;return Err(ExecError::StreamCancelled);}
+                        _=cancel.cancelled()=>{
+                            self.cancel_remote_job(cancel_job.as_ref()).await;
+                            let _=channel.close().await;
+                            return Err(ExecError::StreamCancelled);
+                        }
                     }
                 }
             } else if let Some(sender) = &stream {
@@ -356,7 +375,118 @@ impl RemoteExecutor {
         }
         Ok(result)
     }
+
+    async fn cancel_remote_job(&self, job: Option<&RemoteCancelJob>) {
+        let Some(job) = job else {
+            return;
+        };
+        let command = remote_command(
+            "sh",
+            &["-c".into(), remote_cancel_script(&job.pid_file)],
+            self.sudo_password.is_some(),
+        );
+        if let Err(error) = self
+            .execute_raw_once(command, true, Duration::from_secs(8))
+            .await
+        {
+            tracing::warn!(
+                error = %error,
+                pid_file = %job.pid_file,
+                "failed to kill remote cancellable SSH job"
+            );
+        }
+    }
+
+    async fn execute_raw_once(
+        &self,
+        command: String,
+        send_sudo_password: bool,
+        timeout: Duration,
+    ) -> ExecResult<()> {
+        let session = self.connect_session().await?;
+        let result = tokio::time::timeout(timeout, async {
+            use russh_extra::russh::ChannelMsg;
+
+            let guard = session
+                .russh_handle()
+                .await
+                .map_err(|e| ExecError::Ssh(e.to_string()))?;
+            let mut channel = guard
+                .channel_open_session()
+                .await
+                .map_err(|e| ExecError::Ssh(e.to_string()))?;
+            channel
+                .exec(true, command.into_bytes())
+                .await
+                .map_err(|e| ExecError::Ssh(e.to_string()))?;
+
+            if send_sudo_password {
+                if let Some(password) = &self.sudo_password {
+                    let mut input = password.as_bytes().to_vec();
+                    input.push(b'\n');
+                    channel
+                        .data(input.as_slice())
+                        .await
+                        .map_err(|e| ExecError::Ssh(e.to_string()))?;
+                }
+            }
+            channel
+                .eof()
+                .await
+                .map_err(|e| ExecError::Ssh(e.to_string()))?;
+
+            let mut exit = None;
+            while let Some(message) = channel.wait().await {
+                match message {
+                    ChannelMsg::ExitStatus { exit_status } => {
+                        exit = Some(exit_status);
+                        break;
+                    }
+                    ChannelMsg::ExitSignal { .. } => {
+                        let _ = channel.close().await;
+                        return Err(ExecError::Ssh(
+                            "remote cancel command terminated by a signal".into(),
+                        ));
+                    }
+                    ChannelMsg::Close => break,
+                    _ => {}
+                }
+            }
+            let _ = channel.close().await;
+            match exit {
+                Some(0) => Ok(()),
+                Some(code) => Err(ExecError::CommandFailed {
+                    code: Some(code as i32),
+                    stderr: "remote cancel command failed".into(),
+                }),
+                None => Err(ExecError::Ssh(
+                    "remote cancel command ended without an exit status".into(),
+                )),
+            }
+        })
+        .await;
+
+        match result {
+            Ok(result) => result,
+            Err(_) => Err(ExecError::Timeout {
+                seconds: timeout.as_secs(),
+            }),
+        }
+    }
 }
+
+#[derive(Clone, Debug)]
+struct RemoteCancelJob {
+    pid_file: String,
+}
+impl RemoteCancelJob {
+    fn new() -> Self {
+        Self {
+            pid_file: format!("/tmp/rustploy-ssh-job-{}.pid", Uuid::new_v4()),
+        }
+    }
+}
+
 fn collect<I, S>(args: I) -> Vec<String>
 where
     I: IntoIterator<Item = S>,
@@ -391,4 +521,33 @@ fn remote_command(program: &str, args: &[String], sudo: bool) -> String {
         .map(|v| quote(&v))
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+fn cancellable_remote_command(command: &str, pid_file: &str) -> String {
+    let script = format!(
+        r#"rm -f {pid_file}
+setsid sh -c {command} &
+child="$!"
+printf '%s\n' "$child" > {pid_file}
+wait "$child"
+status="$?"
+rm -f {pid_file}
+exit "$status""#,
+        pid_file = quote(pid_file),
+        command = quote(command),
+    );
+    remote_command("sh", &["-c".into(), script], false)
+}
+
+fn remote_cancel_script(pid_file: &str) -> String {
+    format!(
+        r#"pid="$(cat {pid_file} 2>/dev/null || true)"
+if [ -n "$pid" ]; then
+  kill -TERM -- "-$pid" 2>/dev/null || true
+  sleep 2
+  kill -KILL -- "-$pid" 2>/dev/null || true
+fi
+rm -f {pid_file}"#,
+        pid_file = quote(pid_file),
+    )
 }

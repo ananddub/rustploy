@@ -106,6 +106,7 @@ fn convert(
             .into_iter()
             .map(|mount| compose_mount(&compose.app_name, mount))
             .collect::<Result<Vec<_>, _>>()?,
+
         domains: domains
             .into_iter()
             .map(domain)

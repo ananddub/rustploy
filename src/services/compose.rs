@@ -407,6 +407,35 @@ impl ComposeService {
         })
     }
 
+    pub async fn cancel_operation(&self, id: i64) -> sqlx::Result<bool> {
+        self.get_by_id(id).await?;
+        let has_running_deployment = sqlx::query_scalar::<_, i64>(
+            "SELECT EXISTS(SELECT 1 FROM deployments WHERE compose_id = ? AND status = 'RUNNING')",
+        )
+        .bind(id)
+        .fetch_one(self.db.as_ref())
+        .await?
+            != 0;
+        if !has_running_deployment {
+            return Ok(false);
+        }
+
+        let state = resolve::<ApplicationState>()
+            .await
+            .map_err(|error| sqlx::Error::Protocol(error.to_string()))?;
+        if !state.cancel_by_id(IdType::ComposeId(id)) {
+            return Ok(false);
+        }
+
+        sqlx::query(
+            "UPDATE deployments SET state = 'CANCEL_REQUESTED', last_state_at = strftime('%s', 'now') WHERE compose_id = ? AND status = 'RUNNING'",
+        )
+        .bind(id)
+        .execute(self.db.as_ref())
+        .await?;
+        Ok(true)
+    }
+
     fn spawn_operation(&self, compose_id: i64, deployment_id: i64, operation: ComposeOperation) {
         let db = self.db.clone();
         tokio::spawn(async move {

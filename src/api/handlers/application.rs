@@ -269,6 +269,18 @@ impl ApplicationController {
         self.operation(id, ApplicationOperation::Start).await
     }
 
+    #[post("/{id}/cancel")]
+    async fn cancel(&self, _claims: Claims, Path(id): Path<i64>) -> Result<StatusCode, ApiError> {
+        match self.service.cancel_operation(id).await {
+            Ok(true) => Ok(StatusCode::ACCEPTED),
+            Ok(false) => Err((
+                StatusCode::CONFLICT,
+                "no running application deployment to cancel".into(),
+            )),
+            Err(error) => Err(map_sqlx_error(error)),
+        }
+    }
+
     #[delete("/{id}")]
     async fn delete(&self, _claims: Claims, Path(id): Path<i64>) -> Result<StatusCode, ApiError> {
         self.service
