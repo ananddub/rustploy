@@ -17,6 +17,15 @@
 	let logs = $state<string[]>([]);
 	let loading = $state(false);
 	let error = $state('');
+	let fetched = $state(false);
+
+	// Auto-fetch when appName becomes available
+	$effect(() => {
+		if (appName && !fetched) {
+			fetched = true;
+			loadLogs();
+		}
+	});
 
 	async function loadLogs() {
 		if (!appName) return;
@@ -37,7 +46,6 @@
 					query: { tail: parseInt(lines), timestamps } as any
 				});
 			}
-			// Response may be a string blob of log lines
 			const raw = res.data as any;
 			if (typeof raw === 'string') {
 				logs = raw.split('\n').filter(Boolean);
@@ -51,6 +59,12 @@
 		}
 	}
 
+	// Re-fetch when lines/timestamps change if already fetched
+	function refresh() {
+		fetched = true;
+		loadLogs();
+	}
+
 	function downloadLogs() {
 		const blob = new Blob([logs.join('\n')], { type: 'text/plain' });
 		const url = URL.createObjectURL(blob);
@@ -60,25 +74,25 @@
 	}
 
 	function ansiToHtml(line: string): string {
-		// Strip ANSI escape codes for display
 		return line.replace(/\x1B\[[0-9;]*[mGKHF]/g, '');
 	}
 </script>
 
 <div class="bg-card border border-border rounded-lg p-6 flex flex-col gap-4 animate-fade-up">
-	<div class="flex items-center justify-between">
-		<div>
+	<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+		<div class="shrink-0">
 			<h2 class="text-base font-semibold">Logs</h2>
 			<p class="text-sm text-muted-foreground mt-1">Container logs for this {label}.</p>
 		</div>
-		<div class="flex items-center gap-2">
-			<div class="flex items-center gap-1.5 text-xs text-muted-foreground">
-				<Switch checked={timestamps} onchange={(v) => (timestamps = v)} />
+		<div class="flex flex-wrap items-center gap-2 min-w-0">
+			<div class="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0">
+				<Switch checked={timestamps} onchange={(v) => { timestamps = v; if (fetched) refresh(); }} />
 				Timestamps
 			</div>
 			<select
-				class="h-8 rounded-md border border-input bg-secondary px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+				class="h-8 rounded-md border border-input bg-secondary px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring shrink-0"
 				bind:value={lines}
+				onchange={() => { if (fetched) refresh(); }}
 			>
 				<option value="50">50 lines</option>
 				<option value="100">100 lines</option>
@@ -87,16 +101,16 @@
 				<option value="1000">1000 lines</option>
 			</select>
 			{#if logs.length > 0}
-				<button onclick={downloadLogs} class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors" title="Download logs">
+				<button onclick={downloadLogs} class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors shrink-0" title="Download logs">
 					<Download size={14} />
 				</button>
 			{/if}
 			<button
-				onclick={loadLogs}
+				onclick={refresh}
 				disabled={loading || !appName}
 				class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-50 transition-colors"
 			>
-				<RefreshCw size={14} class={loading ? 'animate-spin' : ''} /> Fetch Logs
+				<RefreshCw size={14} class={loading ? 'animate-spin' : ''} /> Refresh
 			</button>
 		</div>
 	</div>
@@ -110,27 +124,31 @@
 		</div>
 	{:else if error}
 		<div class="rounded-md bg-destructive/10 border border-destructive/30 px-3 py-2 text-sm text-destructive">{error}</div>
-	{:else if logs.length === 0 && !loading}
+		<div class="rounded-md bg-[#0d0d0d] border border-border p-4 font-mono text-xs min-h-32 flex items-center justify-center text-muted-foreground/30">
+			<p>Click Refresh to try again.</p>
+		</div>
+	{:else if loading}
+		<div class="rounded-md bg-[#0d0d0d] border border-border p-4 font-mono text-xs min-h-64 flex items-center justify-center">
+			<div class="flex items-center gap-2 text-muted-foreground/40">
+				<div class="w-4 h-4 border-2 border-muted-foreground/20 border-t-muted-foreground/60 rounded-full animate-spin"></div>
+				Loading logs…
+			</div>
+		</div>
+	{:else if logs.length === 0}
 		<div class="rounded-md bg-[#0d0d0d] border border-border p-4 font-mono text-xs min-h-64 flex items-center justify-center">
 			<div class="flex flex-col items-center gap-2 text-muted-foreground/30">
 				<FileText size={32} />
-				<p>Click "Fetch Logs" to load container output.</p>
+				<p>No logs available. The service may not be running yet.</p>
 			</div>
 		</div>
 	{:else}
 		<div class="rounded-md bg-[#0d0d0d] border border-border p-4 font-mono text-xs min-h-64 max-h-[600px] overflow-y-auto">
-			{#if loading}
-				<div class="flex items-center justify-center py-10 text-muted-foreground/30">
-					<div class="w-5 h-5 border-2 border-muted-foreground/20 border-t-muted-foreground/60 rounded-full animate-spin mr-2"></div>
-					Loading logs…
+			{#each logs as line}
+				<div class="py-px text-green-400/80 leading-relaxed whitespace-pre-wrap break-all">
+					{ansiToHtml(line)}
 				</div>
-			{:else}
-				{#each logs as line, i}
-					<div class="py-px text-green-400/80 leading-relaxed whitespace-pre-wrap break-all">
-						{ansiToHtml(line)}
-					</div>
-				{/each}
-			{/if}
+			{/each}
 		</div>
+		<p class="text-xs text-muted-foreground/40 text-right">{logs.length} lines</p>
 	{/if}
 </div>

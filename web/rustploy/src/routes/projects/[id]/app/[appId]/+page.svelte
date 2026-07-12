@@ -5,7 +5,8 @@
 	import {
 		applicationControllerGet,
 		applicationControllerDeploy,
-		applicationControllerRebuild
+		applicationControllerRebuild,
+		applicationControllerRedeploy
 	} from '$lib/client/sdk.gen';
 	import type { ApplicationResponseDto } from '$lib/client/types.gen';
 	import ServicePageShell from '$lib/components/ServicePageShell.svelte';
@@ -67,7 +68,7 @@
 				serviceId={appId}
 				serviceType="application"
 				onDeploy={async () => { await applicationControllerDeploy({ path: { id: appId } }); }}
-				onRedeploy={async () => { await applicationControllerRebuild({ path: { id: appId } }); }}
+				onRedeploy={async () => { await applicationControllerRedeploy({ path: { id: appId } }); }}
 			/>
 		{/if}
 		{#if activeTab === 'Logs'}

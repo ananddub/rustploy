@@ -5,12 +5,11 @@
 	import { client } from '$lib/client/client.gen';
 	import { getAuthSession, refreshAccessToken, clearAuthSession } from '$lib/auth';
 	import { goto } from '$app/navigation';
+	import { Toaster } from 'svelte-sonner';
 
 	let { children } = $props();
 
-	// Setup client interceptors once on mount
 	onMount(() => {
-		// Request interceptor: add auth token
 		client.interceptors.request.use((request: Request) => {
 			const session = getAuthSession();
 			if (session?.tokens.access_token) {
@@ -19,7 +18,6 @@
 			return request;
 		});
 
-		// Response interceptor: auto-refresh on 401
 		client.interceptors.response.use(async (response: Response, request: Request) => {
 			if (response.status !== 401) return response;
 			const url = (request as Request).url;
@@ -28,9 +26,7 @@
 			const newToken = await refreshAccessToken();
 			if (!newToken) {
 				clearAuthSession();
-				if (!window.location.pathname.startsWith('/auth')) {
-					goto('/auth');
-				}
+				if (!window.location.pathname.startsWith('/auth')) goto('/auth');
 				return response;
 			}
 
@@ -45,4 +41,11 @@
 </script>
 
 <svelte:head><link rel="icon" href={favicon} /></svelte:head>
+<Toaster
+	theme="dark"
+	position="bottom-right"
+	richColors
+	closeButton
+	toastOptions={{ style: 'font-family: var(--font-sans); font-size: 0.875rem;' }}
+/>
 {@render children()}

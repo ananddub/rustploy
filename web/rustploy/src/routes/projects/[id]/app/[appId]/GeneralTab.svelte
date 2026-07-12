@@ -17,6 +17,7 @@
 	} from '$lib/client/sdk.gen';
 	import type { ApplicationResponseDto } from '$lib/client/types.gen';
 	import Switch from '$lib/components/Switch.svelte';
+	import { withToast } from '$lib/toast';
 	import BranchSelect from '$lib/components/BranchSelect.svelte';
 
 	type Props = { app: ApplicationResponseDto; onUpdated: (a: ApplicationResponseDto) => void };
@@ -31,8 +32,19 @@
 	let autoDeploy = $state(true);
 	let cleanCache = $state(false);
 
-	async function run(setter: (v: boolean) => void, fn: () => Promise<any>) {
-		setter(true); try { await fn(); } finally { setter(false); }
+	async function run(
+		setter: (v: boolean) => void,
+		fn: () => Promise<any>,
+		label: string
+	) {
+		setter(true);
+		try {
+			await withToast(fn, {
+				loading: `${label}ing…`,
+				success: `${label} triggered successfully`,
+				error: `${label} failed`
+			});
+		} finally { setter(false); }
 	}
 
 	// ── Provider / Source ─────────────────────────────────────────
@@ -172,7 +184,7 @@
 		<h2 class="text-base font-semibold mb-4">Deploy Settings</h2>
 		<div class="flex flex-wrap items-center gap-2">
 			<button
-				onclick={() => run(d => (deploying = d), () => applicationControllerDeploy({ path: { id: app.id } }))}
+				onclick={() => run(d => (deploying = d), () => applicationControllerDeploy({ path: { id: app.id } }), 'Deploy')}
 				disabled={deploying}
 				class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
 			>
@@ -180,7 +192,7 @@
 				Deploy
 			</button>
 			<button
-				onclick={() => run(d => (reloading = d), () => applicationControllerReload({ path: { id: app.id } }))}
+				onclick={() => run(d => (reloading = d), () => applicationControllerReload({ path: { id: app.id } }), 'Reload')}
 				disabled={reloading}
 				class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-50"
 			>
@@ -188,7 +200,7 @@
 				Reload
 			</button>
 			<button
-				onclick={() => run(d => (rebuilding = d), () => applicationControllerRebuild({ path: { id: app.id } }))}
+				onclick={() => run(d => (rebuilding = d), () => applicationControllerRebuild({ path: { id: app.id } }), 'Rebuild')}
 				disabled={rebuilding}
 				class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-50"
 			>
@@ -196,7 +208,7 @@
 				Rebuild
 			</button>
 			<button
-				onclick={() => run(d => (starting = d), () => applicationControllerStart({ path: { id: app.id } }))}
+				onclick={() => run(d => (starting = d), () => applicationControllerStart({ path: { id: app.id } }), 'Start')}
 				disabled={starting}
 				class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-50"
 			>
@@ -204,7 +216,7 @@
 				Start
 			</button>
 			<button
-				onclick={() => run(d => (cancelling = d), () => applicationControllerCancel({ path: { id: app.id } }))}
+				onclick={() => run(d => (cancelling = d), () => applicationControllerCancel({ path: { id: app.id } }), 'Cancel')}
 				disabled={cancelling}
 				class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10 disabled:opacity-50"
 			>
@@ -270,7 +282,7 @@
 				</div>
 				<div class="grid grid-cols-2 gap-4">
 					<div class="flex flex-col gap-1.5">
-						<label class="text-sm font-medium text-muted-foreground" aria-hidden="true">Branch</label>
+						<p class="text-sm font-medium text-muted-foreground">Branch</p>
 						<BranchSelect
 							value={hostedBranch}
 							onchange={(v) => (hostedBranch = v)}
@@ -320,7 +332,7 @@
 				</div>
 				<div class="grid grid-cols-2 gap-4">
 					<div class="flex flex-col gap-1.5">
-						<label class="text-sm font-medium text-muted-foreground" aria-hidden="true">Branch</label>
+						<p class="text-sm font-medium text-muted-foreground">Branch</p>
 						<BranchSelect
 							value={gitBranch}
 							onchange={(v) => (gitBranch = v)}
@@ -418,7 +430,7 @@
 
 		<div class="flex flex-col gap-2.5 mb-5">
 			{#each BUILD_TYPES as bt}
-				<label class="flex items-center gap-3 cursor-pointer group">
+				<div class="flex items-center gap-3 cursor-pointer group">
 					<div
 						class="w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors {buildType === bt.id ? 'border-primary bg-primary' : 'border-border group-hover:border-foreground/40'}"
 						onclick={() => (buildType = bt.id)}
@@ -435,7 +447,7 @@
 					{#if bt.isNew}
 						<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-primary text-primary-foreground">NEW</span>
 					{/if}
-				</label>
+				</div>
 			{/each}
 		</div>
 

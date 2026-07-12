@@ -52,6 +52,7 @@
 		{ label: 'Users', icon: Users },
 		{ label: 'Audit Logs', icon: FileText },
 		{ label: 'SSH Keys', icon: Key, path: '/ssh-keys' },
+		{ label: 'Organization', icon: Settings, path: '/settings' },
 		{ label: 'AI', icon: Cpu },
 		{ label: 'Tags', icon: FileText },
 		{ label: 'Git', icon: GitBranch },

@@ -139,7 +139,13 @@
 		{:else}
 			<div class="flex flex-col gap-3">
 				{#each servers as server (server.id)}
-					<div class="bg-card border border-border rounded-xl p-5 flex items-center gap-4 hover:border-foreground/20 transition-colors">
+					<div
+						role="button"
+						tabindex="0"
+						class="bg-card border border-border rounded-xl p-5 flex items-center gap-4 hover:border-foreground/20 transition-colors cursor-pointer"
+						onclick={() => goto(`/remote-servers/${server.id}`)}
+						onkeydown={(e) => e.key === 'Enter' && goto(`/remote-servers/${server.id}`)}
+					>
 						<div class="relative shrink-0">
 							<div class="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
 								<Server class="w-5 h-5 text-muted-foreground" />

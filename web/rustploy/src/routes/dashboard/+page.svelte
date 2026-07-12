@@ -1,32 +1,38 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { RocketIcon, Clock, ArrowRight } from '@lucide/svelte';
+	import { RocketIcon, Clock, ArrowRight, Zap } from '@lucide/svelte';
 	import PageLayout from '$lib/components/PageLayout.svelte';
 	import { getAuthSession } from '$lib/auth';
+	import { deploymentControllerActive } from '$lib/client/sdk.gen';
+	import type { ActiveDeploymentDto } from '$lib/client/types.gen';
 
 	const session = getAuthSession();
 	if (!session) goto('/auth', { replaceState: true });
 
-	const userName =
-		session?.user.first_name || session?.user.email?.split('@')[0] || 'user';
+	const userName = session?.user.first_name || session?.user.email?.split('@')[0] || 'user';
+	const now = new Date().toLocaleTimeString('en-GB');
+
+	let activeDeployments = $state<ActiveDeploymentDto[]>([]);
+	let deploymentsLoading = $state(true);
+
+	$effect(() => {
+		deploymentControllerActive().then((res: any) => {
+			activeDeployments = (res.data as ActiveDeploymentDto[]) ?? [];
+			deploymentsLoading = false;
+		}).catch(() => { deploymentsLoading = false; });
+	});
 
 	const stats = [
-		{ label: 'PROJECTS', value: '1', sub: '1 environment' },
-		{ label: 'SERVICES', value: '3', sub: '1 apps · 1 compose · 1 db' },
-		{ label: 'DEPLOYS / 7D', value: '1', sub: 'no prior data' }
+		{ label: 'PROJECTS', value: '—', sub: 'Your projects' },
+		{ label: 'SERVICES', value: '—', sub: 'Apps · Compose · DB' },
+		{ label: 'DEPLOYS / 7D', value: '—', sub: 'Deployment activity' }
 	];
 
-	const statuses = [
-		{ count: 1, label: 'running', color: 'bg-green-500' },
-		{ count: 1, label: 'errored', color: 'bg-red-500' },
-		{ count: 1, label: 'idle', color: 'bg-muted-foreground/30' }
-	];
-
-	const deployments = [
-		{ name: 'nginx', sub: 'backend · production', state: 'done', time: '3 days ago' }
-	];
-
-	const now = new Date().toLocaleTimeString('en-GB');
+	const statuses = $derived([
+		{ count: activeDeployments.filter(d => d.state === 'running').length, label: 'running', color: 'bg-green-500' },
+		{ count: activeDeployments.filter(d => d.state === 'error').length, label: 'errored', color: 'bg-red-500' },
+		{ count: activeDeployments.filter(d => d.state === 'idle' || d.state === 'stopped').length, label: 'idle', color: 'bg-muted-foreground/30' }
+	]);
 </script>
 
 <PageLayout>
@@ -83,35 +89,41 @@
 			<div class="flex items-center justify-between px-4 py-3 border-b border-border">
 				<div class="flex items-center gap-2 text-sm font-medium">
 					<RocketIcon class="w-4 h-4 text-muted-foreground" />
-					<span>Recent deployments</span>
+					<span>Active Deployments</span>
 				</div>
-				<button class="text-xs text-muted-foreground hover:text-foreground transition-colors">
+				<button onclick={() => goto('/projects')} class="text-xs text-muted-foreground hover:text-foreground transition-colors">
 					view all →
 				</button>
 			</div>
 
-			<div class="divide-y divide-border">
-				{#each deployments as d}
-					<div class="flex items-center justify-between px-4 py-3">
-						<div class="flex items-center gap-3">
-							<span class="w-2 h-2 rounded-full bg-green-500 shrink-0"></span>
-							<div>
-								<p class="text-sm font-medium">{d.name}</p>
-								<p class="text-xs text-muted-foreground">{d.sub}</p>
+			{#if deploymentsLoading}
+				<div class="flex justify-center py-8">
+					<div class="w-5 h-5 border-2 border-muted-foreground/30 border-t-foreground rounded-full animate-spin"></div>
+				</div>
+			{:else if activeDeployments.length === 0}
+				<div class="flex flex-col items-center justify-center py-10 text-muted-foreground/30">
+					<Zap class="w-8 h-8 mb-2" />
+					<p class="text-sm">No active deployments</p>
+				</div>
+			{:else}
+				<div class="divide-y divide-border">
+					{#each activeDeployments as d (d.id)}
+						<div class="flex items-center justify-between px-4 py-3">
+							<div class="flex items-center gap-3">
+								<span class="w-2 h-2 rounded-full bg-yellow-500 animate-pulse shrink-0"></span>
+								<div>
+									<p class="text-sm font-medium">Deployment #{d.id}</p>
+									<p class="text-xs text-muted-foreground">Project {d.project_id} · Env {d.environment_id}</p>
+								</div>
+							</div>
+							<div class="flex items-center gap-4 text-xs text-muted-foreground">
+								<span class="capitalize">{d.kind}</span>
+								<span class="px-2 py-0.5 rounded bg-yellow-500/15 text-yellow-500 font-medium">{d.state}</span>
 							</div>
 						</div>
-						<div class="flex items-center gap-6 text-xs text-muted-foreground">
-							<div class="flex items-center gap-1">
-								<RocketIcon class="w-3 h-3" />
-								<span>Rustploy</span>
-							</div>
-							<span>{d.state}</span>
-							<span>{d.time}</span>
-							<button class="hover:text-foreground transition-colors">logs →</button>
-						</div>
-					</div>
-				{/each}
-			</div>
+					{/each}
+				</div>
+			{/if}
 		</div>
 	</main>
 </PageLayout>

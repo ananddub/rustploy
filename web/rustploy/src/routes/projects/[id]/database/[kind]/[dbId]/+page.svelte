@@ -14,6 +14,7 @@
 	import type { DatabaseResponseDto } from '$lib/client/types.gen';
 	import ServicePageShell from '$lib/components/ServicePageShell.svelte';
 	import { RocketIcon, Play, Square, Hammer, Trash2, Save, AlertTriangle } from '@lucide/svelte';
+	import { withToast } from '$lib/toast';
 
 	const session = getAuthSession();
 	if (!session) goto('/auth', { replaceState: true });
@@ -86,8 +87,11 @@
 	let stopping = $state(false);
 	let redeploying = $state(false);
 
-	async function run(setter: (v: boolean) => void, fn: () => Promise<any>) {
-		setter(true); try { await fn(); } finally { setter(false); }
+	async function run(setter: (v: boolean) => void, fn: () => Promise<any>, label = 'Action') {
+		setter(true);
+		try {
+			await withToast(fn, { loading: label + 'ing…', success: label + ' triggered!' });
+		} finally { setter(false); }
 	}
 
 	// Delete
@@ -133,7 +137,7 @@
 				<section class="bg-card border border-border rounded-lg p-4">
 					<div class="flex flex-wrap items-center gap-2">
 						<button
-							onclick={() => run(d => (deploying = d), () => databaseControllerDeploy({ path: { kind, id: dbId } }))}
+							onclick={() => run(d => (deploying = d), () => databaseControllerDeploy({ path: { kind, id: dbId } }), 'Deploy')}
 							disabled={deploying}
 							class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
 						>
@@ -141,7 +145,7 @@
 							Deploy
 						</button>
 						<button
-							onclick={() => run(d => (starting = d), () => databaseControllerStart({ path: { kind, id: dbId } }))}
+							onclick={() => run(d => (starting = d), () => databaseControllerStart({ path: { kind, id: dbId } }), 'Start')}
 							disabled={starting}
 							class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-50 transition-colors"
 						>
@@ -149,7 +153,7 @@
 							Start
 						</button>
 						<button
-							onclick={() => run(d => (stopping = d), () => databaseControllerStop({ path: { kind, id: dbId } }))}
+							onclick={() => run(d => (stopping = d), () => databaseControllerStop({ path: { kind, id: dbId } }), 'Stop')}
 							disabled={stopping}
 							class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-50 transition-colors"
 						>
@@ -157,7 +161,7 @@
 							Stop
 						</button>
 						<button
-							onclick={() => run(d => (redeploying = d), () => databaseControllerRedeploy({ path: { kind, id: dbId } }))}
+							onclick={() => run(d => (redeploying = d), () => databaseControllerRedeploy({ path: { kind, id: dbId } }), 'Redeploy')}
 							disabled={redeploying}
 							class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-50 transition-colors"
 						>

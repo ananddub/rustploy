@@ -5,7 +5,8 @@
 	import {
 		composeControllerGet,
 		composeControllerDeploy,
-		composeControllerRedeploy
+		composeControllerRedeploy,
+		composeControllerCancel
 	} from '$lib/client/sdk.gen';
 	import type { ComposeResponseDto } from '$lib/client/types.gen';
 	import ServicePageShell from '$lib/components/ServicePageShell.svelte';

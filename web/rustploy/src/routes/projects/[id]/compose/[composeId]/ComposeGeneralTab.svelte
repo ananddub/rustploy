@@ -17,6 +17,7 @@
 	} from '$lib/client/sdk.gen';
 	import type { ComposeResponseDto } from '$lib/client/types.gen';
 	import Switch from '$lib/components/Switch.svelte';
+	import { withToast } from '$lib/toast';
 	import BranchSelect from '$lib/components/BranchSelect.svelte';
 	import loader from '@monaco-editor/loader';
 
@@ -182,7 +183,7 @@
 		<h2 class="text-base font-semibold mb-4">Deploy Settings</h2>
 		<div class="flex flex-wrap items-center gap-2">
 			<button
-				onclick={() => run(d => (deploying = d), () => composeControllerDeploy({ path: { id: compose.id } }))}
+				onclick={() => run(d => (deploying = d), async () => { await withToast(() => composeControllerDeploy({ path: { id: compose.id } }), { loading: 'Deploying…', success: 'Deploy triggered!', successDescription: 'Your compose service is being deployed.' }); })}
 				disabled={deploying}
 				class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
 			>
@@ -190,7 +191,7 @@
 				Deploy
 			</button>
 			<button
-				onclick={() => run(d => (reloading = d), () => composeControllerReload({ path: { id: compose.id } }))}
+				onclick={() => run(d => (reloading = d), () => withToast(() => composeControllerReload({ path: { id: compose.id } }), { loading: 'Reloading…', success: 'Reload triggered!' }))}
 				disabled={reloading}
 				class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-50"
 			>
@@ -198,7 +199,7 @@
 				Reload
 			</button>
 			<button
-				onclick={() => run(d => (redeploying = d), () => composeControllerRedeploy({ path: { id: compose.id } }))}
+				onclick={() => run(d => (redeploying = d), () => withToast(() => composeControllerRedeploy({ path: { id: compose.id } }), { loading: 'Redeploying…', success: 'Redeploy triggered!' }))}
 				disabled={redeploying}
 				class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-50"
 			>
@@ -206,7 +207,7 @@
 				Redeploy
 			</button>
 			<button
-				onclick={() => run(d => (starting = d), () => composeControllerStart({ path: { id: compose.id } }))}
+				onclick={() => run(d => (starting = d), () => withToast(() => composeControllerStart({ path: { id: compose.id } }), { loading: 'Starting…', success: 'Service started!' }))}
 				disabled={starting}
 				class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-50"
 			>
@@ -214,7 +215,7 @@
 				Start
 			</button>
 			<button
-				onclick={() => run(d => (stopping = d), () => composeControllerStop({ path: { id: compose.id } }))}
+				onclick={() => run(d => (stopping = d), () => withToast(() => composeControllerStop({ path: { id: compose.id } }), { loading: 'Stopping…', success: 'Service stopped!' }))}
 				disabled={stopping}
 				class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10 disabled:opacity-50"
 			>
@@ -285,7 +286,7 @@
 				</div>
 				<div class="grid grid-cols-2 gap-4">
 					<div class="flex flex-col gap-1.5">
-						<label class="text-sm font-medium text-muted-foreground" aria-hidden="true">Branch</label>
+						<p class="text-sm font-medium text-muted-foreground">Branch</p>
 						<BranchSelect
 							value={hostedBranch}
 							onchange={(v) => (hostedBranch = v)}
@@ -324,7 +325,7 @@
 				</div>
 				<div class="grid grid-cols-2 gap-4">
 					<div class="flex flex-col gap-1.5">
-						<label class="text-sm font-medium text-muted-foreground" aria-hidden="true">Branch</label>
+						<p class="text-sm font-medium text-muted-foreground">Branch</p>
 						<BranchSelect value={gitBranch} onchange={(v) => (gitBranch = v)} repoUrl={gitUrl} />
 					</div>
 					<div class="flex flex-col gap-1.5">

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Zap, RefreshCw, Clock, ExternalLink } from '@lucide/svelte';
+	import { withToast } from '$lib/toast';
 	import { formatDate, formatDuration, deployStatusLabel, deployStatusColor } from '$lib/helpers';
 	import {
 		deploymentControllerApplicationEvents,
@@ -54,12 +55,26 @@
 
 	async function handleDeploy() {
 		deploying = true;
-		try { await onDeploy(); await loadEvents(); } finally { deploying = false; }
+		try {
+			await withToast(onDeploy, {
+				loading: 'Triggering deployment…',
+				success: 'Deployment triggered!',
+				successDescription: 'Your service is being deployed.'
+			});
+			await loadEvents();
+		} finally { deploying = false; }
 	}
 
 	async function handleRedeploy() {
 		redeploying = true;
-		try { await onRedeploy(); await loadEvents(); } finally { redeploying = false; }
+		try {
+			await withToast(onRedeploy, {
+				loading: 'Redeploying…',
+				success: 'Redeploy triggered!',
+				successDescription: 'Your service is being redeployed.'
+			});
+			await loadEvents();
+		} finally { redeploying = false; }
 	}
 
 	async function cancelDeployment(id: number) {
