@@ -17,6 +17,14 @@ pub struct AppDeploy {
     pub cancellation_token: CancellationToken,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ActiveDeploySnapshot {
+    pub id: IdType,
+    pub project_id: i64,
+    pub env_id: i64,
+    pub state: DeployState,
+}
+
 #[derive(Debug)]
 pub struct DeploySubscription {
     pub state: tokio::sync::watch::Receiver<DeployState>,

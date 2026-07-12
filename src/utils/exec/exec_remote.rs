@@ -5,7 +5,7 @@ use crate::utils::session::{SshSessionLease, SshSessionPool};
 use russh_extra::{Client, HostKeyPolicy, Identity, KeyboardInteractiveReply};
 use std::time::Duration;
 use std::{ffi::OsStr, sync::Arc};
-use tokio::sync::mpsc;
+use tokio::{sync::mpsc, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
@@ -22,6 +22,28 @@ pub struct RemoteExecutor {
     connect_timeout: Duration,
     job_pid_file: Option<String>,
 }
+
+#[derive(Debug)]
+pub struct RemoteTerminal {
+    pub input: mpsc::Sender<Vec<u8>>,
+    pub resize: mpsc::Sender<(u16, u16)>,
+    pub cancel: CancellationToken,
+    task: JoinHandle<ExecResult<()>>,
+}
+
+impl RemoteTerminal {
+    pub fn cancel(&self) {
+        self.cancel.cancel();
+    }
+
+    pub async fn wait(self) -> ExecResult<()> {
+        match self.task.await {
+            Ok(result) => result,
+            Err(error) => Err(ExecError::Ssh(error.to_string())),
+        }
+    }
+}
+
 impl RemoteExecutor {
     pub fn new(
         host: impl Into<String>,
@@ -84,6 +106,105 @@ impl RemoteExecutor {
     pub fn with_job_pid_file(mut self, pid_file: impl Into<String>) -> Self {
         self.job_pid_file = Some(pid_file.into());
         self
+    }
+
+    pub async fn open_terminal(
+        &self,
+        output: mpsc::Sender<ExecStreamEvent>,
+        term: impl Into<String>,
+        cols: u16,
+        rows: u16,
+    ) -> ExecResult<RemoteTerminal> {
+        let session = self.connect_session().await?;
+        let guard = session
+            .russh_handle()
+            .await
+            .map_err(|e| ExecError::Ssh(e.to_string()))?;
+        let mut channel = guard
+            .channel_open_session()
+            .await
+            .map_err(|e| ExecError::Ssh(e.to_string()))?;
+
+        channel
+            .request_pty(true, &term.into(), cols.into(), rows.into(), 0, 0, &[])
+            .await
+            .map_err(|e| ExecError::Ssh(e.to_string()))?;
+        channel
+            .request_shell(true)
+            .await
+            .map_err(|e| ExecError::Ssh(e.to_string()))?;
+
+        let (input_tx, mut input_rx) = mpsc::channel::<Vec<u8>>(128);
+        let (resize_tx, mut resize_rx) = mpsc::channel::<(u16, u16)>(16);
+        let cancel = CancellationToken::new();
+        let task_cancel = cancel.clone();
+
+        let task = tokio::spawn(async move {
+            use russh_extra::russh::ChannelMsg;
+
+            loop {
+                tokio::select! {
+                    _ = task_cancel.cancelled() => {
+                        let _ = channel.close().await;
+                        return Ok(());
+                    }
+                    input = input_rx.recv() => {
+                        let Some(input) = input else {
+                            let _ = channel.close().await;
+                            return Ok(());
+                        };
+                        channel
+                            .data(input.as_slice())
+                            .await
+                            .map_err(|e| ExecError::Ssh(e.to_string()))?;
+                    }
+                    resize = resize_rx.recv() => {
+                        let Some((cols, rows)) = resize else {
+                            continue;
+                        };
+                        channel
+                            .window_change(cols.into(), rows.into(), 0, 0)
+                            .await
+                            .map_err(|e| ExecError::Ssh(e.to_string()))?;
+                    }
+                    message = channel.wait() => {
+                        let Some(message) = message else {
+                            return Ok(());
+                        };
+
+                        match message {
+                            ChannelMsg::Data { data } => {
+                                if output.send(ExecStreamEvent::Stdout(data.to_vec())).await.is_err() {
+                                    let _ = channel.close().await;
+                                    return Err(ExecError::StreamCancelled);
+                                }
+                            }
+                            ChannelMsg::ExtendedData { data, .. } => {
+                                if output.send(ExecStreamEvent::Stderr(data.to_vec())).await.is_err() {
+                                    let _ = channel.close().await;
+                                    return Err(ExecError::StreamCancelled);
+                                }
+                            }
+                            ChannelMsg::ExitStatus { .. } | ChannelMsg::Close => {
+                                return Ok(());
+                            }
+                            ChannelMsg::ExitSignal { .. } => {
+                                let _ = channel.close().await;
+                                return Err(ExecError::Ssh("remote terminal terminated by a signal".into()));
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        });
+
+        Ok(RemoteTerminal {
+            input: input_tx,
+            resize: resize_tx,
+            cancel,
+            task,
+        })
     }
     pub async fn kill_pid_file(&self, pid_file: impl AsRef<str>) -> ExecResult<()> {
         let command = remote_command(

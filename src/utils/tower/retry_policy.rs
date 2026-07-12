@@ -2,7 +2,6 @@ use std::fmt::Display;
 use std::future::{Ready, ready};
 use thiserror::Error;
 use tower::retry::Policy;
-use tracing::trace;
 
 #[derive(Debug, Error)]
 pub enum RetryPolicyError<E>

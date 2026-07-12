@@ -9,5 +9,6 @@ pub mod organization;
 pub mod project;
 pub mod public;
 pub mod remote_server;
+pub mod schedule;
 pub mod ssh_key;
 pub mod user;

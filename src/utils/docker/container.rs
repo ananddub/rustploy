@@ -101,6 +101,17 @@ impl DockerCli {
         args.push(target);
         self.run_stream(args, sender).await
     }
+    pub async fn container_stats_stream(
+        &self,
+        target: &str,
+        options: &[&str],
+        sender: mpsc::Sender<DockerStreamEvent>,
+    ) -> DockerResult<DockerExitStatus> {
+        let mut args = vec!["container", "stats"];
+        args.extend_from_slice(options);
+        args.push(target);
+        self.run_stream(args, sender).await
+    }
     pub async fn container_exec(&self, target: &str, args: &[&str]) -> DockerResult<DockerOutput> {
         let mut command = vec!["container", "exec", target];
         command.extend_from_slice(args);

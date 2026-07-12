@@ -1,5 +1,5 @@
 use crate::utils::builder::custom_type::{
-    AppDeploy, DeployEvent, DeployState, DeploySubscription, IdType,
+    ActiveDeploySnapshot, AppDeploy, DeployEvent, DeployState, DeploySubscription, IdType,
 };
 use auto_di::singleton;
 use dashmap::DashMap;
@@ -103,6 +103,21 @@ impl ApplicationState {
             state: entry.state.subscribe(),
             events: entry.broadcast.subscribe(),
         })
+    }
+
+    pub fn active_deployments(&self) -> Vec<ActiveDeploySnapshot> {
+        self.hashmap
+            .iter()
+            .map(|entry| {
+                let deploy = entry.value();
+                ActiveDeploySnapshot {
+                    id: deploy.app_id,
+                    project_id: deploy.project_id,
+                    env_id: deploy.env_id,
+                    state: deploy.state.subscribe().borrow().clone(),
+                }
+            })
+            .collect()
     }
 
     pub fn get_broadcast_send(&self, app_id: IdType) -> Option<broadcast::Sender<DeployEvent>> {
