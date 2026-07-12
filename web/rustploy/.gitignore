@@ -1,31 +1,23 @@
-dist
-.wrangler
+node_modules
+
+# Output
 .output
 .vercel
 .netlify
-.vinxi
-app.config.timestamp_*.js
+.wrangler
+/.svelte-kit
+/build
 
-# Environment
-.env
-.env*.local
-
-# dependencies
-/node_modules
-
-# IDEs and editors
-/.idea
-.project
-.classpath
-*.launch
-.settings/
-
-# Temp
-gitignore
-
-# System Files
+# OS
 .DS_Store
 Thumbs.db
 
+# Env
+.env
+.env.*
+!.env.example
+!.env.test
 
-openapi-ts-error-*
+# Vite
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
