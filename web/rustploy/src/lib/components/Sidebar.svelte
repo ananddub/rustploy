@@ -6,28 +6,33 @@
 		FolderOpen,
 		Zap,
 		ChartLine,
-		Calendar,
-		Globe,
 		Package,
-		Globe2,
-		Link,
 		Cpu,
 		Users,
-		FileText,
 		Key,
 		GitBranch,
 		Database,
-		Layers,
 		Shield,
 		Bell,
-		BellRing,
 		Settings,
 		BookOpen,
 		LogOut,
 		ChevronDown,
-		Loader
+		Loader,
+		Tag,
+		User,
+		Server,
+		Command,
+		Calendar,
+		Globe,
+		Globe2,
+		Link,
+		Layers,
+		FileText
 	} from '@lucide/svelte';
 	import { Avatar, AvatarFallback } from '$lib/components/ui/avatar';
+	import { Button } from '$lib/components/ui/button';
+	import { Separator } from '$lib/components/ui/separator';
 	import { getAuthSession, signOut } from '$lib/auth';
 	import { authState } from '$lib/auth.svelte';
 	import { organizationControllerGet } from '$lib/client/sdk.gen';
@@ -35,35 +40,30 @@
 	const navHome = [
 		{ label: 'Home', icon: House, path: '/dashboard' },
 		{ label: 'Projects', icon: FolderOpen, path: '/projects' },
-		{ label: 'Deployments', icon: Zap },
-		{ label: 'Monitoring', icon: ChartLine },
-		{ label: 'Schedules', icon: Calendar },
-		{ label: 'Traefik File System', icon: Globe },
-		{ label: 'Docker', icon: Package },
-		{ label: 'Swarm', icon: Globe2 },
-		{ label: 'Requests', icon: Link }
+		{ label: 'Deployments', icon: Zap, path: '/deployments' },
+		{ label: 'Monitoring', icon: ChartLine, path: '/monitoring' },
+		{ label: 'Schedules', icon: Calendar, path: '/schedules' },
+		{ label: 'Traefik', icon: Globe, path: '/traefik' },
+		{ label: 'Docker', icon: Package, path: '/docker' },
+		{ label: 'Swarm', icon: Globe2, path: '/swarm' },
+		{ label: 'Requests', icon: Link, path: '/requests' }
 	];
 
 	const navSettings = [
-		{ label: 'Web Server', icon: Cpu },
-		{ label: 'Profile', icon: Users },
+		{ label: 'Web Server', icon: Cpu, path: '/settings/server' },
+		{ label: 'Profile', icon: User, path: '/settings/profile' },
+		{ label: 'Servers', icon: Server, path: '/settings/servers' },
 		{ label: 'Remote Servers', icon: Cpu, path: '/remote-servers' },
-		{ label: 'Deployments', icon: Zap },
-		{ label: 'Users', icon: Users },
-		{ label: 'Audit Logs', icon: FileText },
+		{ label: 'Users', icon: Users, path: '/settings/users' },
+		{ label: 'Audit Logs', icon: FileText, path: '/settings/audit-logs' },
 		{ label: 'SSH Keys', icon: Key, path: '/ssh-keys' },
 		{ label: 'Organization', icon: Settings, path: '/settings' },
-		{ label: 'AI', icon: Cpu },
-		{ label: 'Tags', icon: FileText },
-		{ label: 'Git', icon: GitBranch },
-		{ label: 'Registry', icon: Database },
-		{ label: 'S3 Destinations', icon: Layers },
-		{ label: 'Certificates', icon: Shield },
-		{ label: 'Cluster', icon: Globe2 },
-		{ label: 'Notifications', icon: BellRing },
-		{ label: 'License', icon: FileText },
-		{ label: 'SSO', icon: Link },
-		{ label: 'Whitelabeling', icon: Settings }
+		{ label: 'Tags', icon: Tag, path: '/settings/tags' },
+		{ label: 'Git Providers', icon: GitBranch, path: '/settings/git-providers' },
+		{ label: 'Registry', icon: Database, path: '/settings/registry' },
+		{ label: 'S3 Destinations', icon: Layers, path: '/settings/destinations' },
+		{ label: 'Certificates', icon: Shield, path: '/settings/certificates' },
+		{ label: 'Notifications', icon: Bell, path: '/settings/notifications' }
 	];
 
 	const session = $derived(authState.session);
@@ -90,13 +90,14 @@
 	function isActive(path?: string): boolean {
 		if (!path) return false;
 		if (path === '/dashboard') return page.url.pathname === '/dashboard';
+		if (path === '/settings') return page.url.pathname === '/settings';
 		return page.url.pathname.startsWith(path);
 	}
 
 	function navItemClass(path?: string): string {
 		const base =
-			'w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-all duration-150 text-left outline-none';
-		if (isActive(path)) return `${base} bg-accent text-accent-foreground font-medium`;
+			'w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-sm transition-all duration-150 text-left outline-none';
+		if (isActive(path)) return `${base} bg-primary/10 text-primary font-medium`;
 		return `${base} text-muted-foreground hover:bg-accent hover:text-accent-foreground`;
 	}
 
@@ -106,14 +107,14 @@
 	}
 
 	// Drag-to-resize
-	let width = $state(192);
+	let width = $state(220);
 	let dragging = $state(false);
 
 	function onDragStart(e: MouseEvent) {
 		e.preventDefault();
 		dragging = true;
 		const onMove = (e: MouseEvent) => {
-			width = Math.min(320, Math.max(160, e.clientX));
+			width = Math.min(320, Math.max(180, e.clientX));
 		};
 		const onUp = () => {
 			dragging = false;
@@ -133,7 +134,7 @@
 	<div class="flex items-center justify-between px-3 py-3 border-b border-sidebar-border">
 		<div class="flex items-center gap-2 text-sm font-medium truncate">
 			<div
-				class="w-5 h-5 rounded bg-sidebar-primary/20 flex items-center justify-center text-sidebar-primary text-xs font-bold shrink-0"
+				class="w-6 h-6 rounded-md bg-primary/20 flex items-center justify-center text-primary text-xs font-bold shrink-0"
 			>
 				{orgInitial}
 			</div>
@@ -145,16 +146,26 @@
 				{/if}
 			</span>
 		</div>
-		<div class="flex gap-1 text-sidebar-foreground/40">
-			<ChevronDown size={14} />
-			<Bell size={14} />
-		</div>
+		<ChevronDown size={14} class="text-sidebar-foreground/40" />
 	</div>
 
+	<!-- Quick search hint -->
+	<button
+		class="mx-3 mt-3 flex items-center gap-2 px-2.5 py-1.5 rounded-md border border-sidebar-border bg-sidebar text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+		onclick={() => {
+			const event = new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true });
+			window.dispatchEvent(event);
+		}}
+	>
+		<Command size={12} />
+		<span class="flex-1 text-left">Search...</span>
+		<kbd class="text-[9px] bg-muted px-1 py-0.5 rounded border border-border font-mono">⌘K</kbd>
+	</button>
+
 	<!-- Nav -->
-	<nav class="flex-1 overflow-y-auto py-2 px-2 space-y-0.5">
-		<p class="text-[10px] uppercase tracking-widest text-sidebar-foreground/30 px-2 pt-2 pb-1">
-			Home
+	<nav class="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
+		<p class="text-[10px] uppercase tracking-widest text-sidebar-foreground/30 px-2.5 pt-1 pb-1.5 font-medium">
+			Platform
 		</p>
 		{#each navHome as item, i}
 			<button
@@ -162,12 +173,16 @@
 				style="animation-delay: {i * 20}ms"
 				onclick={() => item.path && goto(item.path)}
 			>
-				<item.icon size={14} class="shrink-0" />
+				<item.icon size={15} class="shrink-0" />
 				<span class="truncate">{item.label}</span>
 			</button>
 		{/each}
 
-		<p class="text-[10px] uppercase tracking-widest text-sidebar-foreground/30 px-2 pt-4 pb-1">
+		<div class="py-2 px-2.5">
+			<Separator />
+		</div>
+
+		<p class="text-[10px] uppercase tracking-widest text-sidebar-foreground/30 px-2.5 pt-1 pb-1.5 font-medium">
 			Settings
 		</p>
 		{#each navSettings as item, i}
@@ -176,16 +191,17 @@
 				style="animation-delay: {(navHome.length + i) * 20}ms"
 				onclick={() => item.path && goto(item.path)}
 			>
-				<item.icon size={14} class="shrink-0" />
+				<item.icon size={15} class="shrink-0" />
 				<span class="truncate">{item.label}</span>
 			</button>
 		{/each}
 
-		<p class="text-[10px] uppercase tracking-widest text-sidebar-foreground/30 px-2 pt-4 pb-1">
-			Extra
-		</p>
+		<div class="py-2 px-2.5">
+			<Separator />
+		</div>
+
 		<button class={navItemClass()}>
-			<BookOpen size={14} class="shrink-0" />
+			<BookOpen size={15} class="shrink-0" />
 			<span>Documentation</span>
 		</button>
 	</nav>
@@ -195,24 +211,25 @@
 		<div class="flex items-center justify-between">
 			<div class="flex items-center gap-2 min-w-0">
 				<Avatar class="w-7 h-7 text-xs shrink-0">
-					<AvatarFallback class="bg-sidebar-primary text-sidebar-primary-foreground text-xs font-bold">
+					<AvatarFallback class="bg-primary text-primary-foreground text-xs font-bold">
 						{initials}
 					</AvatarFallback>
 				</Avatar>
 				<div class="min-w-0">
-					<p class="text-xs font-medium truncate text-sidebar-foreground">Account</p>
+					<p class="text-xs font-medium truncate text-sidebar-foreground">{userName}</p>
 					<p class="text-[10px] text-sidebar-foreground/40 truncate">{userEmail}</p>
 				</div>
 			</div>
-			<button
+			<Button
+				variant="ghost"
+				size="sm"
+				class="h-7 w-7 p-0 text-sidebar-foreground/40 hover:text-destructive"
 				onclick={handleLogout}
-				class="text-sidebar-foreground/40 hover:text-destructive transition-colors ml-1 p-1 rounded hover:bg-destructive/10"
-				title="Logout"
 			>
 				<LogOut size={14} />
-			</button>
+			</Button>
 		</div>
-		<p class="text-[10px] text-sidebar-foreground/20 mt-1.5">v0.1.0</p>
+		<p class="text-[9px] text-sidebar-foreground/20 mt-1.5 font-mono">rustploy v0.1.0</p>
 	</div>
 
 	<!-- Drag handle -->
@@ -222,8 +239,8 @@
 		role="separator"
 		tabindex="-1"
 		aria-label="Resize sidebar"
-		class="absolute top-0 right-0 h-full w-1 cursor-col-resize z-10 transition-colors hover:bg-sidebar-primary/40 {dragging
-			? 'bg-sidebar-primary/60'
+		class="absolute top-0 right-0 h-full w-1 cursor-col-resize z-10 transition-colors hover:bg-primary/40 {dragging
+			? 'bg-primary/60'
 			: ''}"
 	></div>
 </aside>

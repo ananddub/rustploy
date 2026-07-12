@@ -4,7 +4,13 @@
 	import { organizationControllerGet, organizationControllerPatch } from '$lib/client/sdk.gen';
 	import type { OrganizationResponseDto } from '$lib/client/types.gen';
 	import PageLayout from '$lib/components/PageLayout.svelte';
-	import { Building2, Save } from '@lucide/svelte';
+	import { Building2, Save, Loader2, Trash2 } from '@lucide/svelte';
+	import * as Card from '$lib/components/ui/card';
+	import { Button } from '$lib/components/ui/button';
+	import { Input } from '$lib/components/ui/input';
+	import { Label } from '$lib/components/ui/label';
+	import { Separator } from '$lib/components/ui/separator';
+	import { Badge } from '$lib/components/ui/badge';
 
 	const session = getAuthSession();
 	if (!session) goto('/auth', { replaceState: true });
@@ -49,71 +55,112 @@
 		finally { saving = false; }
 	}
 
-	const inputCls = 'flex h-9 w-full rounded-md border border-input bg-secondary px-3 py-1 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring';
 	const formatDate = (ts: number) => new Date(ts * 1000).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 </script>
 
 <PageLayout>
 	<header class="flex items-center gap-2 px-6 py-3 border-b border-border text-sm">
 		<Building2 class="w-4 h-4 text-muted-foreground" />
-		<span class="font-medium">Organization Settings</span>
+		<span class="font-medium">Organization</span>
 	</header>
 
-	<main class="flex-1 px-8 py-8 max-w-2xl">
+	<main class="flex-1 p-6 overflow-y-auto animate-fade-up">
 		{#if loading}
-			<div class="flex justify-center py-20">
-				<div class="w-6 h-6 border-2 border-muted-foreground/30 border-t-foreground rounded-full animate-spin"></div>
+			<div class="flex items-center justify-center min-h-[40vh]">
+				<Loader2 class="w-5 h-5 animate-spin text-muted-foreground" />
 			</div>
 		{:else if org}
-			<div class="flex flex-col gap-6">
+			<div class="w-full space-y-6">
+				<Card.Root>
+					<Card.Header>
+						<Card.Title class="text-base flex items-center gap-2">
+							<Building2 class="w-4 h-4 text-muted-foreground" />
+							Organization Settings
+						</Card.Title>
+						<Card.Description>Manage your organization name, slug, and branding</Card.Description>
+					</Card.Header>
+					<Card.Content class="space-y-5">
+						<!-- Info badges -->
+						<div class="flex flex-wrap gap-3 text-xs">
+							<div class="flex items-center gap-1.5 text-muted-foreground">
+								<span>Created:</span>
+								<span class="font-medium text-foreground">{formatDate(org.created_at)}</span>
+							</div>
+							<div class="flex items-center gap-1.5 text-muted-foreground">
+								<span>Owner:</span>
+								<Badge variant="outline" class="text-[10px] font-mono">{org.owner_id}</Badge>
+							</div>
+						</div>
 
-				<!-- Info card -->
-				<section class="bg-card border border-border rounded-lg p-6">
-					<h2 class="text-base font-semibold mb-4">Organization Info</h2>
-					<div class="grid grid-cols-2 gap-3">
-						<div class="bg-secondary rounded-lg p-3">
-							<p class="text-xs text-muted-foreground uppercase tracking-wide mb-1">Created</p>
-							<p class="text-sm">{formatDate(org.created_at)}</p>
-						</div>
-						<div class="bg-secondary rounded-lg p-3">
-							<p class="text-xs text-muted-foreground uppercase tracking-wide mb-1">Owner ID</p>
-							<p class="text-sm font-mono">{org.owner_id}</p>
-						</div>
-					</div>
-				</section>
+						<Separator />
 
-				<!-- Edit form -->
-				<section class="bg-card border border-border rounded-lg p-6">
-					<h2 class="text-base font-semibold mb-1">General</h2>
-					<p class="text-sm text-muted-foreground mb-5">Update your organization's display name and slug.</p>
-					<div class="flex flex-col gap-4">
-						<div class="flex flex-col gap-1.5">
-							<label for="org-name" class="text-sm font-medium text-muted-foreground">Organization Name</label>
-							<input id="org-name" class={inputCls} bind:value={formName} placeholder="My Organization" />
+						<!-- Form -->
+						<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+							<div class="space-y-1.5">
+								<Label for="org-name" class="text-xs">Organization Name</Label>
+								<Input id="org-name" bind:value={formName} placeholder="My Organization" />
+							</div>
+							<div class="space-y-1.5">
+								<Label for="org-slug" class="text-xs">Slug</Label>
+								<Input id="org-slug" bind:value={formSlug} placeholder="my-org" />
+								<p class="text-[10px] text-muted-foreground">Used in URLs. Lowercase, no spaces.</p>
+							</div>
 						</div>
-						<div class="flex flex-col gap-1.5">
-							<label for="org-slug" class="text-sm font-medium text-muted-foreground">Slug</label>
-							<input id="org-slug" class={inputCls} bind:value={formSlug} placeholder="my-org" />
-							<p class="text-xs text-muted-foreground">Used in URLs and identifiers. Lowercase, no spaces.</p>
-						</div>
-						<div class="flex flex-col gap-1.5">
-							<label for="org-logo" class="text-sm font-medium text-muted-foreground">Logo URL</label>
-							<input id="org-logo" class={inputCls} bind:value={formLogo} placeholder="https://example.com/logo.png" />
+						<div class="space-y-1.5">
+							<Label for="org-logo" class="text-xs">Logo URL</Label>
+							<Input id="org-logo" bind:value={formLogo} placeholder="https://example.com/logo.png" />
 							{#if formLogo}
-								<img src={formLogo} alt="Logo preview" class="w-12 h-12 rounded-lg object-cover mt-1 border border-border" />
+								<div class="flex items-center gap-3 mt-2">
+									<img src={formLogo} alt="Logo preview" class="w-10 h-10 rounded-lg object-cover border border-border" />
+									<span class="text-[11px] text-muted-foreground">Preview</span>
+								</div>
 							{/if}
 						</div>
+
 						{#if error}
-							<div class="rounded-md bg-destructive/10 border border-destructive/30 px-3 py-2 text-sm text-destructive">{error}</div>
+							<div class="rounded-md bg-destructive/10 border border-destructive/30 px-3 py-2 text-xs text-destructive">{error}</div>
 						{/if}
-						<div class="flex justify-end items-center gap-3">
-							{#if saved}<span class="text-sm text-green-500">Saved!</span>{/if}
-							<button onclick={save} disabled={saving || !formName.trim()} class="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50">
-								{#if saving}<div class="w-3.5 h-3.5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin"></div>Saving…{:else}<Save size={13} />Save{/if}
-							</button>
+					</Card.Content>
+					<Card.Footer class="border-t pt-4 flex items-center justify-between">
+						{#if saved}
+							<span class="text-xs text-green-500 font-medium">✓ Saved successfully</span>
+						{:else}
+							<span></span>
+						{/if}
+						<Button onclick={save} disabled={saving || !formName.trim()} size="sm" class="gap-1.5 text-xs">
+							{#if saving}
+								<Loader2 class="w-3.5 h-3.5 animate-spin" />
+								Saving...
+							{:else}
+								<Save class="w-3.5 h-3.5" />
+								Save Changes
+							{/if}
+						</Button>
+					</Card.Footer>
+				</Card.Root>
+
+				<!-- Danger Zone -->
+				<Card.Root class="border-destructive/20">
+					<Card.Header>
+						<Card.Title class="text-base flex items-center gap-2 text-destructive">
+							<Trash2 class="w-4 h-4" />
+							Danger Zone
+						</Card.Title>
+						<Card.Description>Irreversible actions for your organization</Card.Description>
+					</Card.Header>
+					<Card.Content>
+						<div class="flex items-center justify-between">
+							<div>
+								<p class="text-sm font-medium">Delete Organization</p>
+								<p class="text-[11px] text-muted-foreground">Permanently delete this organization and all its data</p>
+							</div>
+							<Button variant="destructive" size="sm" class="text-xs gap-1.5">
+								<Trash2 class="w-3.5 h-3.5" />
+								Delete
+							</Button>
 						</div>
-					</div>
-				</section>
+					</Card.Content>
+				</Card.Root>
 			</div>
 		{/if}
 	</main>

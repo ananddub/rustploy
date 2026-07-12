@@ -79,18 +79,18 @@
 </script>
 
 <div class="bg-card border border-border rounded-lg p-6 flex flex-col gap-4 animate-fade-up">
-	<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-		<div class="shrink-0">
+	<div class="flex items-center justify-between gap-4 flex-wrap">
+		<div>
 			<h2 class="text-base font-semibold">Logs</h2>
-			<p class="text-sm text-muted-foreground mt-1">Container logs for this {label}.</p>
+			<p class="text-sm text-muted-foreground mt-0.5">Container logs for this {label}.</p>
 		</div>
-		<div class="flex flex-wrap items-center gap-2 min-w-0">
-			<div class="flex items-center gap-1.5 text-xs text-muted-foreground shrink-0">
+		<div class="flex items-center gap-2">
+			<div class="flex items-center gap-1.5 text-xs text-muted-foreground">
 				<Switch checked={timestamps} onchange={(v) => { timestamps = v; if (fetched) refresh(); }} />
 				Timestamps
 			</div>
 			<select
-				class="h-8 rounded-md border border-input bg-secondary px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring shrink-0"
+				class="h-8 rounded-md border border-input bg-secondary px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
 				bind:value={lines}
 				onchange={() => { if (fetched) refresh(); }}
 			>
@@ -100,11 +100,6 @@
 				<option value="500">500 lines</option>
 				<option value="1000">1000 lines</option>
 			</select>
-			{#if logs.length > 0}
-				<button onclick={downloadLogs} class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors shrink-0" title="Download logs">
-					<Download size={14} />
-				</button>
-			{/if}
 			<button
 				onclick={refresh}
 				disabled={loading || !appName}
@@ -112,6 +107,11 @@
 			>
 				<RefreshCw size={14} class={loading ? 'animate-spin' : ''} /> Refresh
 			</button>
+			{#if logs.length > 0}
+				<button onclick={downloadLogs} class="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors" title="Download logs">
+					<Download size={14} />
+				</button>
+			{/if}
 		</div>
 	</div>
 
@@ -143,7 +143,7 @@
 		</div>
 	{:else}
 		<div class="rounded-md bg-[#0d0d0d] border border-border p-4 font-mono text-xs min-h-64 max-h-[600px] overflow-y-auto">
-			{#each logs as line}
+			{#each logs as line (line)}
 				<div class="py-px text-green-400/80 leading-relaxed whitespace-pre-wrap break-all">
 					{ansiToHtml(line)}
 				</div>
