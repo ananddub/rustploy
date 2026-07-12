@@ -6,3 +6,4 @@ pub mod custom_type;
 pub mod env;
 pub mod hash_state;
 pub mod spec;
+pub mod swarm;

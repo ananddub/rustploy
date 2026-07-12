@@ -5,6 +5,7 @@ use crate::{
         env::generate_env_app,
         spec::{DomainSpec, MountKind, MountSpec},
     },
+    utils::paths::rustploy_paths,
 };
 use sqlx::SqlitePool;
 use std::sync::Arc;
@@ -83,13 +84,14 @@ fn convert(
     domains: Vec<Domain>,
     mounts: Vec<Mount>,
 ) -> Result<ComposeSpec, String> {
-    let app_dir = format!("/etc/rustploy/compose/{}", compose.app_name);
+    let paths = rustploy_paths();
+    let app_dir = paths.compose_dir(&compose.app_name);
     Ok(ComposeSpec {
         app_name: compose.app_name.clone(),
         stack_name: compose.app_name.clone(),
         source: source(&compose)?,
         runtime: runtime(&compose.compose_type)?,
-        work_directory: format!("{app_dir}/source"),
+        work_directory: paths.compose_source(&compose.app_name),
         compose_path: if compose.source_type == "RAW" {
             format!("{app_dir}/compose.yml")
         } else {
@@ -211,7 +213,8 @@ fn compose_mount(app: &str, mount: Mount) -> Result<MountSpec, String> {
         MountKind::Volume => mount.volume_name.ok_or("volume_name is required")?,
         MountKind::Bind => mount.host_path.ok_or("host_path is required")?,
         MountKind::File => format!(
-            "/etc/rustploy/compose/{app}/files/{}",
+            "{}/{}",
+            rustploy_paths().compose_files(app),
             mount.id.unwrap_or_default()
         ),
     };

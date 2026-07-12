@@ -1,11 +1,13 @@
 use crate::utils::builder::application::traefik;
 use crate::utils::builder::application::{stack::stack_spec, validation::validate_spec};
-use crate::utils::builder::custom_type::{DeployState, IdType};
+use crate::utils::builder::custom_type::{DeployEvent, DeployState, IdType};
 use crate::utils::builder::hash_state::ApplicationState;
 use crate::utils::builder::spec::{ApplicationSpec, BuilderEvent, DeploymentResult};
+use crate::utils::builder::swarm::{ensure_overlay_network, ensure_swarm_manager};
 use crate::utils::{
     docker::DockerCli,
     exec::{CommandExecutor, ExecError, ExecResult},
+    paths::rustploy_paths,
 };
 use std::sync::Arc;
 use tokio::{sync::mpsc, time::Duration};
@@ -64,12 +66,15 @@ impl ApplicationBuilder {
         self.emit(BuilderEvent::ImageReady).await;
 
         self.cancelled(cancel)?;
-        let app_dir = format!("/etc/rustploy/applications/{}", spec.app_name);
+        let paths = rustploy_paths();
+        let app_dir = paths.application_dir(&spec.app_name);
         self.executor
             .run_cancelled("mkdir", ["-p", app_dir.as_str()], cancel)
             .await?;
 
         self.prepare_file_mounts(spec, cancel).await?;
+        ensure_swarm_manager(&self.executor, &self.docker, cancel).await?;
+        ensure_overlay_network(&self.docker, spec.network.as_str(), cancel).await?;
 
         let stack_file = format!("{app_dir}/stack.yml");
         let stack_yaml = serde_yaml::to_string(&stack_spec(spec))
@@ -96,7 +101,11 @@ impl ApplicationBuilder {
         }
 
         self.cancelled(cancel)?;
-        let traefik_file = format!("/etc/rustploy/traefik/dynamic/{}.json", spec.app_name);
+        let traefik_dir = paths.traefik_dynamic();
+        self.executor
+            .run_cancelled("mkdir", ["-p", traefik_dir.as_str()], cancel)
+            .await?;
+        let traefik_file = paths.traefik_application_file(&spec.app_name);
         let routing = serde_json::to_vec_pretty(&traefik::application_config(spec))?;
         self.write_file_cancelled(&traefik_file, &routing, cancel)
             .await?;
@@ -174,9 +183,16 @@ impl ApplicationBuilder {
         }
     }
 
-    async fn emit(&self, event: BuilderEvent) {
+    pub(super) async fn emit(&self, event: BuilderEvent) {
         if let Some(sender) = &self.events {
             let _ = sender.send(event.clone()).await;
+        }
+        if let Some((state, id)) = &self.state
+            && let BuilderEvent::Message(message) = &event
+        {
+            if let Some(sender) = state.get_broadcast_send(id.clone()) {
+                let _ = sender.send(DeployEvent::Message(message.clone()));
+            }
         }
         if let Some((state, id)) = &self.state
             && let Some(deploy_state) = builder_event_state(&event)
@@ -212,6 +228,7 @@ fn builder_event_state(event: &BuilderEvent) -> Option<DeployState> {
         BuilderEvent::HealthCheck => DeployState::HealthCheck,
         BuilderEvent::Deployed => DeployState::Deployed,
         BuilderEvent::Cancelled => DeployState::Cancelled,
+        BuilderEvent::Message(_) => return None,
         BuilderEvent::Failed(error) => DeployState::Failed(error.clone()),
     })
 }

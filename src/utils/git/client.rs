@@ -131,6 +131,7 @@ impl GitCli {
     {
         let mut result = Vec::new();
         if let Some(repository) = &self.repository {
+            result.extend(["-c".into(), format!("safe.directory={repository}")]);
             result.extend(["-C".into(), repository.clone()]);
         }
         result.extend(
@@ -342,11 +343,45 @@ impl GitCli {
                 .stdout,
         )
     }
+    pub async fn remote_default_branch(&self, repository_url: &str) -> ExecResult<Option<String>> {
+        Ok(parse_remote_default_branch(
+            &self
+                .run(["ls-remote", "--symref", repository_url, "HEAD"])
+                .await?
+                .stdout,
+        ))
+    }
+    pub async fn remote_default_branch_cancelled(
+        &self,
+        repository_url: &str,
+        cancel: &CancellationToken,
+    ) -> ExecResult<Option<String>> {
+        Ok(parse_remote_default_branch(
+            &self
+                .run_cancelled(["ls-remote", "--symref", repository_url, "HEAD"], cancel)
+                .await?
+                .stdout,
+        ))
+    }
     async fn prefixed(&self, prefix: &[&str], args: &[&str]) -> ExecResult<ExecOutput> {
         let mut command = prefix.to_vec();
         command.extend_from_slice(args);
         self.run(command).await
     }
+}
+
+fn parse_remote_default_branch(output: &str) -> Option<String> {
+    output.lines().find_map(|line| {
+        let line = line.strip_prefix("ref: ")?;
+        let (reference, target) = line.split_once(char::is_whitespace)?;
+        if target.trim() != "HEAD" {
+            return None;
+        }
+        reference
+            .trim()
+            .strip_prefix("refs/heads/")
+            .map(str::to_owned)
+    })
 }
 
 fn parse_remote_branches(output: &str) -> ExecResult<Vec<GitBranch>> {
@@ -412,6 +447,18 @@ mod tests {
                     current: false,
                 },
             ]
+        );
+    }
+
+    #[test]
+    fn parses_remote_default_branch_from_symref_head() {
+        let output = "\
+ref: refs/heads/master\tHEAD
+1111111111111111111111111111111111111111\tHEAD
+";
+        assert_eq!(
+            parse_remote_default_branch(output),
+            Some("master".into())
         );
     }
 }

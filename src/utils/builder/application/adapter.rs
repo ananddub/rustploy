@@ -4,7 +4,10 @@ use crate::utils::builder::spec::{
 };
 use crate::{
     db::models::{domains::Domain, mounts::Mount},
-    utils::builder::spec::{ApplicationSpec, SourceSpec},
+    utils::{
+        builder::spec::{ApplicationSpec, SourceSpec},
+        paths::rustploy_paths,
+    },
 };
 use sqlx::SqlitePool;
 use std::{collections::BTreeMap, sync::Arc};
@@ -84,7 +87,7 @@ impl ApplicationSpecAdapter {
             SourceSpec::Docker { image, .. } => SourceSpec::Docker { image, registry },
             other => other,
         };
-        let work_directory = format!("/etc/rustploy/applications/{}/code", app.app_name);
+        let work_directory = rustploy_paths().application_code(&app.app_name);
         let domain_specs = domains
             .into_iter()
             .map(domain)
@@ -194,7 +197,12 @@ struct AppRow {
     joined_registry_url: Option<String>,
 }
 fn source(a: &AppRow) -> Result<SourceSpec, String> {
-    let branch = |v: &Option<String>| v.clone().unwrap_or_else(|| "main".into());
+    let branch = |v: &Option<String>| {
+        v.as_deref()
+            .map(str::trim)
+            .filter(|v| !v.is_empty())
+            .map(str::to_owned)
+    };
     match a.source_type.as_str() {
         "DOCKER" => Ok(SourceSpec::Docker {
             image: a.docker_image.clone().ok_or("docker_image is required")?,
@@ -329,7 +337,8 @@ fn mount(app: &str, m: Mount) -> Result<MountSpec, String> {
         MountKind::Volume => m.volume_name.ok_or("volume_name is required")?,
         MountKind::Bind => m.host_path.ok_or("host_path is required")?,
         MountKind::File => format!(
-            "/etc/rustploy/applications/{app}/files/{}",
+            "{}/{}",
+            rustploy_paths().application_files(app),
             m.id.unwrap_or_default()
         ),
     };

@@ -1,7 +1,7 @@
 use super::{ExecError, ExecExitStatus, ExecOutput, ExecResult, ExecStreamEvent};
 use std::{ffi::OsStr, process::Stdio};
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
+    io::{AsyncRead, AsyncReadExt, AsyncWriteExt},
     process::Command,
     sync::mpsc,
 };
@@ -27,7 +27,12 @@ impl LocalExecutor {
         I: IntoIterator<Item = S>,
         S: AsRef<OsStr>,
     {
-        checked(self.command(program, args).output().await?)
+        checked(
+            self.command(program, args)
+                .output()
+                .await
+                .map_err(|source| io_command(program, source))?,
+        )
     }
     pub async fn run_cancelled<I, S>(
         &self,
@@ -41,13 +46,16 @@ impl LocalExecutor {
     {
         let mut c = self.command(program, args);
         c.stdout(Stdio::piped()).stderr(Stdio::piped());
-        let mut child = c.spawn()?;
+        tracing::debug!(program, "starting local command");
+        let mut child = c.spawn().map_err(|source| io_command(program, source))?;
         let stdout = child.stdout.take();
         let stderr = child.stderr.take();
+        let stdout_task = tokio::spawn(read_pipe_with_trace(program.to_owned(), "stdout", stdout));
+        let stderr_task = tokio::spawn(read_pipe_with_trace(program.to_owned(), "stderr", stderr));
         tokio::select! {
             status = child.wait() => {
-                let stdout = read_pipe(stdout).await?;
-                let stderr = read_pipe(stderr).await?;
+                let stdout = join_pipe(stdout_task).await?;
+                let stderr = join_pipe(stderr_task).await?;
                 checked(std::process::Output { status: status?, stdout, stderr })
             },
             _ = cancel.cancelled() => {
@@ -71,14 +79,19 @@ impl LocalExecutor {
         c.stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
-        let mut child = c.spawn()?;
+        let mut child = c.spawn().map_err(|source| io_command(program, source))?;
         child
             .stdin
             .take()
             .expect("piped stdin")
             .write_all(stdin.as_ref())
             .await?;
-        checked(child.wait_with_output().await?)
+        checked(
+            child
+                .wait_with_output()
+                .await
+                .map_err(|source| io_command(program, source))?,
+        )
     }
     pub async fn run_with_stdin_cancelled<I, S>(
         &self,
@@ -95,16 +108,19 @@ impl LocalExecutor {
         c.stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
-        let mut child = c.spawn()?;
+        let mut child = c.spawn().map_err(|source| io_command(program, source))?;
         if let Some(mut child_stdin) = child.stdin.take() {
             child_stdin.write_all(stdin.as_ref()).await?;
         }
         let stdout = child.stdout.take();
         let stderr = child.stderr.take();
+        tracing::debug!(program, "starting local command with stdin");
+        let stdout_task = tokio::spawn(read_pipe_with_trace(program.to_owned(), "stdout", stdout));
+        let stderr_task = tokio::spawn(read_pipe_with_trace(program.to_owned(), "stderr", stderr));
         tokio::select! {
             status = child.wait() => {
-                let stdout = read_pipe(stdout).await?;
-                let stderr = read_pipe(stderr).await?;
+                let stdout = join_pipe(stdout_task).await?;
+                let stderr = join_pipe(stderr_task).await?;
                 checked(std::process::Output { status: status?, stdout, stderr })
             },
             _ = cancel.cancelled() => {
@@ -122,7 +138,7 @@ impl LocalExecutor {
     ) -> ExecResult<ExecExitStatus> {
         let mut c = self.command(program, args);
         c.stdout(Stdio::piped()).stderr(Stdio::piped());
-        let mut child = c.spawn()?;
+        let mut child = c.spawn().map_err(|source| io_command(program, source))?;
         let mut stdout = child.stdout.take().unwrap();
         let mut stderr = child.stderr.take().unwrap();
         let tx = sender.clone();
@@ -176,14 +192,36 @@ impl LocalExecutor {
         Ok(status)
     }
 }
-async fn read_pipe(
-    pipe: Option<impl tokio::io::AsyncRead + Unpin>,
+async fn read_pipe_with_trace(
+    program: String,
+    stream: &'static str,
+    pipe: Option<impl AsyncRead + Unpin>,
 ) -> Result<Vec<u8>, std::io::Error> {
     let mut data = Vec::new();
     if let Some(mut pipe) = pipe {
-        pipe.read_to_end(&mut data).await?;
+        let mut buffer = vec![0; 8192];
+        loop {
+            let read = pipe.read(&mut buffer).await?;
+            if read == 0 {
+                break;
+            }
+            let chunk = &buffer[..read];
+            for line in String::from_utf8_lossy(chunk).lines() {
+                if !line.trim().is_empty() {
+                    tracing::info!(program = %program, stream, line = %line, "command output");
+                }
+            }
+            data.extend_from_slice(chunk);
+        }
     }
     Ok(data)
+}
+
+async fn join_pipe(
+    task: tokio::task::JoinHandle<Result<Vec<u8>, std::io::Error>>,
+) -> Result<Vec<u8>, std::io::Error> {
+    task.await
+        .map_err(|error| std::io::Error::other(error))?
 }
 fn checked(output: std::process::Output) -> ExecResult<ExecOutput> {
     let result = ExecOutput {
@@ -194,8 +232,15 @@ fn checked(output: std::process::Output) -> ExecResult<ExecOutput> {
     if !result.success() {
         return Err(ExecError::CommandFailed {
             code: result.status.code(),
-            stderr: result.stderr.trim().into(),
+            stderr: result.combined_output(),
         });
     }
     Ok(result)
+}
+
+fn io_command(program: &str, source: std::io::Error) -> ExecError {
+    ExecError::IoCommand {
+        program: program.into(),
+        source,
+    }
 }

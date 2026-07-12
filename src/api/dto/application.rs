@@ -39,7 +39,7 @@ pub struct PatchGithubSourceDto {
     #[validate(length(min = 1, max = 255))]
     pub owner: String,
     #[validate(length(min = 1, max = 255))]
-    pub branch: String,
+    pub branch: Option<String>,
     pub build_path: Option<String>,
     pub github_provider_id: Option<i64>,
     pub auto_deploy: Option<i64>,
@@ -53,7 +53,7 @@ pub struct PatchGitlabSourceDto {
     #[validate(length(min = 1, max = 255))]
     pub gitlab_owner: String,
     #[validate(length(min = 1, max = 255))]
-    pub gitlab_branch: String,
+    pub gitlab_branch: Option<String>,
     pub gitlab_build_path: Option<String>,
     pub gitlab_path_namespace: Option<String>,
     pub gitlab_provider_id: Option<i64>,
@@ -66,7 +66,7 @@ pub struct PatchGiteaSourceDto {
     #[validate(length(min = 1, max = 255))]
     pub gitea_owner: String,
     #[validate(length(min = 1, max = 255))]
-    pub gitea_branch: String,
+    pub gitea_branch: Option<String>,
     pub gitea_build_path: Option<String>,
     pub gitea_provider_id: Option<i64>,
 }
@@ -79,7 +79,7 @@ pub struct PatchBitbucketSourceDto {
     #[validate(length(min = 1, max = 255))]
     pub bitbucket_owner: String,
     #[validate(length(min = 1, max = 255))]
-    pub bitbucket_branch: String,
+    pub bitbucket_branch: Option<String>,
     pub bitbucket_build_path: Option<String>,
     pub bitbucket_provider_id: Option<i64>,
 }
@@ -98,7 +98,7 @@ pub struct PatchCustomGitSourceDto {
     #[validate(length(min = 1, max = 500))]
     pub custom_git_url: String,
     #[validate(length(min = 1, max = 255))]
-    pub custom_git_branch: String,
+    pub custom_git_branch: Option<String>,
     pub custom_git_build_path: Option<String>,
     pub custom_git_ssh_key_id: Option<i64>,
 }

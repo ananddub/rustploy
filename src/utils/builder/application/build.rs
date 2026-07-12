@@ -1,6 +1,6 @@
 use super::application::ApplicationBuilder;
 use crate::utils::{
-    builder::spec::{ApplicationSpec, BuildStrategy, SourceSpec},
+    builder::spec::{ApplicationSpec, BuildStrategy, BuilderEvent, SourceSpec},
     exec::{ExecError, ExecResult},
 };
 use tokio_util::sync::CancellationToken;
@@ -33,6 +33,11 @@ impl ApplicationBuilder {
                     .await?
             }
             BuildStrategy::Nixpacks => {
+                self.emit(BuilderEvent::Message(format!(
+                    "building image {} with nixpacks from {}",
+                    spec.image, spec.work_directory
+                )))
+                .await;
                 self.executor
                     .run_cancelled(
                         "nixpacks",
@@ -47,6 +52,11 @@ impl ApplicationBuilder {
                     .await?;
             }
             BuildStrategy::Paketo => {
+                self.emit(BuilderEvent::Message(format!(
+                    "building image {} with Paketo from {}",
+                    spec.image, spec.work_directory
+                )))
+                .await;
                 self.executor
                     .run_cancelled(
                         "pack",
@@ -63,6 +73,11 @@ impl ApplicationBuilder {
                     .await?;
             }
             BuildStrategy::Railpack { version } => {
+                self.emit(BuilderEvent::Message(format!(
+                    "building image {} with railpack {version} from {}",
+                    spec.image, spec.work_directory
+                )))
+                .await;
                 let plan = format!("{}/railpack-plan.json", spec.work_directory);
                 self.executor
                     .run_cancelled(
@@ -133,6 +148,13 @@ impl ApplicationBuilder {
         args.push(join_path(&spec.work_directory, default_if_empty(context, ".")));
         let refs = args.iter().map(String::as_str).collect::<Vec<_>>();
         validate_build_context(refs.last().copied())?;
+        self.emit(BuilderEvent::Message(format!(
+            "docker build image {} using dockerfile {} and context {}",
+            spec.image,
+            join_path(&spec.work_directory, default_if_empty(dockerfile, "Dockerfile")),
+            refs.last().copied().unwrap_or("")
+        )))
+        .await;
         tracing::info!(image = %spec.image, args = ?args, "running docker image build");
         let result = self.docker.image_build_cancelled(&refs, cancel).await;
         let _ = self.executor.run("rm", ["-rf", secret_dir.as_str()]).await;

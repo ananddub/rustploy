@@ -36,6 +36,16 @@ impl ExecOutput {
     pub fn stdout_trimmed(&self) -> &str {
         self.stdout.trim()
     }
+    pub fn combined_output(&self) -> String {
+        let stdout = self.stdout.trim();
+        let stderr = self.stderr.trim();
+        match (stdout.is_empty(), stderr.is_empty()) {
+            (true, true) => String::new(),
+            (true, false) => stderr.to_owned(),
+            (false, true) => stdout.to_owned(),
+            (false, false) => format!("{stdout}\n{stderr}"),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

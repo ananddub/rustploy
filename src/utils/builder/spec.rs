@@ -9,7 +9,7 @@ pub enum SourceSpec {
     },
     Git {
         url: String,
-        branch: String,
+        branch: Option<String>,
         submodules: bool,
     },
 }
@@ -137,5 +137,6 @@ pub enum BuilderEvent {
     HealthCheck,
     Deployed,
     Cancelled,
+    Message(String),
     Failed(String),
 }

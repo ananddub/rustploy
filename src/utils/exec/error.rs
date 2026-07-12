@@ -4,6 +4,12 @@ use thiserror::Error;
 pub enum ExecError {
     #[error("failed to execute command: {0}")]
     Io(#[from] std::io::Error),
+    #[error("failed to execute command `{program}`: {source}")]
+    IoCommand {
+        program: String,
+        #[source]
+        source: std::io::Error,
+    },
     #[error("command failed (exit code {code:?}): {stderr}")]
     CommandFailed { code: Option<i32>, stderr: String },
     #[error("remote SSH execution failed: {0}")]

@@ -74,7 +74,7 @@ pub struct SetupConfig {
 impl Default for SetupConfig {
     fn default() -> Self {
         Self {
-            paths: SetupPaths::new("/etc/rustploy"),
+            paths: SetupPaths::new(crate::utils::paths::rustploy_paths().base),
             network_name: "rustploy-network".into(),
             traefik_name: "rustploy-traefik".into(),
             traefik_version: "3.6.7".into(),

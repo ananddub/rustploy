@@ -1,7 +1,7 @@
 use super::application::ApplicationBuilder;
 use crate::utils::{
-    builder::spec::{ApplicationSpec, SourceSpec},
-    exec::ExecResult,
+    builder::spec::{ApplicationSpec, BuilderEvent, SourceSpec},
+    exec::{ExecError, ExecResult},
     git::GitCli,
 };
 use tokio_util::sync::CancellationToken;
@@ -36,6 +36,8 @@ impl ApplicationBuilder {
             } => {
                 let git = GitCli::from_executor(self.executor.clone())
                     .with_repository(spec.work_directory.clone());
+                let branch = resolve_branch(&GitCli::from_executor(self.executor.clone()), url, branch, cancel)
+                    .await?;
                 let git_dir = format!("{}/.git", spec.work_directory);
                 if self
                     .executor
@@ -43,7 +45,13 @@ impl ApplicationBuilder {
                     .await
                     .is_ok()
                 {
-                    git.fetch_cancelled(&["--prune", "origin", branch], cancel)
+                    self.emit(BuilderEvent::Message(format!(
+                        "fetching {url} branch {branch} into {}",
+                        spec.work_directory
+                    )))
+                    .await;
+                    git.remote(&["set-url", "origin", url]).await?;
+                    git.fetch_cancelled(&["--prune", "origin", branch.as_str()], cancel)
                         .await?;
                     git.reset(&["--hard", "FETCH_HEAD"]).await?;
                 } else {
@@ -52,11 +60,16 @@ impl ApplicationBuilder {
                             .run("mkdir", ["-p", parent.to_string_lossy().as_ref()])
                             .await?;
                     }
+                    self.emit(BuilderEvent::Message(format!(
+                        "cloning {url} branch {branch} into {}",
+                        spec.work_directory
+                    )))
+                    .await;
                     GitCli::from_executor(self.executor.clone())
                         .clone_repository_cancelled(
                             url,
                             Some(&spec.work_directory),
-                            &["--branch", branch, "--single-branch"],
+                            &["--branch", branch.as_str(), "--single-branch"],
                             cancel,
                         )
                         .await?;
@@ -68,4 +81,21 @@ impl ApplicationBuilder {
         }
         Ok(())
     }
+}
+
+async fn resolve_branch(
+    git: &GitCli,
+    url: &str,
+    branch: &Option<String>,
+    cancel: &CancellationToken,
+) -> ExecResult<String> {
+    if let Some(branch) = branch.as_deref().map(str::trim).filter(|v| !v.is_empty()) {
+        return Ok(branch.to_owned());
+    }
+    git.remote_default_branch_cancelled(url, cancel)
+        .await?
+        .ok_or_else(|| ExecError::CommandFailed {
+            code: None,
+            stderr: format!("could not detect default branch for repository {url}"),
+        })
 }

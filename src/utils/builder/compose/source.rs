@@ -1,5 +1,9 @@
 use super::{compose::ComposeBuilder, spec::ComposeSource};
-use crate::utils::{builder::compose::spec::ComposeSpec, exec::ExecResult, git::GitCli};
+use crate::utils::{
+    builder::{compose::spec::ComposeSpec, spec::BuilderEvent},
+    exec::ExecResult,
+    git::GitCli,
+};
 use tokio_util::sync::CancellationToken;
 
 impl ComposeBuilder {
@@ -32,6 +36,12 @@ impl ComposeBuilder {
                     .await
                     .is_ok()
                 {
+                    self.emit(BuilderEvent::Message(format!(
+                        "fetching compose source {url} branch {branch} into {}",
+                        spec.work_directory
+                    )))
+                    .await;
+                    git.remote(&["set-url", "origin", url]).await?;
                     git.fetch_cancelled(&["--prune", "origin", branch], cancel)
                         .await?;
                     git.reset(&["--hard", "FETCH_HEAD"]).await?;
@@ -45,6 +55,11 @@ impl ComposeBuilder {
                             )
                             .await?;
                     }
+                    self.emit(BuilderEvent::Message(format!(
+                        "cloning compose source {url} branch {branch} into {}",
+                        spec.work_directory
+                    )))
+                    .await;
                     GitCli::from_executor(self.executor.clone())
                         .clone_repository_cancelled(
                             url,

@@ -530,7 +530,7 @@ impl RemoteExecutor {
         if !result.success() {
             return Err(ExecError::CommandFailed {
                 code: result.status.code(),
-                stderr: result.stderr.trim().into(),
+                stderr: result.combined_output(),
             });
         }
         Ok(result)

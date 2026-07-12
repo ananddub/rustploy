@@ -83,6 +83,10 @@ async fn record_builder_events(
     mut events: mpsc::Receiver<BuilderEvent>,
 ) {
     while let Some(event) = events.recv().await {
+        if let BuilderEvent::Message(message) = &event {
+            tracing::info!(deployment_id, message = %message, "deployment message");
+            continue;
+        }
         let state = builder_event_state(&event);
         let message = match &event {
             BuilderEvent::Failed(error) => Some(error.as_str()),
@@ -113,6 +117,7 @@ fn builder_event_state(event: &BuilderEvent) -> &'static str {
         BuilderEvent::HealthCheck => "HEALTH_CHECK",
         BuilderEvent::Deployed => "DEPLOYED",
         BuilderEvent::Cancelled => "CANCELLED",
+        BuilderEvent::Message(_) => "MESSAGE",
         BuilderEvent::Failed(_) => "FAILED",
     }
 }
