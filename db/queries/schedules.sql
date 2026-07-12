@@ -26,10 +26,10 @@ SELECT * FROM schedules WHERE enabled = 1 ORDER BY created_at DESC;
 -- name: CreateSchedule :one
 INSERT INTO schedules (
     name, description, cron_expression, app_name,
-    service_name, shell_type, schedule_type, command, script,
+    service_name, shell_type, schedule_type, schedule_action, command, script,
     timezone, enabled,
     application_id, compose_id, server_id, organization_id
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 RETURNING *;
 
 -- name: UpdateSchedule :one
@@ -40,6 +40,7 @@ SET
     cron_expression = ?,
     service_name    = ?,
     shell_type      = ?,
+    schedule_action = ?,
     command         = ?,
     script          = ?,
     timezone        = ?

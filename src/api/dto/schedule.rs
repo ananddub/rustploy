@@ -17,6 +17,7 @@ pub struct CreateScheduleDto {
     pub service_name: Option<String>,
     pub shell_type: Option<String>,
     pub schedule_type: Option<String>,
+    pub schedule_action: Option<String>,
     #[validate(length(min = 1))]
     pub command: String,
     pub script: Option<String>,
@@ -43,6 +44,7 @@ pub struct PatchScheduleDto {
     pub service_name: Option<String>,
     pub shell_type: Option<String>,
     pub schedule_type: Option<String>,
+    pub schedule_action: Option<String>,
     #[validate(length(min = 1))]
     pub command: Option<String>,
     pub script: Option<String>,
@@ -64,6 +66,7 @@ pub struct ScheduleResponseDto {
     pub service_name: Option<String>,
     pub shell_type: String,
     pub schedule_type: String,
+    pub schedule_action: String,
     pub command: String,
     pub script: Option<String>,
     pub timezone: Option<String>,
@@ -87,6 +90,7 @@ impl From<Schedule> for ScheduleResponseDto {
             service_name: value.service_name,
             shell_type: value.shell_type,
             schedule_type: value.schedule_type,
+            schedule_action: value.schedule_action,
             command: value.command,
             script: value.script,
             timezone: value.timezone,

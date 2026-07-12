@@ -99,7 +99,7 @@ fn expand_standalone_route(
     let request_schema =
         request_schema_descriptor_tokens(infer_request_body(&argument_types).as_ref());
     let response_schema =
-        schema_descriptor_tokens(infer_response_body_type(&function.sig.output).as_ref());
+        response_schema_descriptor_tokens(infer_response_body(&function.sig.output).as_ref());
 
     Ok(quote! {
         #function
@@ -146,7 +146,7 @@ struct Route {
     path: LitStr,
     argument_types: Vec<Type>,
     request_body: Option<RequestBody>,
-    response_body_type: Option<Type>,
+    response_body: Option<ResponseBody>,
     params: Vec<OpenApiParam>,
 }
 
@@ -155,7 +155,7 @@ struct ModuleRoute {
     handler: syn::Ident,
     path: LitStr,
     request_body: Option<RequestBody>,
-    response_body_type: Option<Type>,
+    response_body: Option<ResponseBody>,
     params: Vec<OpenApiParam>,
 }
 
@@ -169,6 +169,12 @@ struct RequestBody {
 enum RequestContent {
     Json,
     Form,
+}
+
+#[derive(Clone)]
+enum ResponseBody {
+    Json(Type),
+    Sse,
 }
 
 struct OpenApiParam {
@@ -231,7 +237,7 @@ fn expand_controller_module(
                 attribute.span(),
             ),
             request_body: infer_request_body(&argument_types),
-            response_body_type: infer_response_body_type(&function.sig.output),
+            response_body: infer_response_body(&function.sig.output),
             params: infer_params(
                 &join_paths(&base_path.value(), &route_path),
                 &argument_types,
@@ -289,7 +295,7 @@ fn expand_controller_module(
             let tag = openapi_tag(&path.value());
             let params = param_descriptor_tokens(&route.params);
             let request_schema = request_schema_descriptor_tokens(route.request_body.as_ref());
-            let response_schema = schema_descriptor_tokens(route.response_body_type.as_ref());
+            let response_schema = response_schema_descriptor_tokens(route.response_body.as_ref());
             quote! {
                 ::auto_route::__private::inventory::submit! {
                     ::auto_route::OpenApiRouteDescriptor::new(
@@ -398,7 +404,7 @@ fn expand_controller(
             handler: function.sig.ident.clone(),
             path: LitStr::new(&full_path, attribute.span()),
             request_body: infer_request_body(&argument_types),
-            response_body_type: infer_response_body_type(&function.sig.output),
+            response_body: infer_response_body(&function.sig.output),
             params: infer_params(&full_path, &argument_types),
             argument_types,
         });
@@ -452,7 +458,7 @@ fn expand_controller(
         let tag = openapi_tag(&path.value());
         let params = param_descriptor_tokens(&route.params);
         let request_schema = request_schema_descriptor_tokens(route.request_body.as_ref());
-        let response_schema = schema_descriptor_tokens(route.response_body_type.as_ref());
+        let response_schema = response_schema_descriptor_tokens(route.response_body.as_ref());
         quote! {
             ::auto_route::__private::inventory::submit! {
                 ::auto_route::OpenApiRouteDescriptor::new(
@@ -539,22 +545,26 @@ fn infer_request_body(arguments: &[Type]) -> Option<RequestBody> {
     })
 }
 
-fn infer_response_body_type(output: &ReturnType) -> Option<Type> {
+fn infer_response_body(output: &ReturnType) -> Option<ResponseBody> {
     match output {
         ReturnType::Default => None,
-        ReturnType::Type(_, ty) => response_json_type(ty),
+        ReturnType::Type(_, ty) => response_body_type(ty),
     }
 }
 
-fn response_json_type(ty: &Type) -> Option<Type> {
+fn response_body_type(ty: &Type) -> Option<ResponseBody> {
+    if is_sse_response_type(ty) {
+        return Some(ResponseBody::Sse);
+    }
+
     if let Some(inner) = wrapper_inner_type(ty, &["Json"]) {
-        return Some(inner);
+        return Some(ResponseBody::Json(inner));
     }
 
     match ty {
-        Type::Paren(paren) => response_json_type(&paren.elem),
-        Type::Reference(reference) => response_json_type(&reference.elem),
-        Type::Tuple(tuple) => tuple.elems.iter().find_map(response_json_type),
+        Type::Paren(paren) => response_body_type(&paren.elem),
+        Type::Reference(reference) => response_body_type(&reference.elem),
+        Type::Tuple(tuple) => tuple.elems.iter().find_map(response_body_type),
         Type::Path(type_path) => {
             let segment = type_path.path.segments.last()?;
             if segment.ident != "Result" && segment.ident != "Option" {
@@ -564,11 +574,22 @@ fn response_json_type(ty: &Type) -> Option<Type> {
                 return None;
             };
             arguments.args.iter().find_map(|argument| match argument {
-                GenericArgument::Type(ty) => response_json_type(ty),
+                GenericArgument::Type(ty) => response_body_type(ty),
                 _ => None,
             })
         }
         _ => None,
+    }
+}
+
+fn is_sse_response_type(ty: &Type) -> bool {
+    match ty {
+        Type::Paren(paren) => is_sse_response_type(&paren.elem),
+        Type::Reference(reference) => is_sse_response_type(&reference.elem),
+        Type::Path(type_path) => type_path.path.segments.last().is_some_and(|segment| {
+            segment.ident == "Sse" || segment.ident.to_string().ends_with("Sse")
+        }),
+        _ => false,
     }
 }
 
@@ -678,10 +699,13 @@ fn request_schema_descriptor_tokens(body: Option<&RequestBody>) -> proc_macro2::
     }
 }
 
-fn schema_descriptor_tokens(ty: Option<&Type>) -> proc_macro2::TokenStream {
-    match ty {
-        Some(ty) => quote! {
+fn response_schema_descriptor_tokens(body: Option<&ResponseBody>) -> proc_macro2::TokenStream {
+    match body {
+        Some(ResponseBody::Json(ty)) => quote! {
             ::std::option::Option::Some(::auto_route::OpenApiSchemaDescriptor::json::<#ty>())
+        },
+        Some(ResponseBody::Sse) => quote! {
+            ::std::option::Option::Some(::auto_route::OpenApiSchemaDescriptor::sse())
         },
         None => quote!(::std::option::Option::None),
     }

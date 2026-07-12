@@ -9,6 +9,8 @@ CREATE TABLE schedules (
 	shell_type TEXT NOT NULL DEFAULT 'BASH',
 	-- schedule_type: APPLICATION | COMPOSE | SERVER | DOKPANEL-SERVER
 	schedule_type TEXT NOT NULL DEFAULT 'APPLICATION',
+	-- schedule_action: EXEC | DEPLOY | REDEPLOY | REBUILD | RELOAD | START | STOP
+	schedule_action TEXT NOT NULL DEFAULT 'EXEC',
 	command TEXT NOT NULL,
 	script TEXT,
 	timezone TEXT,
@@ -21,7 +23,8 @@ CREATE TABLE schedules (
 	created_at INTEGER DEFAULT (strftime('%s', 'now')) NOT NULL,
 	updated_at INTEGER DEFAULT (strftime('%s', 'now')) NOT NULL,
 	CONSTRAINT schedule_shell_type_check CHECK (shell_type IN ('BASH', 'SH')),
-	CONSTRAINT schedule_type_check CHECK (schedule_type IN ('APPLICATION', 'COMPOSE', 'SERVER', 'DOKPANEL-SERVER'))
+	CONSTRAINT schedule_type_check CHECK (schedule_type IN ('APPLICATION', 'COMPOSE', 'SERVER', 'DOKPANEL-SERVER')),
+	CONSTRAINT schedule_action_check CHECK (schedule_action IN ('EXEC', 'DEPLOY', 'REDEPLOY', 'REBUILD', 'RELOAD', 'START', 'STOP'))
 ) STRICT;
 
 -- Indexes for faster queries

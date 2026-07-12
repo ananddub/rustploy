@@ -24,7 +24,7 @@ impl ApplicationSpecAdapter {
             r#"SELECT
                a.app_name, a.source_type, a.build_type, a.build_args, a.build_secrets,
                a.dockerfile, a.docker_context_path, a.docker_build_stage,
-               a.publish_directory, a.is_static_spa, a.command, a.args, a.env_var,
+               a.publish_directory, a.is_static_spa, a.build_path, a.command, a.args, a.env_var,
                a.clean_cache, a.memory_reservation, a.memory_limit,
                a.cpu_reservation, a.cpu_limit, a.replicas, a.health_check_swarm,
                a.placement_swarm, a.stop_grace_period_swarm, a.repository, a.owner,
@@ -156,6 +156,7 @@ struct AppRow {
     docker_build_stage: Option<String>,
     publish_directory: Option<String>,
     is_static_spa: Option<i64>,
+    build_path: Option<String>,
     command: Option<String>,
     args: Option<String>,
     env_var: Option<String>,
@@ -255,8 +256,14 @@ fn build(a: &AppRow) -> Result<Option<BuildStrategy>, String> {
     }
     Ok(Some(match a.build_type.as_str() {
         "DOCKERFILE" => BuildStrategy::Dockerfile {
-            dockerfile: a.dockerfile.clone().unwrap_or_else(|| "Dockerfile".into()),
-            context: a.docker_context_path.clone().unwrap_or_else(|| ".".into()),
+            dockerfile: join_relative(
+                a.build_path.as_deref(),
+                a.dockerfile.as_deref().unwrap_or("Dockerfile"),
+            ),
+            context: join_relative(
+                a.build_path.as_deref(),
+                a.docker_context_path.as_deref().unwrap_or("."),
+            ),
             target: a.docker_build_stage.clone(),
             no_cache: a.clean_cache != 0,
         },
@@ -361,4 +368,20 @@ fn provider_url(base: &str, owner: Option<&str>, repo: Option<&str>) -> Result<S
 }
 fn shell_words(value: &str) -> Vec<String> {
     value.split_whitespace().map(str::to_owned).collect()
+}
+
+fn join_relative(base: Option<&str>, child: &str) -> String {
+    let base = base.unwrap_or("").trim().trim_matches('/');
+    let child = child.trim().trim_start_matches('/');
+    if base.is_empty() {
+        if child.is_empty() {
+            ".".into()
+        } else {
+            child.into()
+        }
+    } else if child.is_empty() || child == "." {
+        base.into()
+    } else {
+        format!("{base}/{child}")
+    }
 }

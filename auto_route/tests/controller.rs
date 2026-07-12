@@ -5,10 +5,13 @@ use axum::{
     body::Body,
     extract::{Path, Query},
     http::{Request, StatusCode},
+    response::sse::{Event, Sse},
 };
+use futures_util::stream;
 use http_body_util::BodyExt;
 use serde::Deserialize;
 use serde_json::{Value, json};
+use std::convert::Infallible;
 use tower::ServiceExt;
 
 struct UserController {
@@ -78,6 +81,12 @@ fn generates_openapi_from_registered_routes() {
         login["responses"]["200"]["content"]["application/json"]["schema"].is_object(),
         "form handlers should still expose the JSON response schema"
     );
+
+    let events = &spec["paths"]["/events"]["get"];
+    assert!(
+        events["responses"]["200"]["content"]["text/event-stream"]["schema"].is_object(),
+        "SSE handlers should expose text/event-stream response content"
+    );
 }
 
 #[get("/health")]
@@ -93,6 +102,11 @@ async fn search(Query(_query): Query<SearchQuery>) -> Json<Value> {
 #[auto_route::post("/login")]
 async fn login(Form(_form): Form<LoginForm>) -> Json<Value> {
     Json(json!({ "ok": true }))
+}
+
+#[get("/events")]
+async fn events() -> Sse<impl futures_util::Stream<Item = Result<Event, Infallible>>> {
+    Sse::new(stream::empty())
 }
 
 #[controller("/module")]

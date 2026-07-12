@@ -27,6 +27,8 @@ pub struct Schedule {
         column_default = "'APPLICATION'"
     )]
     pub schedule_type: String,
+    #[sqlx_gen(sql_type = "TEXT", column_default = "'EXEC'")]
+    pub schedule_action: String,
     #[sqlx_gen(sql_type = "TEXT")]
     pub command: String,
     #[sqlx_gen(sql_type = "TEXT")]

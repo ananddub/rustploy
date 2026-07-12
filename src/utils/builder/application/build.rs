@@ -76,23 +76,9 @@ impl ApplicationBuilder {
                         cancel,
                     )
                     .await?;
-                self.docker
-                    .image_build_cancelled(
-                        &[
-                            "--build-arg",
-                            format!(
-                                "BUILDKIT_SYNTAX=ghcr.io/railwayapp/railpack-frontend:v{version}"
-                            )
-                            .as_str(),
-                            "--file",
-                            plan.as_str(),
-                            "--tag",
-                            spec.image.as_str(),
-                            spec.work_directory.as_str(),
-                        ],
-                        cancel,
-                    )
-                    .await?;
+                let args = railpack_build_args(spec, version, &plan)?;
+                let refs = args.iter().map(String::as_str).collect::<Vec<_>>();
+                self.docker.image_build_cancelled(&refs, cancel).await?;
             }
             BuildStrategy::Static {
                 publish_directory,
@@ -119,7 +105,7 @@ impl ApplicationBuilder {
             "--tag".into(),
             spec.image.clone(),
             "--file".into(),
-            format!("{}/{dockerfile}", spec.work_directory),
+            join_path(&spec.work_directory, default_if_empty(dockerfile, "Dockerfile")),
         ];
         if let Some(target) = target {
             args.extend(["--target".into(), target.clone()]);
@@ -144,12 +130,10 @@ impl ApplicationBuilder {
             args.extend(["--secret".into(), format!("id={key},src={path}")]);
         }
 
-        args.push(format!(
-            "{}/{}",
-            spec.work_directory,
-            context.trim_start_matches('/')
-        ));
+        args.push(join_path(&spec.work_directory, default_if_empty(context, ".")));
         let refs = args.iter().map(String::as_str).collect::<Vec<_>>();
+        validate_build_context(refs.last().copied())?;
+        tracing::info!(image = %spec.image, args = ?args, "running docker image build");
         let result = self.docker.image_build_cancelled(&refs, cancel).await;
         let _ = self.executor.run("rm", ["-rf", secret_dir.as_str()]).await;
         result.map(|_| ())
@@ -185,20 +169,75 @@ impl ApplicationBuilder {
             )
             .await?;
         }
+        let args = static_build_args(spec)?;
+        let refs = args.iter().map(String::as_str).collect::<Vec<_>>();
         self.docker
-            .image_build_cancelled(
-                &[
-                    "--tag",
-                    spec.image.as_str(),
-                    "--file",
-                    format!("{}/Dockerfile.rustploy", spec.work_directory).as_str(),
-                    spec.work_directory.as_str(),
-                ],
-                cancel,
-            )
+            .image_build_cancelled(&refs, cancel)
             .await
             .map(|_| ())
     }
+}
+
+fn static_build_args(spec: &ApplicationSpec) -> ExecResult<Vec<String>> {
+    let args = vec![
+        "--tag".into(),
+        spec.image.clone(),
+        "--file".into(),
+        format!("{}/Dockerfile.rustploy", spec.work_directory),
+        spec.work_directory.clone(),
+    ];
+    validate_build_context(args.last().map(String::as_str))?;
+    tracing::info!(image = %spec.image, args = ?args, "running docker static image build");
+    Ok(args)
+}
+
+fn railpack_build_args(
+    spec: &ApplicationSpec,
+    version: &str,
+    plan: &str,
+) -> ExecResult<Vec<String>> {
+    let args = vec![
+        "--build-arg".into(),
+        format!("BUILDKIT_SYNTAX=ghcr.io/railwayapp/railpack-frontend:v{version}"),
+        "--file".into(),
+        plan.into(),
+        "--tag".into(),
+        spec.image.clone(),
+        spec.work_directory.clone(),
+    ];
+    validate_build_context(args.last().map(String::as_str))?;
+    tracing::info!(image = %spec.image, args = ?args, "running docker railpack image build");
+    Ok(args)
+}
+
+fn default_if_empty<'a>(value: &'a str, default: &'a str) -> &'a str {
+    let value = value.trim();
+    if value.is_empty() { default } else { value }
+}
+
+fn join_path(base: &str, child: &str) -> String {
+    let child = child.trim();
+    if child == "." {
+        return base.trim_end_matches('/').into();
+    }
+    if child.starts_with('/') {
+        child.into()
+    } else {
+        format!("{}/{}", base.trim_end_matches('/'), child)
+    }
+}
+
+fn validate_build_context(value: Option<&str>) -> ExecResult<()> {
+    let Some(value) = value.map(str::trim).filter(|value| !value.is_empty()) else {
+        return Err(ExecError::CommandFailed {
+            code: None,
+            stderr: "docker build context path resolved empty".into(),
+        });
+    };
+    if value == "-" {
+        return Ok(());
+    }
+    Ok(())
 }
 
 const SPA_NGINX: &str = r#"events { worker_connections 1024; }

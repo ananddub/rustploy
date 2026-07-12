@@ -99,6 +99,15 @@ impl OpenApiSchemaDescriptor {
             content_type: "application/x-www-form-urlencoded",
         }
     }
+
+    #[doc(hidden)]
+    pub const fn sse() -> Self {
+        Self {
+            schema_ref: schema_ref::<String>,
+            register: register_type::<String>,
+            content_type: "text/event-stream",
+        }
+    }
 }
 
 /// OpenAPI parameter metadata submitted by the route macros.

@@ -57,6 +57,7 @@ tempfile = "3.27.0"
 scopeguard = "1.1.0"
 minijinja = "2.21.0"
 tokio-util = "0.7.11"
+tokio-cron-scheduler = "0.13"
 
 [profile.release]
 opt-level = "z"        # size ke liye optimize (speed ke liye "3" use karo)
