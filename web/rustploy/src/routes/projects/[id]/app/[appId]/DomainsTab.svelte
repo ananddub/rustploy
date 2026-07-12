@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Globe, Plus, Trash2, Pencil, ExternalLink, Lock, LockOpen, RefreshCw, Info, Copy } from '@lucide/svelte';
+	import Switch from '$lib/components/Switch.svelte';
 	import type { ApplicationResponseDto, DomainResponseDto } from '$lib/client/types.gen';
 	import {
 		domainControllerListByApplication,
@@ -258,7 +259,7 @@
 			</div>
 			<div class={toggleRowCls}>
 				<div><p class="text-sm font-medium">Strip Path</p><p class="text-xs text-muted-foreground mt-0.5">Remove the external path before forwarding to the app</p></div>
-				<input type="checkbox" bind:checked={aStripPath} class="rounded cursor-pointer accent-primary mt-0.5" />
+				<Switch checked={aStripPath} onchange={(v) => (aStripPath = v)} />
 			</div>
 			<div class="flex flex-col gap-1.5">
 				<label for="add-port" class="text-sm font-medium text-muted-foreground">Container Port</label>
@@ -267,7 +268,7 @@
 			</div>
 			<div class={toggleRowCls}>
 				<div><p class="text-sm font-medium">Custom Entrypoint</p><p class="text-xs text-muted-foreground mt-0.5">Use custom entrypoint instead of default "web"/"websecure"</p></div>
-				<input type="checkbox" bind:checked={aCustomEpEnabled} class="rounded cursor-pointer accent-primary mt-0.5" />
+				<Switch checked={aCustomEpEnabled} onchange={(v) => (aCustomEpEnabled = v)} />
 			</div>
 			{#if aCustomEpEnabled}
 				<div class="flex flex-col gap-1.5">
@@ -277,7 +278,7 @@
 			{/if}
 			<div class={toggleRowCls}>
 				<div><p class="text-sm font-medium">HTTPS</p><p class="text-xs text-muted-foreground mt-0.5">Automatically provision SSL certificate</p></div>
-				<input type="checkbox" bind:checked={aHttps} class="rounded cursor-pointer accent-primary mt-0.5" />
+				<Switch checked={aHttps} onchange={(v) => (aHttps = v)} />
 			</div>
 			{#if aHttps}
 				<div class="flex flex-col gap-1.5">
@@ -334,8 +335,8 @@
 					<input id="edit-port" type="number" min="1" max="65535" class={inputCls} placeholder="3000" bind:value={ePort} />
 				</div>
 				<div class="flex flex-col gap-1.5">
-					<label class="text-sm font-medium text-muted-foreground">Domain Type</label>
-					<input class="{inputCls} opacity-50 cursor-not-allowed" value={editing.domain_type} disabled />
+					<label for="e-dtype" class="text-sm font-medium text-muted-foreground">Domain Type</label>
+					<input id="e-dtype" class="{inputCls} opacity-50 cursor-not-allowed" value={editing.domain_type} disabled />
 				</div>
 			</div>
 			<div class="grid grid-cols-2 gap-4">
@@ -350,11 +351,11 @@
 			</div>
 			<div class={toggleRowCls}>
 				<div><p class="text-sm font-medium">Strip Path</p><p class="text-xs text-muted-foreground mt-0.5">Remove external path before forwarding</p></div>
-				<input type="checkbox" bind:checked={eStripPath} class="rounded cursor-pointer accent-primary mt-0.5" />
+				<Switch checked={eStripPath} onchange={(v) => (eStripPath = v)} />
 			</div>
 			<div class={toggleRowCls}>
 				<div><p class="text-sm font-medium">Custom Entrypoint</p><p class="text-xs text-muted-foreground mt-0.5">Use custom entrypoint instead of default</p></div>
-				<input type="checkbox" bind:checked={eCustomEpEnabled} class="rounded cursor-pointer accent-primary mt-0.5" />
+				<Switch checked={eCustomEpEnabled} onchange={(v) => (eCustomEpEnabled = v)} />
 			</div>
 			{#if eCustomEpEnabled}
 				<div class="flex flex-col gap-1.5">
@@ -364,7 +365,7 @@
 			{/if}
 			<div class={toggleRowCls}>
 				<div><p class="text-sm font-medium">HTTPS</p><p class="text-xs text-muted-foreground mt-0.5">Automatically provision SSL certificate</p></div>
-				<input type="checkbox" bind:checked={eHttps} class="rounded cursor-pointer accent-primary mt-0.5" />
+				<Switch checked={eHttps} onchange={(v) => (eHttps = v)} />
 			</div>
 			{#if eHttps}
 				<div class="flex flex-col gap-1.5">

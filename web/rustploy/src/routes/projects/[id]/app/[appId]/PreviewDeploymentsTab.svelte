@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Eye, GitBranch, Info } from '@lucide/svelte';
+	import Switch from '$lib/components/Switch.svelte';
 	import type { ApplicationResponseDto } from '$lib/client/types.gen';
 
 	type Props = { app: ApplicationResponseDto; onUpdated: (a: ApplicationResponseDto) => void };
@@ -29,11 +30,7 @@
 					Requires a Git provider source.
 				</p>
 			</div>
-			<input
-				type="checkbox"
-				bind:checked={enabled}
-				class="w-10 h-6 rounded-full cursor-pointer accent-primary"
-			/>
+			<Switch checked={enabled} onchange={(v) => (enabled = v)} />
 		</div>
 
 		{#if !isGitProvider}
@@ -73,10 +70,12 @@
 						<input id="prev-limit" type="number" min="1" max="20" class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring" bind:value={limit} />
 					</div>
 				</div>
-				<div class="flex items-center gap-3">
-					<input id="prev-https" type="checkbox" bind:checked={https} class="rounded cursor-pointer accent-primary" />
-					<label for="prev-https" class="text-sm cursor-pointer">Enable HTTPS / SSL</label>
-				</div>
+				<Switch
+						checked={https}
+						onchange={(v) => (https = v)}
+						label="Enable HTTPS / SSL"
+						description="Automatically provision an SSL certificate for preview domains"
+					/>
 				<div class="flex justify-end">
 					<button
 						class="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50"

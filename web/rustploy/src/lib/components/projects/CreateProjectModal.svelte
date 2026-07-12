@@ -91,10 +91,10 @@
 			</div>
 
 			<div class="flex flex-col gap-1.5">
-				<label class="text-sm font-medium text-muted-foreground"
+				<label for="cpm-envvar" class="text-sm font-medium text-muted-foreground"
 					>Env Var Prefix <span class="text-destructive">*</span></label
 				>
-				<input
+				<input id="cpm-envvar"
 					class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
 					placeholder="MY_PROJECT"
 					bind:value={envVar}

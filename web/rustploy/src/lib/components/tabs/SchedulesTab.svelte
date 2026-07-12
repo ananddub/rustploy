@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Plus, Calendar, Trash2, Clock, Play, RefreshCw } from '@lucide/svelte';
+	import Switch from '$lib/components/Switch.svelte';
 	import { formatDate } from '$lib/helpers';
 
 	type Props = { serviceLabel?: string; serviceId?: number };
@@ -85,7 +86,7 @@
 			{#each schedules as s (s.id)}
 				<div class="grid grid-cols-[1fr_160px_140px_140px_80px] gap-4 items-center px-5 py-3 border-b border-border last:border-0 hover:bg-accent/20 transition-colors">
 					<div class="flex items-center gap-2 min-w-0">
-						<input type="checkbox" checked={s.enabled} class="rounded" />
+						<Switch checked={s.enabled} onchange={() => {}} />
 						<span class="text-sm font-medium truncate">{s.name}</span>
 					</div>
 					<span class="text-xs font-mono text-muted-foreground">{s.cron}</span>
