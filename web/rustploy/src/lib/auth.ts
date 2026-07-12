@@ -1,177 +1,190 @@
-import { createSignal } from 'solid-js';
-import type { JwtSubject, TokenPair } from '../client/types.gen';
+import { browser } from '$app/environment';
 import {
-  authControllerLogin,
-  authControllerLogout,
-  authControllerRefresh,
-  authControllerSignup,
-  authControllerWhoAmI,
-} from '../client/sdk.gen';
+	authControllerLogin,
+	authControllerLogout,
+	authControllerRefresh,
+	authControllerSignup,
+	authControllerWhoAmI
+} from '$lib/client/sdk.gen';
+import type { JwtSubject, TokenPair } from '$lib/client/types.gen';
 
 const AUTH_STORAGE_KEY = 'rustploy-auth-session';
 
 export type AuthSession = {
-  tokens: TokenPair;
-  user: JwtSubject;
+	tokens: TokenPair;
+	user: JwtSubject;
 };
 
-const loadStoredSession = (): AuthSession | null => {
-  if (typeof window === 'undefined') return null;
-  const raw = window.localStorage.getItem(AUTH_STORAGE_KEY);
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw) as AuthSession;
-  } catch {
-    window.localStorage.removeItem(AUTH_STORAGE_KEY);
-    return null;
-  }
-};
+// Plain module-level variable — no $state (auth.ts is a plain TS file, not a .svelte)
+let _session: AuthSession | null = null;
 
-const persistSession = (session: AuthSession | null) => {
-  if (typeof window === 'undefined') return;
-  if (session) {
-    window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
-  } else {
-    window.localStorage.removeItem(AUTH_STORAGE_KEY);
-  }
-};
+function loadStoredSession(): AuthSession | null {
+	if (!browser) return null;
+	const raw = window.localStorage.getItem(AUTH_STORAGE_KEY);
+	if (!raw) return null;
+	try {
+		return JSON.parse(raw) as AuthSession;
+	} catch {
+		window.localStorage.removeItem(AUTH_STORAGE_KEY);
+		return null;
+	}
+}
+
+function persistSession(session: AuthSession | null) {
+	if (!browser) return;
+	if (session) {
+		window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
+	} else {
+		window.localStorage.removeItem(AUTH_STORAGE_KEY);
+	}
+}
 
 const extractErrorMessage = (error: unknown): string => {
-  if (typeof error === 'string') return error;
-  if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string')
-    return error.message;
-  return 'Authentication failed. Please try again.';
+	if (typeof error === 'string') return error;
+	if (
+		error &&
+		typeof error === 'object' &&
+		'message' in error &&
+		typeof (error as { message: unknown }).message === 'string'
+	)
+		return (error as { message: string }).message;
+	return 'Authentication failed. Please try again.';
 };
 
-export const [authSession, setAuthSession] = createSignal<AuthSession | null>(loadStoredSession());
-export const [authReady, setAuthReady] = createSignal(false);
+// Initialize from localStorage on first import (browser only)
+if (browser) {
+	_session = loadStoredSession();
+	// Sync reactive store after it loads
+	import('./auth.svelte').then(({ authState }) => {
+		authState.session = _session;
+	});
+}
+
+export function getAuthSession(): AuthSession | null {
+	return _session;
+}
+
+export function setAuthSession(session: AuthSession | null) {
+	_session = session;
+	persistSession(session);
+	// Sync reactive store (only runs in browser where Svelte has compiled the rune)
+	if (browser) {
+		import('./auth.svelte').then(({ authState }) => {
+			authState.session = session;
+		});
+	}
+}
+
+export function clearAuthSession() {
+	_session = null;
+	persistSession(null);
+	if (browser) {
+		import('./auth.svelte').then(({ authState }) => {
+			authState.session = null;
+		});
+	}
+}
 
 // Deduplicate concurrent refresh calls
 let refreshPromise: Promise<string | null> | null = null;
 
-/**
- * Try to get a new access token using the stored refresh token.
- * Returns new access_token on success, null on failure.
- */
 export async function refreshAccessToken(): Promise<string | null> {
-  if (refreshPromise) return refreshPromise;
+	if (refreshPromise) return refreshPromise;
 
-  refreshPromise = (async () => {
-    const session = authSession();
-    if (!session?.tokens.refresh_token) return null;
+	refreshPromise = (async () => {
+		const session = _session;
+		if (!session?.tokens.refresh_token) return null;
 
-    try {
-      const res = await authControllerRefresh({
-        body: { refresh_token: session.tokens.refresh_token },
-      });
+		try {
+			const res = await authControllerRefresh({
+				body: { refresh_token: session.tokens.refresh_token }
+			});
 
-      console.log('[refresh] response:', res.data, res.error);
+			if (res.error || !res.data) {
+				clearAuthSession();
+				return null;
+			}
 
-      if (res.error || !res.data) {
-        clearAuthSession();
-        return null;
-      }
+			const updated: AuthSession = {
+				tokens: res.data.tokens,
+				user: res.data.user
+			};
+			setAuthSession(updated);
+			return updated.tokens.access_token;
+		} catch {
+			clearAuthSession();
+			return null;
+		} finally {
+			refreshPromise = null;
+		}
+	})();
 
-      // res.data is AuthResponseDto — contains tokens + user
-      const updated: AuthSession = {
-        tokens: res.data.tokens,
-        user: res.data.user,
-      };
-      setAuthSession(updated);
-      persistSession(updated);
-      return updated.tokens.access_token;
-    } catch (e) {
-      console.log('[refresh] exception:', e);
-      clearAuthSession();
-      return null;
-    } finally {
-      refreshPromise = null;
-    }
-  })();
-
-  return refreshPromise;
+	return refreshPromise;
 }
 
-export async function restoreAuthSession() {
-  const storedSession = authSession();
-  if (!storedSession) {
-    setAuthReady(true);
-    return false;
-  }
+export async function restoreAuthSession(): Promise<boolean> {
+	const storedSession = _session;
+	if (!storedSession) return false;
 
-  try {
-    const response = await authControllerWhoAmI({
-      auth: storedSession.tokens.access_token,
-    });
+	try {
+		const response = await authControllerWhoAmI({
+			auth: storedSession.tokens.access_token
+		});
 
-    if (response.error || !response.data) {
-      // access token expired — try refresh
-      const newToken = await refreshAccessToken();
-      if (!newToken) {
-        clearAuthSession();
-        return false;
-      }
-      setAuthReady(true);
-      return true;
-    }
+		if (response.error || !response.data) {
+			const newToken = await refreshAccessToken();
+			if (!newToken) {
+				clearAuthSession();
+				return false;
+			}
+			return true;
+		}
 
-    setAuthSession({ ...storedSession, user: response.data });
-    persistSession(authSession());
-    setAuthReady(true);
-    return true;
-  } catch {
-    clearAuthSession();
-    return false;
-  }
+		setAuthSession({ ...storedSession, user: response.data });
+		return true;
+	} catch {
+		clearAuthSession();
+		return false;
+	}
 }
 
-export function clearAuthSession() {
-  setAuthSession(null);
-  persistSession(null);
-  setAuthReady(true);
-}
+export async function signInWithPassword(email: string, password: string): Promise<AuthSession> {
+	const response = await authControllerLogin({ body: { email, password } });
+	if (response.error || !response.data) throw new Error(extractErrorMessage(response.error));
 
-export async function signInWithPassword(email: string, password: string) {
-  const response = await authControllerLogin({ body: { email, password } });
-  if (response.error || !response.data)
-    throw new Error(extractErrorMessage(response.error));
-
-  const nextSession: AuthSession = {
-    tokens: response.data.tokens,
-    user: response.data.user,
-  };
-  setAuthSession(nextSession);
-  persistSession(nextSession);
-  return nextSession;
+	const nextSession: AuthSession = {
+		tokens: response.data.tokens,
+		user: response.data.user
+	};
+	setAuthSession(nextSession);
+	return nextSession;
 }
 
 export async function signUpWithPassword(input: {
-  email: string;
-  password: string;
-  first_name?: string;
-  last_name?: string;
-}) {
-  const response = await authControllerSignup({ body: input });
-  if (response.error || !response.data)
-    throw new Error(extractErrorMessage(response.error));
+	email: string;
+	password: string;
+	first_name?: string;
+	last_name?: string;
+}): Promise<AuthSession> {
+	const response = await authControllerSignup({ body: input });
+	if (response.error || !response.data) throw new Error(extractErrorMessage(response.error));
 
-  const nextSession: AuthSession = {
-    tokens: response.data.tokens,
-    user: response.data.user,
-  };
-  setAuthSession(nextSession);
-  persistSession(nextSession);
-  return nextSession;
+	const nextSession: AuthSession = {
+		tokens: response.data.tokens,
+		user: response.data.user
+	};
+	setAuthSession(nextSession);
+	return nextSession;
 }
 
 export async function signOut() {
-  const currentSession = authSession();
-  try {
-    if (currentSession?.tokens.access_token) {
-      await authControllerLogout({ auth: currentSession.tokens.access_token });
-    }
-  } catch {
-    /* ignore logout errors */
-  }
-  clearAuthSession();
+	const currentSession = _session;
+	try {
+		if (currentSession?.tokens.access_token) {
+			await authControllerLogout({ auth: currentSession.tokens.access_token });
+		}
+	} catch {
+		/* ignore */
+	}
+	clearAuthSession();
 }

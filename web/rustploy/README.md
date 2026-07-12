@@ -1,43 +1,42 @@
-## Usage
+# sv
 
-Those templates dependencies are maintained via [pnpm](https://pnpm.io) via `pnpm up -Lri`.
+Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
 
-This is the reason you see a `pnpm-lock.yaml`. That being said, any package manager will work. This file can be safely be removed once you clone a template.
+## Creating a project
 
-```bash
-$ npm install # or pnpm install or yarn install
+If you're seeing this, you've probably already done this step. Congrats!
+
+```sh
+# create a new project
+npx sv create my-app
 ```
 
-## Exploring the template
+To recreate this project with the same configuration:
 
-This template's goal is to showcase the routing features of Solid.
-It also showcase how the router and Suspense work together to parallelize data fetching tied to a route via the `.data.ts` pattern.
+```sh
+# recreate this project
+bun x sv@0.16.2 create --template minimal --types ts --add prettier tailwindcss="plugins:typography,forms" sveltekit-adapter="adapter:auto" eslint --install bun rustploy
+```
 
-You can learn more about it on the [`@solidjs/router` repository](https://github.com/solidjs/solid-router)
+## Developing
 
-### Learn more on the [Solid Website](https://solidjs.com) and come chat with us on our [Discord](https://discord.com/invite/solidjs)
+Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
 
-## Available Scripts
+```sh
+npm run dev
 
-In the project directory, you can run:
+# or start the server and open the app in a new browser tab
+npm run dev -- --open
+```
 
-### `npm run dev` or `npm start`
+## Building
 
-Runs the app in the development mode.<br>
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+To create a production version of your app:
 
-The page will reload if you make edits.<br>
+```sh
+npm run build
+```
 
-### `npm run build`
+You can preview the production build with `npm run preview`.
 
-Builds the app for production to the `dist` folder.<br>
-It correctly bundles Solid in production mode and optimizes the build for the best performance.
-
-The build is minified and the filenames include the hashes.<br>
-Your app is ready to be deployed!
-
-## Deployment
-
-You can deploy the `dist` folder to any static host provider (netlify, surge, now, etc.)
-
-## This project was created with the [Solid CLI](https://github.com/solidjs-community/solid-cli)
+> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
