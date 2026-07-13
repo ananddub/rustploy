@@ -91,6 +91,9 @@
 		if (!path) return false;
 		if (path === '/dashboard') return page.url.pathname === '/dashboard';
 		if (path === '/settings') return page.url.pathname === '/settings';
+		// exact-match routes that are prefixes of each other
+		if (path === '/settings/server' || path === '/settings/servers')
+			return page.url.pathname === path;
 		return page.url.pathname.startsWith(path);
 	}
 
@@ -109,6 +112,22 @@
 	// Drag-to-resize
 	let width = $state(220);
 	let dragging = $state(false);
+
+	// Persist nav scroll position across route changes
+	let navEl: HTMLElement;
+	const SCROLL_KEY = 'sidebar-scroll';
+
+	$effect(() => {
+		if (!navEl) return;
+		// Restore saved position
+		const saved = sessionStorage.getItem(SCROLL_KEY);
+		if (saved) navEl.scrollTop = Number(saved);
+
+		// Save on scroll
+		const onScroll = () => sessionStorage.setItem(SCROLL_KEY, String(navEl.scrollTop));
+		navEl.addEventListener('scroll', onScroll, { passive: true });
+		return () => navEl.removeEventListener('scroll', onScroll);
+	});
 
 	function onDragStart(e: MouseEvent) {
 		e.preventDefault();
@@ -162,8 +181,8 @@
 		<kbd class="text-[9px] bg-muted px-1 py-0.5 rounded border border-border font-mono">⌘K</kbd>
 	</button>
 
-	<!-- Nav -->
-	<nav class="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
+	<!-- Nav — bind:this so we can persist scroll -->
+	<nav bind:this={navEl} class="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
 		<p class="text-[10px] uppercase tracking-widest text-sidebar-foreground/30 px-2.5 pt-1 pb-1.5 font-medium">
 			Platform
 		</p>
