@@ -20,6 +20,8 @@
 	import DomainsTab from './DomainsTab.svelte';
 	import AdvancedTab from './AdvancedTab.svelte';
 
+	import PreviewDeploymentsTab from './PreviewDeploymentsTab.svelte';
+
 	const session = getAuthSession();
 	if (!session) goto('/auth', { replaceState: true });
 
@@ -28,7 +30,7 @@
 
 	const TABS = [
 		'General', 'Environment', 'Domains', 'Deployments',
-		'Schedules', 'Volume Backups', 'Logs', 'Monitoring', 'Advanced'
+		'Preview Deployments', 'Schedules', 'Volume Backups', 'Logs', 'Monitoring', 'Advanced'
 	] as const;
 
 	let activeTab = $state('General');
@@ -70,6 +72,9 @@
 				onDeploy={async () => { await applicationControllerDeploy({ path: { id: appId } }); }}
 				onRedeploy={async () => { await applicationControllerRedeploy({ path: { id: appId } }); }}
 			/>
+		{/if}
+		{#if activeTab === 'Preview Deployments'}
+			<PreviewDeploymentsTab {app} onUpdated={handleUpdated} />
 		{/if}
 		{#if activeTab === 'Logs'}
 			<LogsTab serviceLabel="application" serviceId={appId} appName={app.app_name} serviceType="application" />

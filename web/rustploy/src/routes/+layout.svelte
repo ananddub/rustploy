@@ -6,6 +6,7 @@
 	import { getAuthSession, refreshAccessToken, clearAuthSession } from '$lib/auth';
 	import { goto } from '$app/navigation';
 	import { Toaster } from 'svelte-sonner';
+	import CommandPalette from '$lib/components/shared/CommandPalette.svelte';
 
 	let { children } = $props();
 
@@ -48,4 +49,5 @@
 	closeButton
 	toastOptions={{ style: 'font-family: var(--font-sans); font-size: 0.875rem;' }}
 />
+<CommandPalette />
 {@render children()}

@@ -115,7 +115,7 @@
 			</div>
 		</header>
 
-		<main class="flex-1 px-6 py-6 overflow-y-auto">
+		<main class="flex-1 px-6 py-6 overflow-y-auto min-w-0">
 			{#if loading}
 				<div class="flex justify-center py-20">
 					<div class="w-6 h-6 border-2 border-muted-foreground/30 border-t-foreground rounded-full animate-spin"></div>
