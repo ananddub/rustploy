@@ -216,7 +216,15 @@ impl ComposeController {
         _claims: Claims,
         Path(id): Path<i64>,
     ) -> Result<(StatusCode, Json<ComposeOperationResponseDto>), ApiError> {
-        self.operation(id, ComposeOperation::Stop).await
+        // self.operation(id, ComposeOperation::Stop).await
+        match self.service.cancel_operation(id).await {
+            Ok(true) => Err((StatusCode::ACCEPTED,"your request has been canceled".into())),
+            Ok(false) => Err((
+                StatusCode::CONFLICT,
+                "no running compose deployment to cancel".into(),
+            )),
+            Err(error) => Err(map_sqlx_error(error)),
+        }
     }
 
     #[post("/{id}/cancel")]

@@ -1,4 +1,4 @@
-pub use types::{ComposeOperation, ComposeOperationResult, ComposeRecord};
+pub use types::{ComposeOperation, ComposeOperationResult, ComposeRecord, ComposeType};
 
 use std::sync::Arc;
 
@@ -12,16 +12,15 @@ pub struct ComposeService {
 #[singleton]
 impl ComposeService {
     fn new(db: Arc<SqlitePool>) -> Self {
-        recovery::spawn_recover_stale_deployments(db.clone());
         Self { db }
     }
 }
 
+pub mod auto_excuter;
 pub mod crud;
 pub mod operations;
 pub mod queries;
 pub mod recovery;
 pub mod remote;
-pub mod runtime;
 pub mod source;
 pub mod types;

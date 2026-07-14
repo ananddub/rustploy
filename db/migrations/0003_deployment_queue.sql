@@ -1,11 +1,11 @@
--- deployments (Execution logs)
-CREATE TABLE deployments (
+-- deployment queue support
+PRAGMA foreign_keys = OFF;
+
+CREATE TABLE deployments_new (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	title TEXT NOT NULL,
 	description TEXT,
-	-- status: QUEUED | RUNNING | DONE | ERROR | CANCELLED
 	status TEXT NOT NULL DEFAULT 'QUEUED',
-	-- Last live builder state, e.g. QUEUE | BUILDING | DEPLOYING | HEALTH_CHECK
 	state TEXT NOT NULL DEFAULT 'QUEUE',
 	log_path TEXT NOT NULL,
 	pid TEXT,
@@ -15,7 +15,6 @@ CREATE TABLE deployments (
 	started_at INTEGER,
 	last_state_at INTEGER,
 	finished_at INTEGER,
-	-- Foreign keys
 	application_id INTEGER REFERENCES applications(id) ON DELETE CASCADE,
 	compose_id INTEGER REFERENCES compose_projects(id) ON DELETE CASCADE,
 	server_id INTEGER REFERENCES servers(id) ON DELETE CASCADE,
@@ -23,18 +22,20 @@ CREATE TABLE deployments (
 	CONSTRAINT deployment_status_check CHECK (status IN ('QUEUED', 'RUNNING', 'DONE', 'ERROR', 'CANCELLED'))
 ) STRICT;
 
--- rollbacks (Snapshots for reversion)
-CREATE TABLE rollbacks (
-	id INTEGER PRIMARY KEY AUTOINCREMENT,
-	deployment_id INTEGER NOT NULL REFERENCES deployments(id) ON DELETE CASCADE,
-	version INTEGER NOT NULL DEFAULT 1,
-	image TEXT,
-	full_context TEXT, -- JSON snapshot of application configs
-	created_at INTEGER DEFAULT (strftime('%s', 'now')) NOT NULL
-) STRICT;
+INSERT INTO deployments_new (
+	id, title, description, status, state, log_path, pid, error_message, operation,
+	is_preview_deployment, started_at, last_state_at, finished_at,
+	application_id, compose_id, server_id, created_at
+)
+SELECT
+	id, title, description, status, state, log_path, pid, error_message, NULL,
+	is_preview_deployment, started_at, last_state_at, finished_at,
+	application_id, compose_id, server_id, created_at
+FROM deployments;
 
--- Indexes for rollbacks
-CREATE INDEX idx_rollbacks_deployment_id ON rollbacks(deployment_id);
+DROP TABLE deployments;
+ALTER TABLE deployments_new RENAME TO deployments;
+
 CREATE INDEX idx_deployments_status ON deployments(status);
 CREATE INDEX idx_deployments_state ON deployments(state);
 CREATE INDEX idx_deployments_created_at ON deployments(created_at);
@@ -46,3 +47,5 @@ CREATE UNIQUE INDEX idx_deployments_one_active_application
 CREATE UNIQUE INDEX idx_deployments_one_active_compose
 	ON deployments(compose_id)
 	WHERE status IN ('QUEUED', 'RUNNING') AND compose_id IS NOT NULL;
+
+PRAGMA foreign_keys = ON;

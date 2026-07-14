@@ -305,6 +305,7 @@ impl ComposeBuilder {
                 BuilderEvent::Cancelled => DeployState::StoppedByUser,
                 BuilderEvent::Message(_) => return,
                 BuilderEvent::Failed(error) => DeployState::Failed(error),
+                BuilderEvent::RecoverAfterRestart => DeployState::RecoverAfterRestart,
             };
             let _ = state.send_state(id.clone(), deploy_state);
         }

@@ -200,6 +200,7 @@ fi
         let http = format!("{}:{}", self.config.http_port, self.config.http_port);
         let https = format!("{}:{}", self.config.https_port, self.config.https_port);
         let http3 = format!("{}:{}/udp", self.config.http3_port, self.config.http3_port);
+        let dashboard = format!("{}:8080", self.config.dashboard_port);
         docker
             .container_run(&[
                 "--detach",
@@ -221,6 +222,8 @@ fi
                 https.as_str(),
                 "--publish",
                 http3.as_str(),
+                "--publish",
+                dashboard.as_str(),
                 image.as_str(),
             ])
             .await?;

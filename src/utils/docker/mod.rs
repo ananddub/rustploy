@@ -7,6 +7,7 @@ pub mod client;
 pub mod compose;
 pub mod container;
 pub mod error;
+pub mod expand;
 pub mod image;
 pub mod resource;
 pub mod swarm;

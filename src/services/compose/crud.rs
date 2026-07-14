@@ -64,7 +64,7 @@ impl ComposeService {
         let description = input.description.or(current.description);
         let env_var = input.env_var.or(current.env_var);
         let compose_file = input.compose_file.unwrap_or(current.compose_file);
-        let compose_type = input.compose_type.unwrap_or(current.compose_type);
+        let compose_type = input.compose_type.unwrap_or(current.compose_type.as_str().to_string());
         let trigger_type = input.trigger_type.unwrap_or(current.trigger_type);
         let command = input.command.unwrap_or(current.command);
         let compose_path = input.compose_path.unwrap_or(current.compose_path);

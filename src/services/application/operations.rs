@@ -2,11 +2,15 @@ use auto_di::resolve;
 use sqlx::Row;
 use uuid::Uuid;
 
+use crate::services::application::auto_excuter::app_new_cmd;
+use crate::utils::builder::queue::BuilderQueue;
 use crate::utils::builder::{custom_type::IdType, hash_state::ApplicationState};
+use crate::utils::docker::DockerCli;
+use crate::utils::docker::expand::ServiceFilterExt;
 
 use super::{
     ApplicationOperation, ApplicationOperationResult, ApplicationRecord, ApplicationService,
-    runtime::{execute_operation, is_cancelled_error},
+    // runtime::{execute_operation, is_cancelled_error},
 };
 
 impl ApplicationService {
@@ -18,7 +22,7 @@ impl ApplicationService {
         let mut tx = self.db.begin().await?;
 
         let running_deployment = sqlx::query_scalar::<_, i64>(
-            "SELECT EXISTS(SELECT 1 FROM deployments WHERE application_id = ? AND status = 'RUNNING')",
+            "SELECT EXISTS(SELECT 1 FROM deployments WHERE application_id = ? AND status IN ('QUEUED', 'RUNNING'))",
         )
         .bind(id)
         .fetch_one(&mut *tx)
@@ -26,9 +30,15 @@ impl ApplicationService {
             != 0;
         if running_deployment {
             return Err(sqlx::Error::Protocol(
-                "application deployment already running".into(),
+                "application deployment already queued or running; cancel it first".into(),
             ));
         }
+
+        resolve::<BuilderQueue>()
+            .await
+            .map_err(|e| sqlx::Error::Protocol(e.to_string()))?
+            .ensure_capacity()
+            .await?;
 
         let app = sqlx::query_as!(
             ApplicationRecord,
@@ -47,13 +57,14 @@ impl ApplicationService {
 
         let log_path = format!("logs/applications/{}/{}.log", id, Uuid::new_v4());
         let deployment = sqlx::query(
-            r#"INSERT INTO deployments (title, description, status, state, log_path, application_id, server_id, started_at, last_state_at)
-               VALUES (?, ?, 'RUNNING', 'QUEUE', ?, ?, ?, strftime('%s', 'now'), strftime('%s', 'now'))
+            r#"INSERT INTO deployments (title, description, status, state, log_path, operation, application_id, server_id, last_state_at)
+               VALUES (?, ?, 'QUEUED', 'QUEUE', ?, ?, ?, ?, strftime('%s', 'now'))
                RETURNING id"#,
         )
         .bind(operation.title())
         .bind(Some(format!("{} requested for {}", operation.as_str(), app.name)))
         .bind(log_path)
+        .bind(operation.as_str())
         .bind(id)
         .bind(app.server_id)
         .fetch_one(&mut *tx)
@@ -61,7 +72,12 @@ impl ApplicationService {
 
         tx.commit().await?;
         let deployment_id: i64 = deployment.get("id");
-        self.spawn_operation(id, deployment_id, operation);
+
+        resolve::<BuilderQueue>()
+            .await
+            .map_err(|e| sqlx::Error::Protocol(e.to_string()))?
+            .notify();
+
         Ok(ApplicationOperationResult {
             application: app,
             deployment_id: Some(deployment_id),
@@ -70,7 +86,20 @@ impl ApplicationService {
     }
 
     pub async fn cancel_operation(&self, id: i64) -> sqlx::Result<bool> {
-        self.get_by_id(id).await?;
+        let app_user = self.get_by_id(id).await?;
+
+        let queue = resolve::<BuilderQueue>()
+            .await
+            .map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
+
+        if queue.cancel_queued_application(id).await? {
+            sqlx::query("UPDATE applications SET app_status = 'IDLE' WHERE id = ?")
+                .bind(id)
+                .execute(self.db.as_ref())
+                .await?;
+            return Ok(true);
+        }
+
         let has_running_deployment = sqlx::query_scalar::<_, i64>(
             "SELECT EXISTS(SELECT 1 FROM deployments WHERE application_id = ? AND status = 'RUNNING')",
         )
@@ -78,13 +107,35 @@ impl ApplicationService {
         .fetch_one(self.db.as_ref())
         .await?
             != 0;
+
         if !has_running_deployment {
-            return Ok(false);
+            let cmd = app_new_cmd(self.db.clone(), id)
+                .await
+                .map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
+            let docker_cli = DockerCli::from_executor(cmd);
+            let services = docker_cli
+                .services(&[&app_user.app_name.sv_name_left()])
+                .await
+                .map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
+            if services.is_empty() {
+                return Ok(false);
+            }
+            let mut flag = false;
+            for s in services.iter() {
+                if &s.replicas != "0/0" {
+                    flag = true;
+                    docker_cli
+                        .service_scale(&[&s.name.equal_op("0", false)])
+                        .await
+                        .map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
+                }
+            }
+            return Ok(flag);
         }
 
         let state = resolve::<ApplicationState>()
             .await
-            .map_err(|error| sqlx::Error::Protocol(error.to_string()))?;
+            .map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
         if !state.cancel_by_id(IdType::AppId(id)) {
             return Ok(false);
         }
@@ -98,50 +149,4 @@ impl ApplicationService {
         Ok(true)
     }
 
-    fn spawn_operation(
-        &self,
-        application_id: i64,
-        deployment_id: i64,
-        operation: ApplicationOperation,
-    ) {
-        let db = self.db.clone();
-        tokio::spawn(async move {
-            let result =
-                execute_operation(db.clone(), application_id, deployment_id, operation).await;
-            let (application_status, deployment_status, error_message) = match result {
-                Ok(()) => ("DONE", "DONE", None),
-                Err(error) if is_cancelled_error(&error) => {
-                    tracing::warn!(application_id, deployment_id, operation = operation.as_str(), error = %error, "application operation cancelled");
-                    ("ERROR", "CANCELLED", Some(error))
-                }
-                Err(error) => {
-                    tracing::error!(application_id, deployment_id, operation = operation.as_str(), error = %error, "application operation failed");
-                    ("ERROR", "ERROR", Some(error))
-                }
-            };
-            if let Err(error) = sqlx::query("UPDATE applications SET app_status = ? WHERE id = ?")
-                .bind(application_status)
-                .bind(application_id)
-                .execute(db.as_ref())
-                .await
-            {
-                tracing::error!(application_id, error = %error, "could not persist application status");
-            }
-            if let Err(error) = sqlx::query(
-                "UPDATE deployments SET status = ?, state = ?, error_message = ?, finished_at = strftime('%s', 'now'), last_state_at = strftime('%s', 'now') WHERE id = ?",
-            )
-            .bind(deployment_status)
-            .bind(deployment_status)
-            .bind(error_message)
-            .bind(deployment_id)
-            .execute(db.as_ref())
-            .await
-            {
-                tracing::error!(deployment_id, error = %error, "could not persist deployment status");
-            }
-            if let Ok(state) = resolve::<ApplicationState>().await {
-                state.remove_state(IdType::AppId(application_id));
-            }
-        });
-    }
 }

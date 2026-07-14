@@ -37,8 +37,9 @@ pub fn application_config(app: &ApplicationSpec) -> Value {
         routers.insert(names.0, router);
         let service_target = domain
             .service_name
-            .clone()
-            .unwrap_or_else(|| app.service_name());
+            .as_deref()
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| app.app_name.as_str());
         services.insert(names.1,json!({"loadBalancer":{"servers":[{"url":format!("http://{}:{}",service_target,domain.port)}],"passHostHeader":true}}));
     }
     json!({"http":{"routers":routers,"services":services,"middlewares":middlewares}})

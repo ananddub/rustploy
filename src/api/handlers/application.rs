@@ -271,6 +271,7 @@ impl ApplicationController {
 
     #[post("/{id}/cancel")]
     async fn cancel(&self, _claims: Claims, Path(id): Path<i64>) -> Result<StatusCode, ApiError> {
+
         match self.service.cancel_operation(id).await {
             Ok(true) => Ok(StatusCode::ACCEPTED),
             Ok(false) => Err((

@@ -91,6 +91,8 @@ pub enum DeployState {
     CleaningUp,
     CleanupComplete,
     Failed(String),
+
+    RecoverAfterRestart,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -146,7 +146,7 @@ impl From<ComposeRecord> for ComposeResponseDto {
             env_var: value.env_var,
             compose_file: value.compose_file,
             source_type: value.source_type,
-            compose_type: value.compose_type,
+            compose_type: value.compose_type.as_str().to_string(),
             compose_status: value.compose_status,
             trigger_type: value.trigger_type,
             repository: value.repository,

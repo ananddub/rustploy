@@ -12,6 +12,7 @@ use crate::utils::{
 use std::sync::Arc;
 use tokio::{sync::mpsc, time::Duration};
 use tokio_util::sync::CancellationToken;
+use crate::utils::builder::queue::queue::BuilderQueue;
 
 #[derive(Clone, Debug)]
 pub struct ApplicationBuilder {
@@ -79,6 +80,7 @@ impl ApplicationBuilder {
         let stack_file = format!("{app_dir}/stack.yml");
         let stack_yaml = serde_yaml::to_string(&stack_spec(spec))
             .map_err(|e| ExecError::Json(serde_json::Error::io(std::io::Error::other(e))))?;
+
         self.write_file_cancelled(&stack_file, stack_yaml.as_bytes(), cancel)
             .await?;
 
@@ -113,7 +115,7 @@ impl ApplicationBuilder {
 
         self.emit(BuilderEvent::HealthCheck).await;
         if let Err(error) = self.wait_healthy(spec, cancel).await {
-            self.rollback_application(spec, Some(&traefik_file)).await;
+            self.rollback_application(spec, None).await;
             self.emit(BuilderEvent::Failed(error.to_string())).await;
             return Err(error);
         }
@@ -195,7 +197,7 @@ impl ApplicationBuilder {
             }
         }
         if let Some((state, id)) = &self.state
-            && let Some(deploy_state) = builder_event_state(&event)
+            && let Some(deploy_state) = crate::utils::builder::queue::common::builder_event_state_opt(&event)
         {
             let _ = state.send_state(id.clone(), deploy_state);
         }
@@ -217,18 +219,3 @@ fn is_transient_docker_error(message: &str) -> bool {
     .any(|needle| message.contains(needle))
 }
 
-fn builder_event_state(event: &BuilderEvent) -> Option<DeployState> {
-    Some(match event {
-        BuilderEvent::Preparing => DeployState::Preparing,
-        BuilderEvent::SourceReady => DeployState::GitSuccess,
-        BuilderEvent::Building => DeployState::Building,
-        BuilderEvent::ImageReady => DeployState::BuildSuccess,
-        BuilderEvent::Deploying => DeployState::Deploying,
-        BuilderEvent::Routing => DeployState::Deploying,
-        BuilderEvent::HealthCheck => DeployState::HealthCheck,
-        BuilderEvent::Deployed => DeployState::Deployed,
-        BuilderEvent::Cancelled => DeployState::Cancelled,
-        BuilderEvent::Message(_) => return None,
-        BuilderEvent::Failed(error) => DeployState::Failed(error.clone()),
-    })
-}

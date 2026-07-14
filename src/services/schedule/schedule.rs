@@ -16,6 +16,8 @@ use crate::{
         exec::{CommandExecutor, LocalExecutor},
     },
 };
+use crate::services::compose::ComposeType;
+use crate::services::schedule::types::{ScheduleAction, ScheduleType, ShellType};
 
 #[derive(Debug, Clone)]
 pub struct ScheduleRunResult {
@@ -267,14 +269,15 @@ impl ScheduleService {
         if schedule.enabled == 0 {
             return Err(sqlx::Error::Protocol("schedule is disabled".into()));
         }
-
-        match schedule.schedule_type.as_str() {
-            "APPLICATION" => self.run_application_schedule(schedule).await,
-            "COMPOSE" => self.run_compose_schedule(schedule).await,
-            "SERVER" | "DOKPANEL-SERVER" => self.run_shell_schedule(schedule).await,
-            other => Err(sqlx::Error::Protocol(format!(
-                "unsupported schedule type: {other}"
-            ))),
+        let v = ScheduleType::from_str(&schedule.shell_type).unwrap();
+        match v {
+                ScheduleType::Application => self.run_application_schedule(schedule).await,
+                ScheduleType::Compose => self.run_compose_schedule(schedule).await,
+                ScheduleType::Server | ScheduleType::DokpanelServer => self.run_shell_schedule(schedule).await,
+                // other => Err(sqlx::Error::Protocol(format!(
+                //     "unsupported schedule type: {other}"
+                // ))),
+            // None => Err(sqlx::Error::Protocol("invalid schedule type".into())),
         }
     }
 
@@ -285,7 +288,7 @@ impl ScheduleService {
         let application_id = schedule.application_id.ok_or_else(|| {
             sqlx::Error::Protocol("application schedule requires application_id".into())
         })?;
-        if schedule.schedule_action == "EXEC" {
+        if schedule.schedule_action == ScheduleAction::Exec.as_str() {
             return self
                 .run_application_container_command(schedule, application_id)
                 .await;
@@ -310,7 +313,7 @@ impl ScheduleService {
         let compose_id = schedule
             .compose_id
             .ok_or_else(|| sqlx::Error::Protocol("compose schedule requires compose_id".into()))?;
-        if schedule.schedule_action == "EXEC" {
+        if schedule.schedule_action == ScheduleAction::Exec.as_str() {
             return self
                 .run_compose_container_command(schedule, compose_id)
                 .await;
@@ -348,10 +351,8 @@ impl ScheduleService {
         } else {
             CommandExecutor::Local(LocalExecutor::new())
         };
-        let shell = match schedule.shell_type.as_str() {
-            "SH" => "sh",
-            _ => "bash",
-        };
+        let v = ShellType::from_str(&schedule.shell_type).unwrap();
+        let shell = v.executable();
         let output = executor
             .run(shell, ["-lc", command])
             .await
@@ -377,8 +378,9 @@ impl ScheduleService {
         .bind(application_id)
         .fetch_one(self.db.as_ref())
         .await?;
+        // Applications are always deployed as Swarm services.
         let service_name = format!("{app_name}_{app_name}");
-        self.run_container_command(schedule, server_id, service_name)
+        self.run_swarm_container_command(schedule, server_id, &service_name)
             .await
     }
 
@@ -387,29 +389,43 @@ impl ScheduleService {
         schedule: Schedule,
         compose_id: i64,
     ) -> sqlx::Result<ScheduleRunResult> {
-        let (app_name, server_id) = sqlx::query_as::<_, (String, Option<i64>)>(
-            "SELECT app_name, server_id FROM compose_projects WHERE id = ?",
+        let (app_name, server_id, compose_type) = sqlx::query_as::<_, (String, Option<i64>, String)>(
+            "SELECT app_name, server_id, compose_type FROM compose_projects WHERE id = ?",
         )
         .bind(compose_id)
         .fetch_one(self.db.as_ref())
         .await?;
-        let compose_service = schedule.service_name.as_deref().ok_or_else(|| {
+
+        let compose_service = schedule.service_name.clone().ok_or_else(|| {
             sqlx::Error::Protocol("compose EXEC schedule requires service_name".into())
         })?;
-        let service_name = if compose_service.starts_with(&format!("{app_name}_")) {
-            compose_service.to_owned()
-        } else {
-            format!("{app_name}_{compose_service}")
-        };
-        self.run_container_command(schedule, server_id, service_name)
-            .await
+        let v = ComposeType::from_str(&compose_type).unwrap();
+        match v {
+            ComposeType::Stack => {
+                let service_name = if compose_service.starts_with(&format!("{app_name}_")) {
+                    compose_service
+                } else {
+                    format!("{app_name}_{compose_service}")
+                };
+                self.run_swarm_container_command(schedule, server_id, &service_name)
+                    .await
+            }
+            ComposeType::DockerCompose => {
+
+                self.run_compose_project_container_command(
+                    schedule, server_id, &app_name, &compose_service,
+                )
+                .await
+            }
+        }
     }
 
-    async fn run_container_command(
+    /// Execute command in a Swarm service container (Application or Stack).
+    async fn run_swarm_container_command(
         &self,
         schedule: Schedule,
         server_id: Option<i64>,
-        service_name: String,
+        service_name: &str,
     ) -> sqlx::Result<ScheduleRunResult> {
         let command = schedule_command(&schedule)?;
         let docker = self.docker_for_server(server_id).await?;
@@ -417,29 +433,66 @@ impl ScheduleService {
         let container = docker
             .containers(false, &[filter.as_str()])
             .await
-            .map_err(|error| sqlx::Error::Protocol(error.to_string()))?
+            .map_err(|e| sqlx::Error::Protocol(e.to_string()))?
             .into_iter()
-            .find(|container| !container.id.trim().is_empty())
+            .find(|c| !c.id.trim().is_empty())
             .ok_or_else(|| {
                 sqlx::Error::Protocol(format!(
-                    "running container not found for service {service_name}"
+                    "running container not found for swarm service {service_name}"
                 ))
             })?;
-        let shell = match schedule.shell_type.as_str() {
-            "SH" => "sh",
-            _ => "bash",
-        };
+        let v = ShellType::from_str(&schedule.shell_type).unwrap();
+        let shell = v.executable();
         let output = docker
             .container_exec(&container.id, &[shell, "-lc", command])
             .await
-            .map_err(|error| sqlx::Error::Protocol(error.to_string()))?;
+            .map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
         Ok(ScheduleRunResult {
-            schedule,
             action: "exec".into(),
             deployment_id: None,
-            message: format!("container command executed on {service_name}"),
+            message: format!("container command executed on swarm service {service_name}"),
             stdout: Some(output.stdout),
             stderr: Some(output.stderr),
+            schedule,
+        })
+    }
+
+    /// Execute command in a docker compose container.
+    async fn run_compose_project_container_command(
+        &self,
+        schedule: Schedule,
+        server_id: Option<i64>,
+        project_name: &str,
+        service_name: &str,
+    ) -> sqlx::Result<ScheduleRunResult> {
+        let command = schedule_command(&schedule)?;
+        let docker = self.docker_for_server(server_id).await?;
+        let project_filter = format!("label=com.docker.compose.project={project_name}");
+        let service_filter = format!("label=com.docker.compose.service={service_name}");
+        let container = docker
+            .containers(false, &[project_filter.as_str(), service_filter.as_str()])
+            .await
+            .map_err(|e| sqlx::Error::Protocol(e.to_string()))?
+            .into_iter()
+            .find(|c| !c.id.trim().is_empty())
+            .ok_or_else(|| {
+                sqlx::Error::Protocol(format!(
+                    "running container not found for compose project={project_name} service={service_name}"
+                ))
+            })?;
+        let v = ShellType::from_str(&schedule.shell_type).unwrap();
+        let shell = v.executable();
+        let output = docker
+            .container_exec(&container.id, &[shell, "-lc", command])
+            .await
+            .map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
+        Ok(ScheduleRunResult {
+            action: "exec".into(),
+            deployment_id: None,
+            message: format!("container command executed on compose {project_name}/{service_name}"),
+            stdout: Some(output.stdout),
+            stderr: Some(output.stderr),
+            schedule,
         })
     }
 
@@ -471,21 +524,21 @@ async fn select_schedule_by_id(db: &SqlitePool, id: i64) -> sqlx::Result<Schedul
 
 fn normalize_shell_type(value: Option<&str>) -> sqlx::Result<String> {
     let value = value.unwrap_or("BASH").trim().to_ascii_uppercase();
-    match value.as_str() {
-        "BASH" | "SH" => Ok(value),
-        _ => Err(sqlx::Error::Protocol(
-            "shell_type must be BASH or SH".into(),
-        )),
+    let v = ShellType::from_str(&value).unwrap();
+    match v {
+        ShellType::Bash => Ok(value),
+        ShellType::Sh => Ok(value),
     }
 }
 
 fn normalize_schedule_type(value: Option<&str>) -> sqlx::Result<String> {
     let value = value.unwrap_or("APPLICATION").trim().to_ascii_uppercase();
-    match value.as_str() {
-        "APPLICATION" | "COMPOSE" | "SERVER" | "DOKPANEL-SERVER" => Ok(value),
-        _ => Err(sqlx::Error::Protocol(
-            "schedule_type must be APPLICATION, COMPOSE, SERVER or DOKPANEL-SERVER".into(),
-        )),
+    let v = ScheduleType::from_str(&value).unwrap();
+    match v {
+        ScheduleType::Application => Ok(value),
+        ScheduleType::Compose => Ok(value),
+        ScheduleType::Server => Ok(value),
+        ScheduleType::DokpanelServer => Ok(value),
     }
 }
 
@@ -498,22 +551,30 @@ fn normalize_schedule_action(
         .map(|value| value.trim().to_ascii_uppercase())
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| infer_schedule_action(schedule_type, command));
-    match value.as_str() {
-        "EXEC" | "DEPLOY" | "REDEPLOY" | "REBUILD" | "RELOAD" | "START" | "STOP" => Ok(value),
-        _ => Err(sqlx::Error::Protocol(
-            "schedule_action must be EXEC, DEPLOY, REDEPLOY, REBUILD, RELOAD, START or STOP".into(),
-        )),
+    let v = ScheduleAction::from_str(&value).unwrap();
+    match v {
+        ScheduleAction::Exec => Ok(value),
+        ScheduleAction::Deploy => Ok(value),
+        ScheduleAction::Redeploy => Ok(value),
+        ScheduleAction::Rebuild => Ok(value),
+        ScheduleAction::Reload => Ok(value),
+        ScheduleAction::Start => Ok(value),
+        ScheduleAction::Stop => Ok(value),
+        // _ => Err(sqlx::Error::Protocol(
+        //     "schedule_action must be EXEC, DEPLOY, REDEPLOY, REBUILD, RELOAD, START or STOP".into(),
+        // )),
     }
 }
 
 fn infer_schedule_action(schedule_type: &str, command: &str) -> String {
     let command = command.trim().to_ascii_lowercase();
-    let is_operation = match schedule_type {
-        "APPLICATION" => matches!(
+    let schedule = ScheduleType::from_str(schedule_type).unwrap();
+    let is_operation = match schedule {
+        ScheduleType::Application => matches!(
             command.as_str(),
             "deploy" | "redeploy" | "rebuild" | "reload" | "start"
         ),
-        "COMPOSE" => matches!(
+        ScheduleType::Compose => matches!(
             command.as_str(),
             "deploy" | "redeploy" | "reload" | "start" | "stop"
         ),
@@ -541,27 +602,28 @@ fn validate_target(
     server_id: Option<i64>,
     service_name: Option<&str>,
 ) -> sqlx::Result<()> {
-    match schedule_type {
-        "APPLICATION" if application_id.is_none() => Err(sqlx::Error::Protocol(
+    let v = ScheduleType::from_str(schedule_type).unwrap();
+    match v {
+        ScheduleType::Application if application_id.is_none() => Err(sqlx::Error::Protocol(
             "APPLICATION schedule requires application_id".into(),
         )),
-        "COMPOSE" if compose_id.is_none() => Err(sqlx::Error::Protocol(
+        ScheduleType::Compose if compose_id.is_none() => Err(sqlx::Error::Protocol(
             "COMPOSE schedule requires compose_id".into(),
         )),
-        "COMPOSE"
+        ScheduleType::Compose
             if schedule_action == "EXEC" && service_name.is_none_or(|v| v.trim().is_empty()) =>
         {
             Err(sqlx::Error::Protocol(
                 "COMPOSE EXEC schedule requires service_name".into(),
             ))
         }
-        "SERVER" if server_id.is_none() => Err(sqlx::Error::Protocol(
+        ScheduleType::Server if server_id.is_none() => Err(sqlx::Error::Protocol(
             "SERVER schedule requires server_id".into(),
         )),
-        "SERVER" if schedule_action != "EXEC" => Err(sqlx::Error::Protocol(
+        ScheduleType::Server if schedule_action != "EXEC" => Err(sqlx::Error::Protocol(
             "SERVER schedule only supports EXEC action".into(),
         )),
-        "DOKPANEL-SERVER" if schedule_action != "EXEC" => Err(sqlx::Error::Protocol(
+        ScheduleType::DokpanelServer if schedule_action != "EXEC" => Err(sqlx::Error::Protocol(
             "DOKPANEL-SERVER schedule only supports EXEC action".into(),
         )),
         _ => Ok(()),
@@ -569,12 +631,13 @@ fn validate_target(
 }
 
 fn parse_application_operation(value: &str) -> sqlx::Result<ApplicationOperation> {
-    match value.trim().to_ascii_uppercase().as_str() {
-        "DEPLOY" => Ok(ApplicationOperation::Deploy),
-        "REDEPLOY" => Ok(ApplicationOperation::Redeploy),
-        "REBUILD" => Ok(ApplicationOperation::Rebuild),
-        "RELOAD" => Ok(ApplicationOperation::Reload),
-        "START" => Ok(ApplicationOperation::Start),
+    let v = ScheduleAction::from_str(value.trim().to_ascii_uppercase().as_str()).unwrap();
+    match  v{
+        ScheduleAction::Deploy => Ok(ApplicationOperation::Deploy),
+        ScheduleAction::Redeploy => Ok(ApplicationOperation::Redeploy),
+        ScheduleAction::Rebuild => Ok(ApplicationOperation::Rebuild),
+        ScheduleAction::Reload => Ok(ApplicationOperation::Reload),
+        ScheduleAction::Start => Ok(ApplicationOperation::Start),
         _ => Err(sqlx::Error::Protocol(
             "application schedule command must be deploy, redeploy, rebuild, reload or start"
                 .into(),
@@ -583,12 +646,13 @@ fn parse_application_operation(value: &str) -> sqlx::Result<ApplicationOperation
 }
 
 fn parse_compose_operation(value: &str) -> sqlx::Result<ComposeOperation> {
-    match value.trim().to_ascii_uppercase().as_str() {
-        "DEPLOY" => Ok(ComposeOperation::Deploy),
-        "REDEPLOY" => Ok(ComposeOperation::Redeploy),
-        "RELOAD" => Ok(ComposeOperation::Reload),
-        "START" => Ok(ComposeOperation::Start),
-        "STOP" => Ok(ComposeOperation::Stop),
+    let v = ScheduleAction::from_str(value.trim().to_ascii_uppercase().as_str()).unwrap();
+    match v {
+        ScheduleAction::Deploy => Ok(ComposeOperation::Deploy),
+        ScheduleAction::Redeploy => Ok(ComposeOperation::Redeploy),
+        ScheduleAction::Reload => Ok(ComposeOperation::Reload),
+        ScheduleAction::Start => Ok(ComposeOperation::Start),
+        ScheduleAction::Stop => Ok(ComposeOperation::Stop),
         _ => Err(sqlx::Error::Protocol(
             "compose schedule command must be deploy, redeploy, reload, start or stop".into(),
         )),

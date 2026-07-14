@@ -1,3 +1,25 @@
+use crate::string_enum;
+
+string_enum!{
+       #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        pub enum ComposeType {
+                default = Stack;
+                DockerCompose => "DOCKER-COMPOSE",
+                Stack => "STACK"
+        }
+}
+
+
+
+// impl From<String> for ComposeType {
+//     fn from(value: String) -> Self {
+//         Self::from_str(&value).unwrap_or_else(|| {
+//             tracing::warn!(compose_type = %value, "unknown compose_type, defaulting to DockerCompose");
+//             Self::DockerCompose
+//         })
+//     }
+// }
+
 #[derive(Debug, Clone)]
 pub struct ComposeRecord {
     pub id: i64,
@@ -7,7 +29,7 @@ pub struct ComposeRecord {
     pub env_var: Option<String>,
     pub compose_file: String,
     pub source_type: String,
-    pub compose_type: String,
+    pub compose_type: ComposeType,
     pub compose_status: String,
     pub trigger_type: String,
     pub repository: Option<String>,

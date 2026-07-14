@@ -14,7 +14,7 @@ pub(super) fn deployment_pid_file(deployment_id: i64) -> String {
     format!("/tmp/rustploy-deployment-{deployment_id}.pid")
 }
 
-pub(super) async fn remote_executor(
+pub(crate) async fn remote_executor(
     db: &SqlitePool,
     server_id: i64,
 ) -> Result<RemoteExecutor, String> {

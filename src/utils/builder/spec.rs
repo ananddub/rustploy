@@ -128,6 +128,7 @@ pub struct DeploymentResult {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum BuilderEvent {
+    RecoverAfterRestart,
     Preparing,
     SourceReady,
     Building,

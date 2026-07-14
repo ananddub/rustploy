@@ -67,6 +67,7 @@ pub struct SetupConfig {
     pub http_port: u16,
     pub https_port: u16,
     pub http3_port: u16,
+    pub dashboard_port: u16,
     pub acme_email: String,
     pub advertise_addr: Option<String>,
 }
@@ -81,6 +82,7 @@ impl Default for SetupConfig {
             http_port: 80,
             https_port: 443,
             http3_port: 443,
+            dashboard_port: 8080,
             acme_email: "admin@localhost".into(),
             advertise_addr: None,
         }

@@ -108,6 +108,16 @@ impl DeploymentService {
             .fetch_one(self.db.as_ref())
             .await?;
 
+        if status == "QUEUED" {
+            sqlx::query(
+                "UPDATE deployments SET status = 'CANCELLED', state = 'CANCELLED', finished_at = strftime('%s', 'now'), last_state_at = strftime('%s', 'now') WHERE id = ? AND status = 'QUEUED'",
+            )
+            .bind(deployment_id)
+            .execute(self.db.as_ref())
+            .await?;
+            return Ok(CancelDeploymentResult::CancelRequested);
+        }
+
         if status != "RUNNING" {
             return Ok(CancelDeploymentResult::NotRunning);
         }

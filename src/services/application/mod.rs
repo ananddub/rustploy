@@ -12,17 +12,16 @@ pub struct ApplicationService {
 #[singleton]
 impl ApplicationService {
     fn new(db: Arc<SqlitePool>) -> Self {
-        recovery::spawn_recover_stale_deployments(db.clone());
         Self { db }
     }
 }
 
+pub mod auto_excuter;
 pub mod config;
 pub mod crud;
 pub mod operations;
 pub mod queries;
 pub mod recovery;
 pub mod remote;
-pub mod runtime;
 pub mod source;
 pub mod types;

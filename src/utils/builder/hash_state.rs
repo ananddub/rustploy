@@ -27,7 +27,7 @@ impl ApplicationState {
             project_id,
             env_id,
             state: watch::channel(DeployState::Queue).0,
-            broadcast: broadcast::channel(100).0,
+            broadcast: broadcast::channel(5).0,
             cancellation_token: CancellationToken::new(),
         };
         self.hashmap.insert(app_id, app_deploy);
@@ -41,7 +41,7 @@ impl ApplicationState {
                 project_id,
                 env_id,
                 state: watch::channel(DeployState::Queue).0,
-                broadcast: broadcast::channel(100).0,
+                broadcast: broadcast::channel(5).0,
                 cancellation_token: CancellationToken::new(),
             });
     }
@@ -52,7 +52,7 @@ impl ApplicationState {
             project_id,
             env_id,
             state: watch::channel(DeployState::Queue).0,
-            broadcast: broadcast::channel(100).0,
+            broadcast: broadcast::channel(5).0,
             cancellation_token: CancellationToken::new(),
         };
         self.hashmap.insert(app_id, app_deploy);

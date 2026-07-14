@@ -10,7 +10,7 @@ use crate::utils::{
     session::RemoteExecutorRegistry,
 };
 
-pub(super) fn deployment_pid_file(deployment_id: i64) -> String {
+pub(crate) fn deployment_pid_file(deployment_id: i64) -> String {
     format!("/tmp/rustploy-deployment-{deployment_id}.pid")
 }
 

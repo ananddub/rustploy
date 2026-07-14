@@ -1,9 +1,9 @@
 env "local" {
-  src = "file://sqldb/schema/001_schema.sql"
-  url = "sqlite://sqldb/db.sqlite3"
-  dev = "sqlite://dev?mode=memory"
+  src = "file://schema"
+  url = "sqlite:///../data/db.sqlite3"
+  dev = "sqlite://file?mode=memory"
 
   migration {
-    dir    = "file://sqldb/migrate"
+    dir = "file://migrations"
   }
 }

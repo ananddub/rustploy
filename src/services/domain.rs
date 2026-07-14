@@ -79,6 +79,13 @@ impl DomainService {
         let https = bool_to_i64(input.https);
         let strip_path = bool_to_i64(input.strip_path);
         let port = input.port.or(Some(3000));
+        let certificate_type = input.certificate_type.to_uppercase();
+        // Auto-detect domain_type from which FK is set — don't trust frontend value.
+        let domain_type = match (input.application_id, input.compose_id) {
+            (Some(_), None) => "APPLICATION",
+            (None, Some(_)) => "COMPOSE",
+            _ => "APPLICATION",
+        };
 
         sqlx::query_as!(
             DomainRecord,
@@ -101,8 +108,8 @@ impl DomainService {
             input.custom_cert_resolver,
             strip_path,
             input.middlewares,
-            input.domain_type,
-            input.certificate_type,
+            domain_type,
+            certificate_type,
             input.application_id,
             input.compose_id
         )
@@ -125,7 +132,9 @@ impl DomainService {
             .map(bool_to_i64)
             .unwrap_or(current.strip_path);
         let middlewares = input.middlewares.unwrap_or(current.middlewares);
-        let certificate_type = input.certificate_type.unwrap_or(current.certificate_type);
+        let certificate_type = input.certificate_type
+            .map(|v| v.to_uppercase())
+            .unwrap_or(current.certificate_type);
 
         sqlx::query_as!(
             DomainRecord,

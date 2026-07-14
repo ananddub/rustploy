@@ -185,6 +185,7 @@ impl DockerCli {
     ) -> DockerResult<DockerOutput> {
         let mut command = prefix.to_vec();
         command.extend_from_slice(args);
+        tracing::debug!(command = ?command, "running docker command");
         self.run(command).await
     }
     pub(crate) async fn prefixed_cancelled(

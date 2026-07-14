@@ -29,6 +29,10 @@ impl DockerCli {
     pub async fn services(&self, filters: &[&str]) -> DockerResult<Vec<ServiceSummary>> {
         self.list("service", filters).await
     }
+
+
+
+
     pub async fn service_create(&self, args: &[&str]) -> DockerResult<DockerOutput> {
         self.prefixed(&["service", "create"], args).await
     }
@@ -36,6 +40,7 @@ impl DockerCli {
         self.prefixed(&["service", "update"], args).await
     }
     pub async fn service_scale(&self, args: &[&str]) -> DockerResult<DockerOutput> {
+
         self.prefixed(&["service", "scale"], args).await
     }
     pub async fn service_remove(&self, args: &[&str]) -> DockerResult<DockerOutput> {

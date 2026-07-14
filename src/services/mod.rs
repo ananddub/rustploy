@@ -11,4 +11,5 @@ pub mod public;
 pub mod remote_server;
 pub mod schedule;
 pub mod ssh_key;
+pub mod swarm;
 pub mod user;
