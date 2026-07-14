@@ -173,14 +173,14 @@ async fn scale_down_compose(
         ComposeType::DockerCompose => {
             // docker compose --project-name <name> down
             docker
-                .compose(&["--project-name", app_name, "down"])
+                .compose_raw(&["--project-name", app_name, "down"])
                 .await
                 .map(|_| ())
                 .map_err(|e| format!("compose down failed: {e}"))
         }
         ComposeType::Stack => {
             let services = docker
-                .services(&[&app_name.sv_name_left()])
+                .services_raw(&[&app_name.sv_name_left()])
                 .await
                 .map_err(|e| format!("could not list stack services: {e}"))?;
 

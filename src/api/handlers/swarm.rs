@@ -73,11 +73,11 @@ impl SwarmController {
         let docker = self.docker(body.server_id).await?;
 
         let worker = docker
-            .swarm_join_token(&["--quiet", "worker"])
+            .swarm_join_token_raw(&["--quiet", "worker"])
             .await
             .map_err(map_exec)?;
         let manager = docker
-            .swarm_join_token(&["--quiet", "manager"])
+            .swarm_join_token_raw(&["--quiet", "manager"])
             .await
             .map_err(map_exec)?;
 
@@ -95,7 +95,7 @@ impl SwarmController {
         Json(body): Json<SwarmConnectionDto>,
     ) -> Result<Json<Vec<NodeDto>>, ApiError> {
         let docker = self.docker(body.server_id).await?;
-        let nodes = docker.nodes(&[]).await.map_err(map_exec)?;
+        let nodes = docker.nodes_raw(&[]).await.map_err(map_exec)?;
         Ok(Json(nodes.into_iter().map(NodeDto::from).collect()))
     }
 
@@ -107,7 +107,7 @@ impl SwarmController {
     ) -> Result<StatusCode, ApiError> {
         let docker = self.docker(body.server_id).await?;
         docker
-            .node_promote(&[body.node_id.as_str()])
+            .node_promote_raw(&[body.node_id.as_str()])
             .await
             .map_err(map_exec)?;
         Ok(StatusCode::NO_CONTENT)
@@ -121,7 +121,7 @@ impl SwarmController {
     ) -> Result<StatusCode, ApiError> {
         let docker = self.docker(body.server_id).await?;
         docker
-            .node_demote(&[body.node_id.as_str()])
+            .node_demote_raw(&[body.node_id.as_str()])
             .await
             .map_err(map_exec)?;
         Ok(StatusCode::NO_CONTENT)
@@ -135,7 +135,7 @@ impl SwarmController {
     ) -> Result<StatusCode, ApiError> {
         let docker = self.docker(body.server_id).await?;
         docker
-            .node_update(&[
+            .node_update_raw(&[
                 "--availability",
                 body.availability.to_ascii_lowercase().as_str(),
                 body.node_id.as_str(),
@@ -153,7 +153,7 @@ impl SwarmController {
     ) -> Result<StatusCode, ApiError> {
         let docker = self.docker(body.server_id).await?;
         docker
-            .node_remove(&["--force", body.node_id.as_str()])
+            .node_remove_raw(&["--force", body.node_id.as_str()])
             .await
             .map_err(map_exec)?;
         Ok(StatusCode::NO_CONTENT)
@@ -167,7 +167,7 @@ impl SwarmController {
         Json(body): Json<SwarmConnectionDto>,
     ) -> Result<StatusCode, ApiError> {
         let docker = self.docker(body.server_id).await?;
-        docker.swarm_leave(true).await.map_err(map_exec)?;
+        docker.swarm_leave_raw(true).await.map_err(map_exec)?;
         Ok(StatusCode::NO_CONTENT)
     }
 

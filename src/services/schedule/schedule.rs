@@ -269,15 +269,16 @@ impl ScheduleService {
         if schedule.enabled == 0 {
             return Err(sqlx::Error::Protocol("schedule is disabled".into()));
         }
-        let v = ScheduleType::from_str(&schedule.shell_type).unwrap();
+        let v = ScheduleType::try_from(schedule.shell_type.as_str()).map_err(|_| {
+            sqlx::Error::Protocol(format!(
+                "invalid schedule type: {}",
+                schedule.shell_type
+            ))
+        })?;
         match v {
                 ScheduleType::Application => self.run_application_schedule(schedule).await,
                 ScheduleType::Compose => self.run_compose_schedule(schedule).await,
                 ScheduleType::Server | ScheduleType::DokpanelServer => self.run_shell_schedule(schedule).await,
-                // other => Err(sqlx::Error::Protocol(format!(
-                //     "unsupported schedule type: {other}"
-                // ))),
-            // None => Err(sqlx::Error::Protocol("invalid schedule type".into())),
         }
     }
 
@@ -351,7 +352,12 @@ impl ScheduleService {
         } else {
             CommandExecutor::Local(LocalExecutor::new())
         };
-        let v = ShellType::from_str(&schedule.shell_type).unwrap();
+        let v = ShellType::try_from(schedule.shell_type.as_str()).map_err(|_| {
+            sqlx::Error::Protocol(format!(
+                "invalid shell type: {}",
+                schedule.shell_type
+            ))
+        })?;
         let shell = v.executable();
         let output = executor
             .run(shell, ["-lc", command])
@@ -399,7 +405,12 @@ impl ScheduleService {
         let compose_service = schedule.service_name.clone().ok_or_else(|| {
             sqlx::Error::Protocol("compose EXEC schedule requires service_name".into())
         })?;
-        let v = ComposeType::from_str(&compose_type).unwrap();
+        let v = ComposeType::try_from(compose_type.as_str()).map_err(|_| {
+            sqlx::Error::Protocol(format!(
+                "invalid compose type: {}",
+                compose_type
+            ))
+        })?;
         match v {
             ComposeType::Stack => {
                 let service_name = if compose_service.starts_with(&format!("{app_name}_")) {
@@ -431,7 +442,7 @@ impl ScheduleService {
         let docker = self.docker_for_server(server_id).await?;
         let filter = format!("label=com.docker.swarm.service.name={service_name}");
         let container = docker
-            .containers(false, &[filter.as_str()])
+            .containers_raw(false, &[filter.as_str()])
             .await
             .map_err(|e| sqlx::Error::Protocol(e.to_string()))?
             .into_iter()
@@ -441,7 +452,12 @@ impl ScheduleService {
                     "running container not found for swarm service {service_name}"
                 ))
             })?;
-        let v = ShellType::from_str(&schedule.shell_type).unwrap();
+        let v = ShellType::try_from(schedule.shell_type.as_str()).map_err(|_| {
+            sqlx::Error::Protocol(format!(
+                "invalid shell type: {}",
+                schedule.shell_type
+            ))
+        })?;
         let shell = v.executable();
         let output = docker
             .container_exec(&container.id, &[shell, "-lc", command])
@@ -470,7 +486,7 @@ impl ScheduleService {
         let project_filter = format!("label=com.docker.compose.project={project_name}");
         let service_filter = format!("label=com.docker.compose.service={service_name}");
         let container = docker
-            .containers(false, &[project_filter.as_str(), service_filter.as_str()])
+            .containers_raw(false, &[project_filter.as_str(), service_filter.as_str()])
             .await
             .map_err(|e| sqlx::Error::Protocol(e.to_string()))?
             .into_iter()
@@ -480,7 +496,12 @@ impl ScheduleService {
                     "running container not found for compose project={project_name} service={service_name}"
                 ))
             })?;
-        let v = ShellType::from_str(&schedule.shell_type).unwrap();
+        let v = ShellType::try_from(schedule.shell_type.as_str()).map_err(|_| {
+            sqlx::Error::Protocol(format!(
+                "invalid shell type: {}",
+                schedule.shell_type
+            ))
+        })?;
         let shell = v.executable();
         let output = docker
             .container_exec(&container.id, &[shell, "-lc", command])
@@ -524,7 +545,9 @@ async fn select_schedule_by_id(db: &SqlitePool, id: i64) -> sqlx::Result<Schedul
 
 fn normalize_shell_type(value: Option<&str>) -> sqlx::Result<String> {
     let value = value.unwrap_or("BASH").trim().to_ascii_uppercase();
-    let v = ShellType::from_str(&value).unwrap();
+    let v = ShellType::try_from(value.as_str()).map_err(|_| {
+        sqlx::Error::Protocol(format!("invalid shell type: {}", value))
+    })?;
     match v {
         ShellType::Bash => Ok(value),
         ShellType::Sh => Ok(value),
@@ -533,7 +556,9 @@ fn normalize_shell_type(value: Option<&str>) -> sqlx::Result<String> {
 
 fn normalize_schedule_type(value: Option<&str>) -> sqlx::Result<String> {
     let value = value.unwrap_or("APPLICATION").trim().to_ascii_uppercase();
-    let v = ScheduleType::from_str(&value).unwrap();
+    let v = ScheduleType::try_from(value.as_str()).map_err(|_| {
+        sqlx::Error::Protocol(format!("invalid schedule type: {}", value))
+    })?;
     match v {
         ScheduleType::Application => Ok(value),
         ScheduleType::Compose => Ok(value),
@@ -551,7 +576,9 @@ fn normalize_schedule_action(
         .map(|value| value.trim().to_ascii_uppercase())
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| infer_schedule_action(schedule_type, command));
-    let v = ScheduleAction::from_str(&value).unwrap();
+    let v = ScheduleAction::try_from(value.as_str()).map_err(|_| {
+        sqlx::Error::Protocol(format!("invalid schedule action: {}", value))
+    })?;
     match v {
         ScheduleAction::Exec => Ok(value),
         ScheduleAction::Deploy => Ok(value),
@@ -560,15 +587,14 @@ fn normalize_schedule_action(
         ScheduleAction::Reload => Ok(value),
         ScheduleAction::Start => Ok(value),
         ScheduleAction::Stop => Ok(value),
-        // _ => Err(sqlx::Error::Protocol(
-        //     "schedule_action must be EXEC, DEPLOY, REDEPLOY, REBUILD, RELOAD, START or STOP".into(),
-        // )),
     }
 }
 
 fn infer_schedule_action(schedule_type: &str, command: &str) -> String {
     let command = command.trim().to_ascii_lowercase();
-    let schedule = ScheduleType::from_str(schedule_type).unwrap();
+    let schedule = ScheduleType::try_from(schedule_type).map_err(|_| {
+        sqlx::Error::Protocol(format!("invalid schedule type: {}", schedule_type))
+    }).unwrap();
     let is_operation = match schedule {
         ScheduleType::Application => matches!(
             command.as_str(),
@@ -602,7 +628,9 @@ fn validate_target(
     server_id: Option<i64>,
     service_name: Option<&str>,
 ) -> sqlx::Result<()> {
-    let v = ScheduleType::from_str(schedule_type).unwrap();
+    let v = ScheduleType::try_from(schedule_type).map_err(|_| {
+        sqlx::Error::Protocol(format!("invalid schedule type: {}", schedule_type))
+    }).unwrap();
     match v {
         ScheduleType::Application if application_id.is_none() => Err(sqlx::Error::Protocol(
             "APPLICATION schedule requires application_id".into(),
@@ -631,7 +659,9 @@ fn validate_target(
 }
 
 fn parse_application_operation(value: &str) -> sqlx::Result<ApplicationOperation> {
-    let v = ScheduleAction::from_str(value.trim().to_ascii_uppercase().as_str()).unwrap();
+    let v = ScheduleAction::try_from(value.trim().to_ascii_uppercase().as_str()).map_err(|_| {
+        sqlx::Error::Protocol(format!("invalid schedule action: {}", value))
+    }).unwrap();
     match  v{
         ScheduleAction::Deploy => Ok(ApplicationOperation::Deploy),
         ScheduleAction::Redeploy => Ok(ApplicationOperation::Redeploy),
@@ -646,7 +676,9 @@ fn parse_application_operation(value: &str) -> sqlx::Result<ApplicationOperation
 }
 
 fn parse_compose_operation(value: &str) -> sqlx::Result<ComposeOperation> {
-    let v = ScheduleAction::from_str(value.trim().to_ascii_uppercase().as_str()).unwrap();
+    let v = ScheduleAction::try_from(value.trim().to_ascii_uppercase().as_str()).map_err(|_| {
+        sqlx::Error::Protocol(format!("invalid schedule action: {}", value))
+    }).unwrap();
     match v {
         ScheduleAction::Deploy => Ok(ComposeOperation::Deploy),
         ScheduleAction::Redeploy => Ok(ComposeOperation::Redeploy),

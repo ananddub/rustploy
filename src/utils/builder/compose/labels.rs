@@ -243,6 +243,66 @@ fn mapping_mut<'a>(value: &'a mut Value, message: &str) -> ExecResult<&'a mut Ma
     }
 }
 
+/// Build traefik labels grouped by Swarm service name.
+/// Used for zero-redeploy label updates via `docker service update`.
+/// Returns HashMap<service_name, Vec<label>>
+pub fn build_compose_service_labels(
+    app_name: &str,
+    domains: &[crate::services::domain::DomainRecord],
+) -> std::collections::HashMap<String, Vec<String>> {
+    use std::collections::HashMap;
+    let mut result: HashMap<String, Vec<String>> = HashMap::new();
+
+    for domain in domains {
+        let service_name = match &domain.service_name {
+            Some(s) if !s.is_empty() => {
+                if s.starts_with(&format!("{app_name}_")) {
+                    s.clone()
+                } else {
+                    format!("{app_name}_{s}")
+                }
+            }
+            _ => continue, // skip domains without service_name for compose stack
+        };
+
+        let entry = result.entry(service_name.clone()).or_default();
+
+        if entry.is_empty() {
+            entry.push("traefik.enable=true".into());
+            entry.push(format!("traefik.docker.network={TRAEFIK_NETWORK}"));
+        }
+
+        let key = domain.id.to_string();
+        let entrypoint = domain.custom_entrypoint.clone()
+            .unwrap_or_else(|| if domain.https != 0 { "websecure".into() } else { "web".into() });
+        let router = format!("{app_name}-{key}-{entrypoint}");
+        let path = domain.path.as_deref().unwrap_or("/");
+        let host = &domain.host;
+        let rule = if path != "/" {
+            format!("Host(`{host}`) && PathPrefix(`{path}`)")
+        } else {
+            format!("Host(`{host}`)")
+        };
+        let port = domain.port.unwrap_or(3000);
+
+        entry.push(format!("traefik.http.routers.{router}.rule={rule}"));
+        entry.push(format!("traefik.http.routers.{router}.entrypoints={entrypoint}"));
+        entry.push(format!("traefik.http.services.{router}.loadbalancer.server.port={port}"));
+        entry.push(format!("traefik.http.routers.{router}.service={router}"));
+
+        if domain.https != 0 {
+            let cert = &domain.certificate_type;
+            if cert.eq_ignore_ascii_case("LETSENCRYPT") {
+                entry.push(format!("traefik.http.routers.{router}.tls.certresolver=letsencrypt"));
+            } else {
+                entry.push(format!("traefik.http.routers.{router}.tls=true"));
+            }
+        }
+    }
+
+    result
+}
+
 fn rule(domain: &DomainSpec) -> String {
     let host = format!("Host(`{}`)", domain.host);
     if domain.path != "/" {

@@ -114,7 +114,7 @@ impl ApplicationService {
                 .map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
             let docker_cli = DockerCli::from_executor(cmd);
             let services = docker_cli
-                .services(&[&app_user.app_name.sv_name_left()])
+                .services_raw(&[&app_user.app_name.sv_name_left()])
                 .await
                 .map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
             if services.is_empty() {

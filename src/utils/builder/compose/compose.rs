@@ -96,13 +96,11 @@ impl ComposeBuilder {
     pub async fn stop(&self, spec: &ComposeSpec) -> ExecResult<()> {
         match spec.runtime {
             ComposeRuntime::Stack => {
-                self.docker
-                    .stack_remove(&[spec.stack_name.as_str()])
-                    .await?;
+                self.docker.stack_remove_raw(&[&spec.stack_name]).await?;
             }
             ComposeRuntime::Compose => {
                 self.docker
-                    .compose(&[
+                    .compose_raw(&[
                         "--project-name",
                         spec.stack_name.as_str(),
                         "--env-file",
@@ -223,7 +221,7 @@ impl ComposeBuilder {
         loop {
             attempts += 1;
             self.cancelled(cancel)?;
-            match self.docker.compose_cancelled(args, cancel).await {
+            match self.docker.compose_raw_cancelled(args, cancel).await {
                 Ok(_) => return Ok(()),
                 Err(error) if attempts < 4 && is_transient_docker_error(&error.to_string()) => {
                     tracing::warn!(attempts, error = %error, "docker compose command failed transiently; retrying");
@@ -258,14 +256,14 @@ impl ComposeBuilder {
     async fn cleanup_failed_deploy(&self, spec: &ComposeSpec) {
         match spec.runtime {
             ComposeRuntime::Stack => {
-                if let Err(error) = self.docker.stack_remove(&[spec.stack_name.as_str()]).await {
+                if let Err(error) = self.docker.stack_remove_raw(&[&spec.stack_name]).await {
                     tracing::warn!(stack = %spec.stack_name, error = %error, "compose stack cleanup failed");
                 }
             }
             ComposeRuntime::Compose => {
                 if let Err(error) = self
                     .docker
-                    .compose(&[
+                    .compose_raw(&[
                         "--project-name",
                         spec.stack_name.as_str(),
                         "--env-file",

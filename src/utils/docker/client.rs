@@ -1,9 +1,11 @@
 use super::{DockerError, DockerExitStatus, DockerOutput, DockerResult, DockerStreamEvent};
+use super::query::DockerQuery;
 use crate::utils::exec::{CommandExecutor, LocalExecutor, RemoteExecutor, SshAuth, SshHostKey};
 use serde::de::DeserializeOwned;
 use std::{ffi::OsStr, path::PathBuf};
 use tokio::{process::Command, sync::mpsc};
 use tokio_util::sync::CancellationToken;
+
 
 pub type RemoteDockerConfig = RemoteExecutor;
 pub type RemoteHostKey = SshHostKey;
@@ -215,5 +217,75 @@ impl DockerCli {
             args.extend(["--filter", filter]);
         }
         self.run(args).await
+    }
+
+    /// Return a typesafe fluent query / command builder backed by this client.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// use crate::utils::docker::query::filter::{ContainerFilter, ContainerStatus};
+    ///
+    /// let containers = docker.query()
+    ///     .containers()
+    ///     .all()
+    ///     .filter(ContainerFilter::Status(ContainerStatus::Running))
+    ///     .list()
+    ///     .await?;
+    ///
+    /// let id = docker.query()
+    ///     .create_container("nginx:latest")
+    ///     .name("web")
+    ///     .network("bridge")
+    ///     .publish(8080, 80)
+    ///     .tty(std::io::IsTerminal::is_terminal(&std::io::stdin()))
+    ///     .create()
+    ///     .await?;
+    /// ```
+    pub fn query(&self) -> DockerQuery<'_> {
+        DockerQuery::new(self)
+    }
+
+    pub fn swarm(&self) -> crate::utils::docker::handles::SwarmHandle<'_> {
+        crate::utils::docker::handles::SwarmHandle::new(self)
+    }
+
+    pub fn nodes(&self) -> crate::utils::docker::handles::NodesHandle<'_> {
+        crate::utils::docker::handles::NodesHandle::new(self)
+    }
+
+    pub fn stacks(&self) -> crate::utils::docker::handles::StacksHandle<'_> {
+        crate::utils::docker::handles::StacksHandle::new(self)
+    }
+
+    pub fn secrets(&self) -> crate::utils::docker::handles::SecretsHandle<'_> {
+        crate::utils::docker::handles::SecretsHandle::new(self)
+    }
+
+    pub fn configs(&self) -> crate::utils::docker::handles::ConfigsHandle<'_> {
+        crate::utils::docker::handles::ConfigsHandle::new(self)
+    }
+
+    pub fn services(&self) -> crate::utils::docker::handles::ServicesHandle<'_> {
+        crate::utils::docker::handles::ServicesHandle::new(self)
+    }
+
+    pub fn containers(&self) -> crate::utils::docker::handles::ContainerHandle<'_> {
+        crate::utils::docker::handles::ContainerHandle(self)
+    }
+
+    pub fn images(&self) -> crate::utils::docker::handles::ImageHandle<'_> {
+        crate::utils::docker::handles::ImageHandle(self)
+    }
+
+    pub fn networks(&self) -> crate::utils::docker::handles::NetworkHandle<'_> {
+        crate::utils::docker::handles::NetworkHandle(self)
+    }
+
+    pub fn volumes(&self) -> crate::utils::docker::handles::VolumeHandle<'_> {
+        crate::utils::docker::handles::VolumeHandle(self)
+    }
+
+    pub fn compose(&self) -> crate::utils::docker::handles::ComposeHandle<'_> {
+        crate::utils::docker::handles::ComposeHandle(self)
     }
 }

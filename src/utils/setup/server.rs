@@ -117,7 +117,7 @@ fi
                 .to_owned(),
         };
         docker
-            .swarm_init(&[
+            .swarm_init_raw(&[
                 "--advertise-addr",
                 advertise.as_str(),
                 "--listen-addr",

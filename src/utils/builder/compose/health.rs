@@ -18,7 +18,7 @@ impl ComposeBuilder {
             let health_result = match spec.runtime {
                 ComposeRuntime::Stack => {
                     self.docker
-                        .stack_ps(&[
+                        .stack_ps_raw(&[
                             "--filter",
                             "desired-state=running",
                             "--format",
@@ -29,7 +29,7 @@ impl ComposeBuilder {
                 }
                 ComposeRuntime::Compose => {
                     self.docker
-                        .compose(&[
+                        .compose_raw(&[
                             "--project-name",
                             spec.stack_name.as_str(),
                             "--env-file",

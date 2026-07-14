@@ -5,10 +5,11 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 impl DockerCli {
-    pub async fn compose(&self, args: &[&str]) -> DockerResult<DockerOutput> {
+    /// Raw compose passthrough — prefer [`DockerCli::compose()`] DSL handle instead.
+    pub async fn compose_raw(&self, args: &[&str]) -> DockerResult<DockerOutput> {
         self.prefixed(&["compose"], args).await
     }
-    pub async fn compose_cancelled(
+    pub async fn compose_raw_cancelled(
         &self,
         args: &[&str],
         cancel: &CancellationToken,

@@ -2,10 +2,12 @@ use super::{DockerCli, DockerOutput, DockerResult, NetworkSummary, VolumeSummary
 use serde::de::DeserializeOwned;
 
 impl DockerCli {
-    pub async fn networks(&self, filters: &[&str]) -> DockerResult<Vec<NetworkSummary>> {
+    /// Raw network list — prefer [`DockerCli::networks()`] handle instead.
+    pub async fn networks_raw(&self, filters: &[&str]) -> DockerResult<Vec<NetworkSummary>> {
         self.list("network", filters).await
     }
-    pub async fn volumes(&self, filters: &[&str]) -> DockerResult<Vec<VolumeSummary>> {
+    /// Raw volume list — prefer [`DockerCli::volumes()`] handle instead.
+    pub async fn volumes_raw(&self, filters: &[&str]) -> DockerResult<Vec<VolumeSummary>> {
         self.list("volume", filters).await
     }
     pub async fn network_create(&self, args: &[&str]) -> DockerResult<DockerOutput> {

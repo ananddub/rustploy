@@ -155,7 +155,7 @@ impl ApplicationBuilder {
         loop {
             self.cancelled(cancel)?;
             attempts += 1;
-            match self.docker.stack_deploy_cancelled(args, cancel).await {
+            match self.docker.stack_deploy_raw_cancelled(args, cancel).await {
                 Ok(_) => return Ok(()),
                 Err(error) if attempts < 4 && is_transient_docker_error(&error.to_string()) => {
                     tracing::warn!(attempts, error = %error, "docker stack deploy failed transiently; retrying");

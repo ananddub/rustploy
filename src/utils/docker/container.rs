@@ -5,7 +5,8 @@ use serde::de::DeserializeOwned;
 use tokio::sync::mpsc;
 
 impl DockerCli {
-    pub async fn containers(
+    /// Raw container list — prefer [`DockerCli::containers()`] handle instead.
+    pub async fn containers_raw(
         &self,
         all: bool,
         filters: &[&str],

@@ -212,7 +212,7 @@ impl DeploymentService {
         let service_name = format!("{app_name}_{app_name}");
         let filter = format!("label=com.docker.swarm.service.name={service_name}");
         let containers = docker
-            .containers(false, &[filter.as_str()])
+            .containers_raw(false, &[filter.as_str()])
             .await
             .map_err(|error| sqlx::Error::Protocol(error.to_string()))?;
         let targets = containers
@@ -239,7 +239,7 @@ impl DeploymentService {
         let docker = self.docker_for_server(server_id).await?;
         let filter = format!("label=com.docker.compose.project={app_name}");
         let containers = docker
-            .containers(false, &[filter.as_str()])
+            .containers_raw(false, &[filter.as_str()])
             .await
             .map_err(|error| sqlx::Error::Protocol(error.to_string()))?;
         let targets = containers

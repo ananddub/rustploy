@@ -42,7 +42,7 @@ impl ComposeBuilder {
                     )))
                     .await;
                     git.remote(&["set-url", "origin", url]).await?;
-                    git.fetch_cancelled(&["--prune", "origin", branch], cancel)
+                    git.fetch_raw_cancelled(&["--prune", "origin", branch], cancel)
                         .await?;
                     git.reset(&["--hard", "FETCH_HEAD"]).await?;
                 } else {
@@ -61,7 +61,7 @@ impl ComposeBuilder {
                     )))
                     .await;
                     GitCli::from_executor(self.executor.clone())
-                        .clone_repository_cancelled(
+                        .clone_repository_raw_cancelled(
                             url,
                             Some(&spec.work_directory),
                             &["--branch", branch, "--single-branch"],

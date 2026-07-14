@@ -6,7 +6,8 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 impl DockerCli {
-    pub async fn images(&self, all: bool, filters: &[&str]) -> DockerResult<Vec<ImageSummary>> {
+    /// Raw image list — prefer [`DockerCli::images()`] handle instead.
+    pub async fn images_raw(&self, all: bool, filters: &[&str]) -> DockerResult<Vec<ImageSummary>> {
         let mut args = vec!["image", "ls", "--format", "{{json .}}"];
         if all {
             args.push("--all");

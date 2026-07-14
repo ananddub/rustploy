@@ -8,3 +8,4 @@ pub mod paths;
 pub mod session;
 pub mod setup;
 pub mod tower;
+pub mod traefik;

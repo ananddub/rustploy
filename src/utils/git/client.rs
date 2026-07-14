@@ -141,13 +141,109 @@ impl GitCli {
         result
     }
 
+    pub async fn run_raw<I, S>(&self, args: I) -> ExecResult<ExecOutput>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<OsStr>,
+    {
+        self.executor
+            .run(
+                &self.executable,
+                args.into_iter()
+                    .map(|v| v.as_ref().to_string_lossy().into_owned())
+                    .collect::<Vec<_>>(),
+            )
+            .await
+    }
+    
+    pub async fn run_raw_cancelled<I, S>(
+        &self,
+        args: I,
+        cancel: &CancellationToken,
+    ) -> ExecResult<ExecOutput>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<OsStr>,
+    {
+        self.executor
+            .run_cancelled(
+                &self.executable,
+                args.into_iter()
+                    .map(|v| v.as_ref().to_string_lossy().into_owned())
+                    .collect::<Vec<_>>(),
+                cancel,
+            )
+            .await
+    }
+
+    pub async fn run_raw_stream<I, S>(
+        &self,
+        args: I,
+        sender: mpsc::Sender<ExecStreamEvent>,
+    ) -> ExecResult<ExecExitStatus>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<OsStr>,
+    {
+        self.executor
+            .run_stream(
+                &self.executable,
+                args.into_iter()
+                    .map(|v| v.as_ref().to_string_lossy().into_owned())
+                    .collect::<Vec<_>>(),
+                sender,
+            )
+            .await
+    }
+
+    // ── DSL Handles ──────────────────────────────────────────────────────────────
+    
+    pub fn queries(&self) -> super::handles::GitQueries<'_> {
+        super::handles::GitQueries(self)
+    }
+    
+    pub fn clone(&self, url: impl Into<String>) -> super::handles::CloneBuilder<'_> {
+        super::handles::CloneBuilder::new(self, url)
+    }
+
+    pub fn fetch(&self) -> super::handles::FetchBuilder<'_> {
+        super::handles::FetchBuilder::new(self)
+    }
+
+    pub fn pull(&self) -> super::handles::PullBuilder<'_> {
+        super::handles::PullBuilder::new(self)
+    }
+
+    pub fn push(&self) -> super::handles::PushBuilder<'_> {
+        super::handles::PushBuilder::new(self)
+    }
+
+    pub fn add(&self) -> super::handles::AddBuilder<'_> {
+        super::handles::AddBuilder::new(self)
+    }
+
+    pub fn commit(&self) -> super::handles::CommitBuilder<'_> {
+        super::handles::CommitBuilder::new(self)
+    }
+
+    pub fn checkout(&self) -> super::handles::CheckoutBuilder<'_> {
+        super::handles::CheckoutBuilder::new(self)
+    }
+
+    pub fn worktree(&self) -> super::handles::WorktreeBuilder<'_> {
+        super::handles::WorktreeBuilder::new(self)
+    }
+
+    // ── Legacy Methods ───────────────────────────────────────────────────────────
+
+
     pub async fn init(&self, args: &[&str]) -> ExecResult<ExecOutput> {
         self.prefixed(&["init"], args).await
     }
 
     // pub async fn list_branches(&self, repo &)
 
-    pub async fn clone_repository(
+    pub async fn clone_repository_raw(
         &self,
         url: &str,
         destination: Option<&str>,
@@ -159,9 +255,9 @@ impl GitCli {
         if let Some(destination) = destination {
             args.push(destination);
         }
-        self.run(args).await
+        self.run_raw(args).await
     }
-    pub async fn clone_repository_cancelled(
+    pub async fn clone_repository_raw_cancelled(
         &self,
         url: &str,
         destination: Option<&str>,
@@ -174,9 +270,9 @@ impl GitCli {
         if let Some(destination) = destination {
             args.push(destination);
         }
-        self.run_cancelled(args, cancel).await
+        self.run_raw_cancelled(args, cancel).await
     }
-    pub async fn clone_repository_stream(
+    pub async fn clone_repository_raw_stream(
         &self,
         url: &str,
         destination: Option<&str>,
@@ -189,12 +285,12 @@ impl GitCli {
         if let Some(destination) = destination {
             args.push(destination);
         }
-        self.run_stream(args, sender).await
+        self.run_raw_stream(args, sender).await
     }
-    pub async fn fetch(&self, args: &[&str]) -> ExecResult<ExecOutput> {
+    pub async fn fetch_raw(&self, args: &[&str]) -> ExecResult<ExecOutput> {
         self.prefixed(&["fetch"], args).await
     }
-    pub async fn fetch_cancelled(
+    pub async fn fetch_raw_cancelled(
         &self,
         args: &[&str],
         cancel: &CancellationToken,
@@ -203,7 +299,7 @@ impl GitCli {
         command.extend_from_slice(args);
         self.run_cancelled(command, cancel).await
     }
-    pub async fn fetch_stream(
+    pub async fn fetch_raw_stream(
         &self,
         args: &[&str],
         sender: mpsc::Sender<ExecStreamEvent>,
@@ -212,10 +308,10 @@ impl GitCli {
         command.extend_from_slice(args);
         self.run_stream(command, sender).await
     }
-    pub async fn pull(&self, args: &[&str]) -> ExecResult<ExecOutput> {
+    pub async fn pull_raw(&self, args: &[&str]) -> ExecResult<ExecOutput> {
         self.prefixed(&["pull"], args).await
     }
-    pub async fn pull_stream(
+    pub async fn pull_raw_stream(
         &self,
         args: &[&str],
         sender: mpsc::Sender<ExecStreamEvent>,
@@ -224,10 +320,10 @@ impl GitCli {
         command.extend_from_slice(args);
         self.run_stream(command, sender).await
     }
-    pub async fn push(&self, args: &[&str]) -> ExecResult<ExecOutput> {
+    pub async fn push_raw(&self, args: &[&str]) -> ExecResult<ExecOutput> {
         self.prefixed(&["push"], args).await
     }
-    pub async fn push_stream(
+    pub async fn push_raw_stream(
         &self,
         args: &[&str],
         sender: mpsc::Sender<ExecStreamEvent>,
@@ -236,16 +332,16 @@ impl GitCli {
         command.extend_from_slice(args);
         self.run_stream(command, sender).await
     }
-    pub async fn checkout(&self, args: &[&str]) -> ExecResult<ExecOutput> {
+    pub async fn checkout_raw(&self, args: &[&str]) -> ExecResult<ExecOutput> {
         self.prefixed(&["checkout"], args).await
     }
-    pub async fn switch(&self, args: &[&str]) -> ExecResult<ExecOutput> {
+    pub async fn switch_raw(&self, args: &[&str]) -> ExecResult<ExecOutput> {
         self.prefixed(&["switch"], args).await
     }
-    pub async fn add(&self, args: &[&str]) -> ExecResult<ExecOutput> {
+    pub async fn add_raw(&self, args: &[&str]) -> ExecResult<ExecOutput> {
         self.prefixed(&["add"], args).await
     }
-    pub async fn commit(&self, args: &[&str]) -> ExecResult<ExecOutput> {
+    pub async fn commit_raw(&self, args: &[&str]) -> ExecResult<ExecOutput> {
         self.prefixed(&["commit"], args).await
     }
     pub async fn merge(&self, args: &[&str]) -> ExecResult<ExecOutput> {
@@ -275,7 +371,7 @@ impl GitCli {
     pub async fn submodule(&self, args: &[&str]) -> ExecResult<ExecOutput> {
         self.prefixed(&["submodule"], args).await
     }
-    pub async fn worktree(&self, args: &[&str]) -> ExecResult<ExecOutput> {
+    pub async fn worktree_raw(&self, args: &[&str]) -> ExecResult<ExecOutput> {
         self.prefixed(&["worktree"], args).await
     }
     pub async fn stash(&self, args: &[&str]) -> ExecResult<ExecOutput> {
@@ -336,32 +432,17 @@ impl GitCli {
             .collect())
     }
     pub async fn remote_branches(&self, repository_url: &str) -> ExecResult<Vec<GitBranch>> {
-        parse_remote_branches(
-            &self
-                .run(["ls-remote", "--heads", repository_url])
-                .await?
-                .stdout,
-        )
+        self.queries().remote_branches(repository_url).await
     }
     pub async fn remote_default_branch(&self, repository_url: &str) -> ExecResult<Option<String>> {
-        Ok(parse_remote_default_branch(
-            &self
-                .run(["ls-remote", "--symref", repository_url, "HEAD"])
-                .await?
-                .stdout,
-        ))
+        self.queries().remote_default_branch(repository_url).await
     }
     pub async fn remote_default_branch_cancelled(
         &self,
         repository_url: &str,
         cancel: &CancellationToken,
     ) -> ExecResult<Option<String>> {
-        Ok(parse_remote_default_branch(
-            &self
-                .run_cancelled(["ls-remote", "--symref", repository_url, "HEAD"], cancel)
-                .await?
-                .stdout,
-        ))
+        self.queries().remote_default_branch_cancelled(repository_url, cancel).await
     }
     async fn prefixed(&self, prefix: &[&str], args: &[&str]) -> ExecResult<ExecOutput> {
         let mut command = prefix.to_vec();
@@ -370,36 +451,6 @@ impl GitCli {
     }
 }
 
-fn parse_remote_default_branch(output: &str) -> Option<String> {
-    output.lines().find_map(|line| {
-        let line = line.strip_prefix("ref: ")?;
-        let (reference, target) = line.split_once(char::is_whitespace)?;
-        if target.trim() != "HEAD" {
-            return None;
-        }
-        reference
-            .trim()
-            .strip_prefix("refs/heads/")
-            .map(str::to_owned)
-    })
-}
-
-fn parse_remote_branches(output: &str) -> ExecResult<Vec<GitBranch>> {
-    let mut branches = output
-        .lines()
-        .filter_map(|line| {
-            let (_, reference) = line.split_once(char::is_whitespace)?;
-            let name = reference.trim().strip_prefix("refs/heads/")?;
-            Some(GitBranch {
-                current: false,
-                name: name.to_owned(),
-            })
-        })
-        .collect::<Vec<_>>();
-    branches.sort_by(|a, b| a.name.cmp(&b.name));
-    branches.dedup_by(|a, b| a.name == b.name);
-    Ok(branches)
-}
 
 #[cfg(test)]
 mod tests {

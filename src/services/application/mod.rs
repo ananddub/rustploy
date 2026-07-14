@@ -21,7 +21,6 @@ pub mod config;
 pub mod crud;
 pub mod operations;
 pub mod queries;
-pub mod recovery;
 pub mod remote;
 pub mod source;
 pub mod types;
