@@ -28,6 +28,12 @@ impl<'a> SecretsHandle<'a> {
     pub fn list(&self) -> SecretListBuilder<'a> {
         SecretListBuilder::new(self.cli)
     }
+
+    pub async fn inspect(&self, name: impl AsRef<str>) -> DockerResult<serde_json::Value> {
+        let out = self.cli.run(["secret", "inspect", name.as_ref()]).await?;
+        let mut json: Vec<serde_json::Value> = serde_json::from_str(&out.stdout)?;
+        Ok(json.pop().unwrap_or_default())
+    }
 }
 
 // ── SecretCreateBuilder ─────────────────────────────────────────────────────
@@ -57,7 +63,7 @@ impl<'a> SecretCreateBuilder<'a> {
         match source {
             DataSource::File(path) => {
                 self.args.push(path.to_string_lossy().to_string());
-                self.cli.run(&self.args.build()).await
+                self.cli.execute(&self.args).await
             }
             DataSource::String(data) => {
                 self.args.push("-");
@@ -70,6 +76,7 @@ impl<'a> SecretCreateBuilder<'a> {
         }
     }
 }
+crate::impl_builder_opts!(SecretCreateBuilder);
 
 // ── SecretRemoveBuilder ─────────────────────────────────────────────────────
 
@@ -86,9 +93,10 @@ impl<'a> SecretRemoveBuilder<'a> {
 
     pub async fn run(mut self) -> DockerResult<DockerOutput> {
         self.args.push(&self.name);
-        self.cli.run(&self.args.build()).await
+        self.cli.execute(&self.args).await
     }
 }
+crate::impl_builder_opts!(SecretRemoveBuilder);
 
 // ── SecretListBuilder ───────────────────────────────────────────────────────
 
@@ -109,6 +117,12 @@ impl<'a> SecretListBuilder<'a> {
     }
 
     pub async fn run(self) -> DockerResult<DockerOutput> {
-        self.cli.run(&self.args.build()).await
+        self.cli.execute(&self.args).await
+    }
+
+    pub async fn run_json(mut self) -> DockerResult<Vec<crate::utils::docker::SecretSummary>> {
+        self.args.pair("--format", "{{json .}}");
+        self.cli.execute_json_lines(&self.args).await
     }
 }
+crate::impl_builder_opts!(SecretListBuilder);

@@ -77,6 +77,16 @@ docker_row!(StackSummary {
     orchestrator: "Orchestrator",
     namespace: "Namespace"
 });
+docker_row!(TaskSummary {
+    id: "ID",
+    name: "Name",
+    image: "Image",
+    node: "Node",
+    desired_state: "DesiredState",
+    current_state: "CurrentState",
+    error: "Error",
+    ports: "Ports"
+});
 docker_row!(SecretSummary {
     id: "ID",
     name: "Name",
@@ -157,3 +167,49 @@ pub struct DockerVersionComponent {
 
 pub type DockerInfo = serde_json::Map<String, serde_json::Value>;
 pub type DockerDiskUsage = serde_json::Map<String, serde_json::Value>;
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct SwarmInfo {
+    #[serde(rename = "NodeID", default)]
+    pub node_id: String,
+    #[serde(default)]
+    pub node_addr: String,
+    #[serde(default)]
+    pub local_node_state: String,
+    #[serde(default)]
+    pub control_available: bool,
+    #[serde(default)]
+    pub error: String,
+    #[serde(default)]
+    pub remote_managers: Option<Vec<SwarmRemoteManager>>,
+    #[serde(default)]
+    pub nodes: u32,
+    #[serde(default)]
+    pub managers: u32,
+    pub cluster: Option<SwarmClusterInfo>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct SwarmRemoteManager {
+    #[serde(rename = "NodeID", default)]
+    pub node_id: String,
+    #[serde(default)]
+    pub addr: String,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct SwarmClusterInfo {
+    #[serde(rename = "ID", default)]
+    pub id: String,
+    #[serde(default)]
+    pub created_at: String,
+    #[serde(default)]
+    pub updated_at: String,
+    #[serde(default)]
+    pub data_path_port: u16,
+    #[serde(default)]
+    pub subnet_size: u8,
+}

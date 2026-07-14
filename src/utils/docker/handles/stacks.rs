@@ -38,6 +38,10 @@ impl<'a> StacksHandle<'a> {
     pub fn services(&self, stack_name: impl Into<String>) -> StackServicesBuilder<'a> {
         StackServicesBuilder::new(self.cli, stack_name)
     }
+
+    pub fn config(&self, stack_name: impl Into<String>) -> StackConfigBuilder<'a> {
+        StackConfigBuilder::new(self.cli, stack_name)
+    }
 }
 
 // ── StackDeployBuilder ──────────────────────────────────────────────────────
@@ -70,14 +74,10 @@ impl<'a> StackDeployBuilder<'a> {
 
     pub async fn run(mut self) -> DockerResult<DockerOutput> {
         self.args.push(&self.stack_name);
-        self.cli.run(&self.args.build()).await
-    }
-    
-    pub async fn run_cancelled(mut self, cancel: &CancellationToken) -> DockerResult<DockerOutput> {
-        self.args.push(&self.stack_name);
-        self.cli.run_cancelled(&self.args.build(), cancel).await
+        self.cli.execute(&self.args).await
     }
 }
+crate::impl_builder_opts!(StackDeployBuilder);
 
 // ── StackRemoveBuilder ──────────────────────────────────────────────────────
 
@@ -94,9 +94,10 @@ impl<'a> StackRemoveBuilder<'a> {
 
     pub async fn run(mut self) -> DockerResult<DockerOutput> {
         self.args.push(&self.stack_name);
-        self.cli.run(&self.args.build()).await
+        self.cli.execute(&self.args).await
     }
 }
+crate::impl_builder_opts!(StackRemoveBuilder);
 
 // ── StackListBuilder ────────────────────────────────────────────────────────
 
@@ -111,9 +112,15 @@ impl<'a> StackListBuilder<'a> {
     }
 
     pub async fn run(self) -> DockerResult<DockerOutput> {
-        self.cli.run(&self.args.build()).await
+        self.cli.execute(&self.args).await
+    }
+
+    pub async fn run_json(mut self) -> DockerResult<Vec<crate::utils::docker::StackSummary>> {
+        self.args.pair("--format", "{{json .}}");
+        self.cli.execute_json_lines(&self.args).await
     }
 }
+crate::impl_builder_opts!(StackListBuilder);
 
 // ── StackPsBuilder ──────────────────────────────────────────────────────────
 
@@ -128,11 +135,24 @@ impl<'a> StackPsBuilder<'a> {
         Self { cli, args: ArgBuilder::cmd(&["stack", "ps"]), stack_name: stack_name.into() }
     }
 
+    pub fn filter(mut self, f: crate::utils::docker::query::filter::TaskFilter) -> Self { self.args.filter(f); self }
+    pub fn filters(mut self, fs: impl IntoIterator<Item = crate::utils::docker::query::filter::TaskFilter>) -> Self {
+        for f in fs { self.args.filter(f); }
+        self
+    }
+
     pub async fn run(mut self) -> DockerResult<DockerOutput> {
         self.args.push(&self.stack_name);
-        self.cli.run(&self.args.build()).await
+        self.cli.execute(&self.args).await
+    }
+
+    pub async fn run_json(mut self) -> DockerResult<Vec<crate::utils::docker::TaskSummary>> {
+        self.args.pair("--format", "{{json .}}");
+        self.args.push(&self.stack_name);
+        self.cli.execute_json_lines(&self.args).await
     }
 }
+crate::impl_builder_opts!(StackPsBuilder);
 
 // ── StackServicesBuilder ────────────────────────────────────────────────────
 
@@ -149,6 +169,29 @@ impl<'a> StackServicesBuilder<'a> {
 
     pub async fn run(mut self) -> DockerResult<DockerOutput> {
         self.args.push(&self.stack_name);
-        self.cli.run(&self.args.build()).await
+        self.cli.execute(&self.args).await
     }
 }
+crate::impl_builder_opts!(StackServicesBuilder);
+
+// ── StackConfigBuilder ──────────────────────────────────────────────────────
+
+pub struct StackConfigBuilder<'a> {
+    cli: &'a DockerCli,
+    args: ArgBuilder,
+    stack_name: String,
+}
+
+impl<'a> StackConfigBuilder<'a> {
+    pub(crate) fn new(cli: &'a DockerCli, stack_name: impl Into<String>) -> Self {
+        Self { cli, args: ArgBuilder::cmd(&["stack", "config"]), stack_name: stack_name.into() }
+    }
+
+    pub fn compose_file(mut self, path: impl AsRef<str>) -> Self { self.args.pair("--compose-file", path); self }
+
+    pub async fn run(mut self) -> DockerResult<DockerOutput> {
+        self.args.push(&self.stack_name);
+        self.cli.execute(&self.args).await
+    }
+}
+crate::impl_builder_opts!(StackConfigBuilder);

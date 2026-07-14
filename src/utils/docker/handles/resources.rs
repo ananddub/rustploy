@@ -23,12 +23,11 @@ impl<'a> NetworkQuery<'a> {
     pub fn filter(mut self, f: NetworkFilter) -> Self { self.args.filter(f); self }
     pub fn print(&self) -> String { self.args.preview() }
     pub async fn list(self) -> DockerResult<Vec<NetworkSummary>> {
-        let a = self.args.build();
-        let refs: Vec<&str> = a.iter().map(String::as_str).collect();
-        self.cli.json_lines(&refs).await
+        self.cli.execute_json_lines(&self.args).await
     }
     pub async fn exists(self) -> DockerResult<bool> { Ok(!self.list().await?.is_empty()) }
 }
+crate::impl_builder_opts!(NetworkQuery);
 
 pub struct NetworkCreate<'a> { cli: &'a DockerCli, name: String, args: ArgBuilder }
 
@@ -57,11 +56,10 @@ impl<'a> NetworkCreate<'a> {
         let mut a = ArgBuilder::cmd(&["network", "create"]);
         a.push_all(self.args.build());
         a.push(&self.name);
-        let built = a.build();
-        let refs: Vec<&str> = built.iter().map(String::as_str).collect();
-        Ok(self.cli.run(refs).await?.stdout.trim().to_string())
+        Ok(self.cli.execute(&a).await?.stdout.trim().to_string())
     }
 }
+crate::impl_builder_opts!(NetworkCreate);
 
 pub struct NetworkPrune<'a> { cli: &'a DockerCli, args: ArgBuilder }
 
@@ -72,11 +70,10 @@ impl<'a> NetworkPrune<'a> {
     pub fn filter(mut self, f: NetworkFilter) -> Self { self.args.filter(f); self }
     pub fn print(&self) -> String { self.args.preview() }
     pub async fn run(self) -> DockerResult<DockerOutput> {
-        let a = self.args.build();
-        let refs: Vec<&str> = a.iter().map(String::as_str).collect();
-        self.cli.run(refs).await
+        self.cli.execute(&self.args).await
     }
 }
+crate::impl_builder_opts!(NetworkPrune);
 
 // ═══════════════════════════ VOLUMES ════════════════════════════════════════
 
@@ -97,12 +94,11 @@ impl<'a> VolumeQuery<'a> {
     pub fn filter(mut self, f: VolumeFilter) -> Self { self.args.filter(f); self }
     pub fn print(&self) -> String { self.args.preview() }
     pub async fn list(self) -> DockerResult<Vec<VolumeSummary>> {
-        let a = self.args.build();
-        let refs: Vec<&str> = a.iter().map(String::as_str).collect();
-        self.cli.json_lines(&refs).await
+        self.cli.execute_json_lines(&self.args).await
     }
     pub async fn exists(self) -> DockerResult<bool> { Ok(!self.list().await?.is_empty()) }
 }
+crate::impl_builder_opts!(VolumeQuery);
 
 pub struct VolumeCreate<'a> { cli: &'a DockerCli, name: String, args: ArgBuilder }
 
@@ -125,11 +121,10 @@ impl<'a> VolumeCreate<'a> {
         let mut a = ArgBuilder::cmd(&["volume", "create"]);
         a.push_all(self.args.build());
         a.push(&self.name);
-        let built = a.build();
-        let refs: Vec<&str> = built.iter().map(String::as_str).collect();
-        Ok(self.cli.run(refs).await?.stdout.trim().to_string())
+        Ok(self.cli.execute(&a).await?.stdout.trim().to_string())
     }
 }
+crate::impl_builder_opts!(VolumeCreate);
 
 pub struct VolumePrune<'a> { cli: &'a DockerCli, args: ArgBuilder }
 
@@ -141,8 +136,7 @@ impl<'a> VolumePrune<'a> {
     pub fn all(mut self) -> Self { self.args.flag("--all"); self }
     pub fn print(&self) -> String { self.args.preview() }
     pub async fn run(self) -> DockerResult<DockerOutput> {
-        let a = self.args.build();
-        let refs: Vec<&str> = a.iter().map(String::as_str).collect();
-        self.cli.run(refs).await
+        self.cli.execute(&self.args).await
     }
 }
+crate::impl_builder_opts!(VolumePrune);

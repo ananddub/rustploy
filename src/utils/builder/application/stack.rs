@@ -1,6 +1,8 @@
 use crate::utils::{
     builder::spec::{ApplicationSpec, HealthSpec, MountKind},
-    traefik::{middleware::Middleware, rule::Rule, traefik::TraefikBuilder, types::CertificateType},
+    traefik::{
+        middleware::Middleware, rule::Rule, traefik::TraefikBuilder, types::CertificateType,
+    },
 };
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -270,10 +272,10 @@ pub fn build_traefik_labels(app: &ApplicationSpec) -> Vec<String> {
         // .service(name) finalizes the router and returns TraefikBuilder,
         // then we chain .service(name) (ServiceBuilder) -> .port() -> .finish().
         traefik = r
-            .service(&router_name)          // RouterBuilder → TraefikBuilder
-            .service(&router_name)          // TraefikBuilder → ServiceBuilder
-            .port(domain.port)              // ServiceBuilder → ServiceBuilder
-            .finish();                      // ServiceBuilder → TraefikBuilder
+            .service(&router_name) // RouterBuilder → TraefikBuilder
+            .service(&router_name) // TraefikBuilder → ServiceBuilder
+            .port(domain.port) // ServiceBuilder → ServiceBuilder
+            .finish(); // ServiceBuilder → TraefikBuilder
 
         // --- HTTP → HTTPS redirect router (only when no custom entrypoint is set) ---
         if domain.https && domain.entrypoint.is_none() {

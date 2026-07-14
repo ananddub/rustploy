@@ -5,6 +5,8 @@ pub use query::DockerQuery;
 pub use types::*;
 
 pub mod client;
+#[macro_use]
+pub mod macros;
 pub mod compose;
 pub mod container;
 pub mod core;

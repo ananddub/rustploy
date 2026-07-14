@@ -85,19 +85,25 @@ impl ApplicationBuilder {
             .await?;
 
         self.emit(BuilderEvent::Deploying).await;
-        if let Err(error) = self
-            .stack_deploy_with_retry(
-                &[
-                    "--compose-file",
-                    stack_file.as_str(),
-                    "--with-registry-auth",
-                    spec.stack_name.as_str(),
-                ],
-                cancel,
-            )
+        if let Err(error) = self.docker.stacks().deploy(spec.stack_name.clone())
+            .with_registry_auth()
+            .compose_file(stack_file.as_str())
+            .cancel_with(cancel.clone())
+            .run()
             .await
+            // .stack_deploy_with_retry(
+            //     &[
+            //         "--compose-file",
+            //         stack_file.as_str(),
+            //         "--with-registry-auth",
+            //         spec.stack_name.as_str(),
+            //     ],
+            //     cancel,
+            // )
+            // .await
         {
-            self.rollback_application(spec, None).await;
+            self.docker.services().rollback(spec.service_name().clone()).run().await?;
+            // self.rollback_application(spec, None).await;
             self.emit(BuilderEvent::Failed(error.to_string())).await;
             return Err(error);
         }
@@ -107,7 +113,8 @@ impl ApplicationBuilder {
 
         self.emit(BuilderEvent::HealthCheck).await;
         if let Err(error) = self.wait_healthy(spec, cancel).await {
-            self.rollback_application(spec, None).await;
+            self.docker.services().rollback(spec.service_name().clone()).run().await?;
+            // self.rollback_application(spec, None).await;
             self.emit(BuilderEvent::Failed(error.to_string())).await;
             return Err(error);
         }

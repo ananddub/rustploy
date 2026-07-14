@@ -115,6 +115,9 @@ impl ApplicationBuilder {
         no_cache: bool,
         cancel: &CancellationToken,
     ) -> ExecResult<()> {
+        // let image = self.docker.images().build(
+        //     join_path(&spec.work_directory, default_if_empty(dockerfile, "Dockerfile"))
+        // );
         let mut args = vec![
             "build".to_owned(),
             "--tag".into(),

@@ -1,3 +1,4 @@
+use tokio::fs;
 use super::{
     labels::write_labeled_compose,
     spec::{ComposeDeploymentResult, ComposeRuntime, ComposeSpec},
@@ -16,6 +17,8 @@ use crate::utils::{
 use std::sync::Arc;
 use tokio::{sync::mpsc, time::Duration};
 use tokio_util::sync::CancellationToken;
+use crate::utils::docker::core::types::ResolveImage;
+use crate::utils::exec::ExecOutput;
 
 #[derive(Clone, Debug)]
 pub struct ComposeBuilder {
@@ -96,20 +99,17 @@ impl ComposeBuilder {
     pub async fn stop(&self, spec: &ComposeSpec) -> ExecResult<()> {
         match spec.runtime {
             ComposeRuntime::Stack => {
-                self.docker.stack_remove_raw(&[&spec.stack_name]).await?;
+                self.docker.stacks().remove(&spec.stack_name).run().await?;
             }
             ComposeRuntime::Compose => {
-                self.docker
-                    .compose_raw(&[
-                        "--project-name",
-                        spec.stack_name.as_str(),
-                        "--env-file",
-                        spec.env_file.as_str(),
-                        "--file",
-                        spec.compose_file_path().as_str(),
-                        "down",
-                    ])
+                self.docker.compose().down()
+                    .project(&spec.stack_name)
+                    .env_file(&spec.env_file)
+                    .file(&spec.compose_file_path())
+                    .retry(3)
+                    .run()
                     .await?;
+
             }
         }
         self.emit(BuilderEvent::Cancelled).await;
@@ -125,20 +125,35 @@ impl ComposeBuilder {
             spec.compose_file_path()
         )))
         .await;
-        self.run_with_retry(
-            "sh",
-            &[
-                "-c",
-                "docker compose --env-file \"$1\" --file \"$2\" build && docker compose --env-file \"$1\" --file \"$2\" config > \"$3\" && docker stack deploy --compose-file \"$3\" --with-registry-auth --resolve-image never \"$4\"",
-                "rustploy-compose-stack",
-                spec.env_file.as_str(),
-                spec.compose_file_path().as_str(),
-                spec.rendered_stack_file.as_str(),
-                spec.stack_name.as_str(),
-            ],
-            cancel,
-        )
-        .await
+        // self.docker.stacks().deploy(&spec.stack_name).await?;
+        self.docker.compose()
+            .build()
+            .project(&spec.stack_name)
+            .env_file(&spec.env_file)
+            .file(&spec.compose_file_path())
+            .retry(3)
+            .cancel_with(cancel.clone())
+            .run()
+            .await?;
+        let f = self.docker.compose()
+            .config()
+            .env_file(&spec.env_file)
+            .file(&spec.compose_file_path())
+            .retry(3)
+            .cancel_with(cancel.clone())
+            .run()
+            .await?;
+        fs::write(&spec.rendered_stack_file, f.stdout).await.map_err(ExecError::Io)?;
+        self.docker.stacks().deploy(&spec.stack_name)
+            .compose_file(&spec.rendered_stack_file)
+            .with_registry_auth()
+            .resolve_image(ResolveImage::Never)
+            .retry(3)
+            .cancel_with(cancel.clone())
+            .run()
+            .await?;
+
+        Ok(())
     }
 
     async fn deploy_compose(
@@ -152,39 +167,36 @@ impl ComposeBuilder {
             spec.compose_file_path()
         )))
         .await;
-        self.docker_compose_with_retry(
-            &[
-                "--project-name",
-                spec.stack_name.as_str(),
-                "--env-file",
-                spec.env_file.as_str(),
-                "--file",
-                spec.compose_file_path().as_str(),
-                "build",
-            ],
-            cancel,
-        )
-        .await?;
+        self.docker.compose()
+            .build()
+            .project(&spec.stack_name)
+            .env_file(&spec.env_file)
+            .file(&spec.compose_file_path())
+            .retry(3)
+            .cancel_with(cancel.clone())
+            .run()
+            .await?;
         self.emit(BuilderEvent::Message(format!(
             "docker compose up project {} file {}",
             spec.stack_name,
             spec.compose_file_path()
         )))
         .await;
-        self.docker_compose_with_retry(
-            &[
-                "--project-name",
-                spec.stack_name.as_str(),
-                "--env-file",
-                spec.env_file.as_str(),
-                "--file",
-                spec.compose_file_path().as_str(),
-                "up",
-                "--detach",
-            ],
-            cancel,
-        )
-        .await
+        self.docker.compose()
+            .up()
+            .project(&spec.stack_name)
+            .env_file(&spec.env_file)
+            .file(&spec.compose_file_path())
+            .detach()
+            .retry(3)
+            .cancel_with(cancel.clone())
+            .run()
+            .await.map_err(|e| {
+                tracing::error!(error = %e, "docker compose up failed");
+                e
+            })?;
+        Ok(())
+
     }
 
     pub(super) async fn write_file_cancelled(
@@ -223,29 +235,8 @@ impl ComposeBuilder {
             self.cancelled(cancel)?;
             match self.docker.compose_raw_cancelled(args, cancel).await {
                 Ok(_) => return Ok(()),
-                Err(error) if attempts < 4 && is_transient_docker_error(&error.to_string()) => {
+                Err(error) if attempts < 4 && crate::utils::docker::error::is_transient_docker_error(&error.to_string()) => {
                     tracing::warn!(attempts, error = %error, "docker compose command failed transiently; retrying");
-                    tokio::time::sleep(Duration::from_secs(2 * attempts)).await;
-                }
-                Err(error) => return Err(error),
-            }
-        }
-    }
-
-    async fn run_with_retry(
-        &self,
-        program: &str,
-        args: &[&str],
-        cancel: &CancellationToken,
-    ) -> ExecResult<()> {
-        let mut attempts = 0;
-        loop {
-            attempts += 1;
-            self.cancelled(cancel)?;
-            match self.executor.run_cancelled(program, args, cancel).await {
-                Ok(_) => return Ok(()),
-                Err(error) if attempts < 4 && is_transient_docker_error(&error.to_string()) => {
-                    tracing::warn!(attempts, error = %error, "docker command failed transiently; retrying");
                     tokio::time::sleep(Duration::from_secs(2 * attempts)).await;
                 }
                 Err(error) => return Err(error),
@@ -262,17 +253,14 @@ impl ComposeBuilder {
             }
             ComposeRuntime::Compose => {
                 if let Err(error) = self
-                    .docker
-                    .compose_raw(&[
-                        "--project-name",
-                        spec.stack_name.as_str(),
-                        "--env-file",
-                        spec.env_file.as_str(),
-                        "--file",
-                        spec.compose_file_path().as_str(),
-                        "down",
-                    ])
-                    .await
+                    .docker.compose().down()
+                        .project(&spec.stack_name)
+                        .env_file(&spec.env_file)
+                        .file(&spec.compose_file_path())
+                        .retry(3)
+                        .run()
+                        .await
+
                 {
                     tracing::warn!(compose = %spec.stack_name, error = %error, "compose cleanup failed");
                 }
@@ -310,17 +298,3 @@ impl ComposeBuilder {
     }
 }
 
-fn is_transient_docker_error(message: &str) -> bool {
-    let message = message.to_ascii_lowercase();
-    [
-        "cannot connect to the docker daemon",
-        "docker daemon",
-        "connection refused",
-        "connection reset",
-        "service unavailable",
-        "temporarily unavailable",
-        "context deadline exceeded",
-    ]
-    .iter()
-    .any(|needle| message.contains(needle))
-}

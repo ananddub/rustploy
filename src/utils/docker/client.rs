@@ -200,6 +200,79 @@ impl DockerCli {
         command.extend_from_slice(args);
         self.run_cancelled(command, cancel).await
     }
+
+    pub async fn execute(&self, builder: &crate::utils::exec::ArgBuilder) -> DockerResult<DockerOutput> {
+        let mut attempts = 0;
+        let args = builder.clone().build();
+        let refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        tracing::debug!(command = ?refs, "running docker exec");
+        loop {
+            attempts += 1;
+            if let Some(cancel) = &builder.cancel_token {
+                if cancel.is_cancelled() {
+                    return Err(crate::utils::exec::ExecError::StreamCancelled.into());
+                }
+                match self.run_cancelled(&refs, cancel).await {
+                    Ok(out) => return Ok(out),
+                    Err(e) if attempts <= builder.retry_limit.unwrap_or(0) && crate::utils::docker::error::is_transient_docker_error(&e.to_string()) => {
+                        tokio::time::sleep(tokio::time::Duration::from_secs(2 * attempts as u64)).await;
+                        continue;
+                    }
+                    Err(e) => return Err(e),
+                }
+            } else {
+                match self.run(&refs).await {
+                    Ok(out) => return Ok(out),
+                    Err(e) if attempts <= builder.retry_limit.unwrap_or(0) && crate::utils::docker::error::is_transient_docker_error(&e.to_string()) => {
+                        tokio::time::sleep(tokio::time::Duration::from_secs(2 * attempts as u64)).await;
+                        continue;
+                    }
+                    Err(e) => return Err(e),
+                }
+            }
+        }
+    }
+
+    pub async fn execute_stream(
+        &self,
+        builder: &crate::utils::exec::ArgBuilder,
+        sender: mpsc::Sender<DockerStreamEvent>,
+    ) -> DockerResult<DockerExitStatus> {
+        let mut attempts = 0;
+        let args = builder.clone().build();
+        let refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        loop {
+            attempts += 1;
+            if let Some(cancel) = &builder.cancel_token {
+                if cancel.is_cancelled() {
+                    return Err(crate::utils::exec::ExecError::StreamCancelled.into());
+                }
+            }
+            match self.run_stream(&refs, sender.clone()).await {
+                Ok(out) => return Ok(out),
+                Err(e) if attempts <= builder.retry_limit.unwrap_or(0) && crate::utils::docker::error::is_transient_docker_error(&e.to_string()) => {
+                    tokio::time::sleep(tokio::time::Duration::from_secs(2 * attempts as u64)).await;
+                    continue;
+                }
+                Err(e) => return Err(e),
+            }
+        }
+    }
+
+    pub(crate) async fn execute_json<T: DeserializeOwned>(&self, builder: &crate::utils::exec::ArgBuilder) -> DockerResult<T> {
+        Ok(serde_json::from_str(&self.execute(builder).await?.stdout)?)
+    }
+
+    pub(crate) async fn execute_json_lines<T: DeserializeOwned>(&self, builder: &crate::utils::exec::ArgBuilder) -> DockerResult<Vec<T>> {
+        self.execute(builder)
+            .await?
+            .stdout
+            .lines()
+            .filter(|line| !line.trim().is_empty())
+            .map(|line| serde_json::from_str(line).map_err(Into::into))
+            .collect()
+    }
+
     pub(crate) async fn list<T: DeserializeOwned>(
         &self,
         object: &str,

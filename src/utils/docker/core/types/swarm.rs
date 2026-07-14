@@ -34,6 +34,18 @@ impl fmt::Display for NodeAvailability {
     }
 }
 
+impl TryFrom<&str> for NodeAvailability {
+    type Error = String;
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+        match s {
+            "active" => Ok(NodeAvailability::Active),
+            "pause" => Ok(NodeAvailability::Pause),
+            "drain" => Ok(NodeAvailability::Drain),
+            _ => Err(format!("Invalid node availability: {}", s)),
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NodeRole {
     Worker,
@@ -49,8 +61,39 @@ impl fmt::Display for NodeRole {
     }
 }
 
+impl TryFrom<&str> for NodeRole {
+    type Error = String;
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+        match s {
+            "worker" => Ok(NodeRole::Worker),
+            "manager" => Ok(NodeRole::Manager),
+            _ => Err(format!("Invalid node role: {}", s)),
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SwarmRole {
     Worker,
     Manager,
+}
+
+impl fmt::Display for SwarmRole {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SwarmRole::Worker => write!(f, "worker"),
+            SwarmRole::Manager => write!(f, "manager"),
+        }
+    }
+}
+
+impl TryFrom<&str> for SwarmRole {
+    type Error = String;
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+        match s {
+            "worker" => Ok(SwarmRole::Worker),
+            "manager" => Ok(SwarmRole::Manager),
+            _ => Err(format!("Invalid swarm role: {}", s)),
+        }
+    }
 }

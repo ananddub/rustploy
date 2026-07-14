@@ -29,12 +29,11 @@ impl<'a> ImageQuery<'a> {
     pub fn filter(mut self, f: ImageFilter)        -> Self { self.args.filter(f); self }
     pub fn print(&self)                            -> String { self.args.preview() }
     pub async fn list(self) -> DockerResult<Vec<ImageSummary>> {
-        let a = self.args.build();
-        let refs: Vec<&str> = a.iter().map(String::as_str).collect();
-        self.cli.json_lines(&refs).await
+        self.cli.execute_json_lines(&self.args).await
     }
     pub async fn exists(self) -> DockerResult<bool> { Ok(!self.list().await?.is_empty()) }
 }
+crate::impl_builder_opts!(ImageQuery);
 
 // ── BuildBuilder ──────────────────────────────────────────────────────────────
 
@@ -76,20 +75,17 @@ impl<'a> BuildBuilder<'a> {
         let mut a = ArgBuilder::cmd(&["image", "build"]);
         a.push_all(self.args.build());
         a.push(&self.context);
-        let built = a.build();
-        let refs: Vec<&str> = built.iter().map(String::as_str).collect();
-        self.cli.run(refs).await
+        self.cli.execute(&a).await
     }
 
     pub async fn stream(self, sender: mpsc::Sender<DockerStreamEvent>) -> DockerResult<DockerExitStatus> {
         let mut a = ArgBuilder::cmd(&["image", "build"]);
         a.push_all(self.args.build());
         a.push(&self.context);
-        let built = a.build();
-        let refs: Vec<&str> = built.iter().map(String::as_str).collect();
-        self.cli.run_stream(refs, sender).await
+        self.cli.execute_stream(&a, sender).await
     }
 }
+crate::impl_builder_opts!(BuildBuilder);
 
 // ── PullBuilder ───────────────────────────────────────────────────────────────
 
@@ -111,19 +107,16 @@ impl<'a> PullBuilder<'a> {
         let mut a = ArgBuilder::cmd(&["image", "pull"]);
         a.push_all(self.args.build());
         a.push(&self.image);
-        let built = a.build();
-        let refs: Vec<&str> = built.iter().map(String::as_str).collect();
-        self.cli.run(refs).await
+        self.cli.execute(&a).await
     }
     pub async fn stream(self, sender: mpsc::Sender<DockerStreamEvent>) -> DockerResult<DockerExitStatus> {
         let mut a = ArgBuilder::cmd(&["image", "pull"]);
         a.push_all(self.args.build());
         a.push(&self.image);
-        let built = a.build();
-        let refs: Vec<&str> = built.iter().map(String::as_str).collect();
-        self.cli.run_stream(refs, sender).await
+        self.cli.execute_stream(&a, sender).await
     }
 }
+crate::impl_builder_opts!(PullBuilder);
 
 // ── ImagePrune ────────────────────────────────────────────────────────────────
 
@@ -137,11 +130,10 @@ impl<'a> ImagePrune<'a> {
     pub fn filter(mut self, f: ImageFilter)      -> Self { self.args.filter(f); self }
     pub fn print(&self)                          -> String { self.args.preview() }
     pub async fn run(self) -> DockerResult<DockerOutput> {
-        let a = self.args.build();
-        let refs: Vec<&str> = a.iter().map(String::as_str).collect();
-        self.cli.run(refs).await
+        self.cli.execute(&self.args).await
     }
 }
+crate::impl_builder_opts!(ImagePrune);
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
@@ -154,7 +146,8 @@ mod tests {
 
     #[test]
     fn build_preview() {
-        let b = BuildBuilder::new(&cli(), ".")
+        let tmp = cli();
+        let b = BuildBuilder::new(&tmp, ".")
             .tag("api:latest")
             .target("release")
             .build_arg("ENV", "prod")

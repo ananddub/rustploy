@@ -67,6 +67,14 @@ pub enum ContainerFilter {
     Before(String),
     /// Containers that exited with the given exit code.
     Exited(i32),
+    /// Filter by published ports.
+    Publish(String),
+    /// Filter by exposed ports.
+    Expose(String),
+    /// Filter by isolation technology.
+    Isolation(String),
+    /// Filter containers that are swarm tasks.
+    IsTask(bool),
 }
 
 impl ContainerFilter {
@@ -79,6 +87,10 @@ impl ContainerFilter {
     pub fn volume(v: impl Into<String>) -> Self { Self::Volume(v.into()) }
     pub fn since(v: impl Into<String>) -> Self { Self::Since(v.into()) }
     pub fn before(v: impl Into<String>) -> Self { Self::Before(v.into()) }
+    pub fn publish(v: impl Into<String>) -> Self { Self::Publish(v.into()) }
+    pub fn expose(v: impl Into<String>) -> Self { Self::Expose(v.into()) }
+    pub fn isolation(v: impl Into<String>) -> Self { Self::Isolation(v.into()) }
+    pub fn is_task(v: bool) -> Self { Self::IsTask(v) }
 }
 
 impl fmt::Display for ContainerFilter {
@@ -96,6 +108,10 @@ impl fmt::Display for ContainerFilter {
             Self::Since(v) => write!(f, "since={v}"),
             Self::Before(v) => write!(f, "before={v}"),
             Self::Exited(c) => write!(f, "exited={c}"),
+            Self::Publish(v) => write!(f, "publish={v}"),
+            Self::Expose(v) => write!(f, "expose={v}"),
+            Self::Isolation(v) => write!(f, "isolation={v}"),
+            Self::IsTask(b) => write!(f, "is-task={b}"),
         }
     }
 }
@@ -110,6 +126,7 @@ pub enum ImageFilter {
     LabelKey(String),
     Before(String),
     Since(String),
+    Until(String),
     Dangling(bool),
 }
 
@@ -119,6 +136,7 @@ impl ImageFilter {
     pub fn label_key(k: impl Into<String>) -> Self { Self::LabelKey(k.into()) }
     pub fn before(v: impl Into<String>) -> Self { Self::Before(v.into()) }
     pub fn since(v: impl Into<String>) -> Self { Self::Since(v.into()) }
+    pub fn until(v: impl Into<String>) -> Self { Self::Until(v.into()) }
 }
 
 impl fmt::Display for ImageFilter {
@@ -129,6 +147,7 @@ impl fmt::Display for ImageFilter {
             Self::LabelKey(k) => write!(f, "label={k}"),
             Self::Before(v) => write!(f, "before={v}"),
             Self::Since(v) => write!(f, "since={v}"),
+            Self::Until(v) => write!(f, "until={v}"),
             Self::Dangling(b) => write!(f, "dangling={b}"),
         }
     }
@@ -208,6 +227,7 @@ pub enum NetworkFilter {
     Name(String),
     Scope(NetworkScope),
     Type(NetworkType),
+    Dangling(bool),
 }
 
 impl NetworkFilter {
@@ -216,6 +236,7 @@ impl NetworkFilter {
     pub fn label(k: impl Into<String>, v: impl Into<String>) -> Self { Self::Label(k.into(), v.into()) }
     pub fn label_key(k: impl Into<String>) -> Self { Self::LabelKey(k.into()) }
     pub fn name(v: impl Into<String>) -> Self { Self::Name(v.into()) }
+    pub fn dangling(v: bool) -> Self { Self::Dangling(v) }
 }
 
 impl fmt::Display for NetworkFilter {
@@ -228,6 +249,7 @@ impl fmt::Display for NetworkFilter {
             Self::Name(v) => write!(f, "name={v}"),
             Self::Scope(s) => write!(f, "scope={s}"),
             Self::Type(t) => write!(f, "type={t}"),
+            Self::Dangling(b) => write!(f, "dangling={b}"),
         }
     }
 }
@@ -265,12 +287,30 @@ impl fmt::Display for VolumeFilter {
 // ── Node ─────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NodeMembership {
+    Accepted,
+    Pending,
+}
+
+impl fmt::Display for NodeMembership {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Accepted => "accepted",
+            Self::Pending => "pending",
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NodeFilter {
     Id(String),
     Label(String, String),
     LabelKey(String),
     Name(String),
     Role(crate::utils::docker::core::types::NodeRole),
+    Membership(NodeMembership),
+    NodeLabel(String, String),
+    NodeLabelKey(String),
 }
 
 impl NodeFilter {
@@ -278,6 +318,9 @@ impl NodeFilter {
     pub fn label(k: impl Into<String>, v: impl Into<String>) -> Self { Self::Label(k.into(), v.into()) }
     pub fn label_key(k: impl Into<String>) -> Self { Self::LabelKey(k.into()) }
     pub fn name(v: impl Into<String>) -> Self { Self::Name(v.into()) }
+    pub fn membership(v: NodeMembership) -> Self { Self::Membership(v) }
+    pub fn node_label(k: impl Into<String>, v: impl Into<String>) -> Self { Self::NodeLabel(k.into(), v.into()) }
+    pub fn node_label_key(k: impl Into<String>) -> Self { Self::NodeLabelKey(k.into()) }
 }
 
 impl fmt::Display for NodeFilter {
@@ -288,6 +331,9 @@ impl fmt::Display for NodeFilter {
             Self::LabelKey(k) => write!(f, "label={k}"),
             Self::Name(v) => write!(f, "name={v}"),
             Self::Role(r) => write!(f, "role={r}"),
+            Self::Membership(m) => write!(f, "membership={m}"),
+            Self::NodeLabel(k, v) => write!(f, "node.label={k}={v}"),
+            Self::NodeLabelKey(k) => write!(f, "node.label={k}"),
         }
     }
 }
@@ -344,6 +390,60 @@ impl fmt::Display for ConfigFilter {
             Self::Label(k, v) => write!(f, "label={k}={v}"),
             Self::LabelKey(k) => write!(f, "label={k}"),
             Self::Name(v) => write!(f, "name={v}"),
+        }
+    }
+}
+
+// ── Task ─────────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TaskDesiredState {
+    Running,
+    Shutdown,
+    Accepted,
+}
+
+impl fmt::Display for TaskDesiredState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Running => "running",
+            Self::Shutdown => "shutdown",
+            Self::Accepted => "accepted",
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TaskFilter {
+    Id(String),
+    Label(String, String),
+    Name(String),
+    Node(String),
+    DesiredState(TaskDesiredState),
+    UpToDate(bool),
+    IsTask(bool),
+}
+
+impl TaskFilter {
+    pub fn id(v: impl Into<String>) -> Self { Self::Id(v.into()) }
+    pub fn label(k: impl Into<String>, v: impl Into<String>) -> Self { Self::Label(k.into(), v.into()) }
+    pub fn name(v: impl Into<String>) -> Self { Self::Name(v.into()) }
+    pub fn node(v: impl Into<String>) -> Self { Self::Node(v.into()) }
+    pub fn desired_state(v: TaskDesiredState) -> Self { Self::DesiredState(v) }
+    pub fn up_to_date(v: bool) -> Self { Self::UpToDate(v) }
+    pub fn is_task(v: bool) -> Self { Self::IsTask(v) }
+}
+
+impl fmt::Display for TaskFilter {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Id(v) => write!(f, "id={v}"),
+            Self::Label(k, v) => write!(f, "label={k}={v}"),
+            Self::Name(v) => write!(f, "name={v}"),
+            Self::Node(v) => write!(f, "node={v}"),
+            Self::DesiredState(v) => write!(f, "desired-state={v}"),
+            Self::UpToDate(b) => write!(f, "up-to-date={b}"),
+            Self::IsTask(b) => write!(f, "is-task={b}"),
         }
     }
 }

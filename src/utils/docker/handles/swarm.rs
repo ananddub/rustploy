@@ -38,7 +38,19 @@ impl<'a> SwarmHandle<'a> {
         SwarmUnlockKeyBuilder::new(self.cli)
     }
 
-    pub async fn inspect(&self) -> DockerResult<serde_json::Value> {
+    pub fn join_token(&self) -> SwarmJoinTokenBuilder<'a> {
+        SwarmJoinTokenBuilder::new(self.cli)
+    }
+
+    pub fn unlock(&self, key: impl Into<String>) -> SwarmUnlockBuilder<'a> {
+        SwarmUnlockBuilder::new(self.cli, key)
+    }
+
+    pub fn ca(&self) -> SwarmCaBuilder<'a> {
+        SwarmCaBuilder::new(self.cli)
+    }
+
+    pub async fn inspect(&self) -> DockerResult<crate::utils::docker::SwarmInfo> {
         let output = self.cli.run(["info", "--format", "{{json .Swarm}}"]).await?;
         let json = serde_json::from_str(&output.stdout)?;
         Ok(json)
@@ -66,9 +78,10 @@ impl<'a> SwarmInitBuilder<'a> {
     pub fn arg(mut self, v: impl Into<String>) -> Self { self.args.push(v.into()); self }
 
     pub async fn run(self) -> DockerResult<DockerOutput> {
-        self.cli.run(&self.args.build()).await
+        self.cli.execute(&self.args).await
     }
 }
+crate::impl_builder_opts!(SwarmInitBuilder);
 
 // ── SwarmJoinBuilder ────────────────────────────────────────────────────────
 
@@ -94,9 +107,10 @@ impl<'a> SwarmJoinBuilder<'a> {
         if let Some(r) = self.remote.take() {
             self.args.push(r);
         }
-        self.cli.run(&self.args.build()).await
+        self.cli.execute(&self.args).await
     }
 }
+crate::impl_builder_opts!(SwarmJoinBuilder);
 
 // ── SwarmLeaveBuilder ───────────────────────────────────────────────────────
 
@@ -113,9 +127,10 @@ impl<'a> SwarmLeaveBuilder<'a> {
     pub fn force(mut self) -> Self { self.args.flag("--force"); self }
 
     pub async fn run(self) -> DockerResult<DockerOutput> {
-        self.cli.run(&self.args.build()).await
+        self.cli.execute(&self.args).await
     }
 }
+crate::impl_builder_opts!(SwarmLeaveBuilder);
 
 // ── SwarmUpdateBuilder ──────────────────────────────────────────────────────
 
@@ -136,9 +151,10 @@ impl<'a> SwarmUpdateBuilder<'a> {
     pub fn arg(mut self, v: impl Into<String>) -> Self { self.args.push(v.into()); self }
 
     pub async fn run(self) -> DockerResult<DockerOutput> {
-        self.cli.run(&self.args.build()).await
+        self.cli.execute(&self.args).await
     }
 }
+crate::impl_builder_opts!(SwarmUpdateBuilder);
 
 // ── SwarmUnlockKeyBuilder ───────────────────────────────────────────────────
 
@@ -161,3 +177,69 @@ impl<'a> SwarmUnlockKeyBuilder<'a> {
         Ok(out.stdout.trim().to_string())
     }
 }
+
+// ── SwarmJoinTokenBuilder ───────────────────────────────────────────────────
+
+pub struct SwarmJoinTokenBuilder<'a> {
+    cli: &'a DockerCli,
+}
+
+impl<'a> SwarmJoinTokenBuilder<'a> {
+    pub(crate) fn new(cli: &'a DockerCli) -> Self {
+        Self { cli }
+    }
+
+    pub async fn get(&self, role: SwarmRole) -> DockerResult<String> {
+        let out = self.cli.run(["swarm", "join-token", "--quiet", &role.to_string()]).await?;
+        Ok(out.stdout.trim().to_string())
+    }
+
+    pub async fn rotate(&self, role: SwarmRole) -> DockerResult<String> {
+        let out = self.cli.run(["swarm", "join-token", "--rotate", "--quiet", &role.to_string()]).await?;
+        Ok(out.stdout.trim().to_string())
+    }
+}
+
+// ── SwarmUnlockBuilder ──────────────────────────────────────────────────────
+
+pub struct SwarmUnlockBuilder<'a> {
+    cli: &'a DockerCli,
+    args: ArgBuilder,
+    key: String,
+}
+
+impl<'a> SwarmUnlockBuilder<'a> {
+    pub(crate) fn new(cli: &'a DockerCli, key: impl Into<String>) -> Self {
+        Self { cli, args: ArgBuilder::cmd(&["swarm", "unlock"]), key: key.into() }
+    }
+
+    pub async fn run(self) -> DockerResult<DockerOutput> {
+        let a = self.args.build();
+        let refs: Vec<&str> = a.iter().map(String::as_str).collect();
+        // Securely pass the key via stdin
+        self.cli.run_with_stdin(refs, self.key.as_bytes()).await
+    }
+}
+
+// ── SwarmCaBuilder ──────────────────────────────────────────────────────────
+
+pub struct SwarmCaBuilder<'a> {
+    cli: &'a DockerCli,
+    args: ArgBuilder,
+}
+
+impl<'a> SwarmCaBuilder<'a> {
+    pub(crate) fn new(cli: &'a DockerCli) -> Self {
+        Self { cli, args: ArgBuilder::cmd(&["swarm", "ca"]) }
+    }
+
+    pub fn rotate(mut self) -> Self { self.args.flag("--rotate"); self }
+    pub fn external_ca(mut self, ca: impl AsRef<str>) -> Self { self.args.pair("--external-ca", ca); self }
+    pub fn ca_cert(mut self, cert: impl AsRef<str>) -> Self { self.args.pair("--ca-cert", cert); self }
+    pub fn ca_key(mut self, key: impl AsRef<str>) -> Self { self.args.pair("--ca-key", key); self }
+
+    pub async fn run(self) -> DockerResult<DockerOutput> {
+        self.cli.execute(&self.args).await
+    }
+}
+crate::impl_builder_opts!(SwarmCaBuilder);

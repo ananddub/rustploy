@@ -15,6 +15,7 @@ use crate::{
         jwt::claim::Claims,
     },
 };
+use crate::utils::docker::core::types::{NodeAvailability, SwarmRole};
 
 type ApiError = (StatusCode, String);
 
@@ -28,7 +29,6 @@ impl SwarmController {
         Self { db }
     }
 
-    /// GET /swarm/info — swarm state + node count.
     #[post("/info")]
     async fn info(
         &self,
@@ -36,34 +36,18 @@ impl SwarmController {
         Json(body): Json<SwarmConnectionDto>,
     ) -> Result<Json<SwarmInfoDto>, ApiError> {
         let docker = self.docker(body.server_id).await?;
-        let raw = docker
-            .run(["info", "--format", "{{json .Swarm}}"])
-            .await
-            .map_err(map_exec)?;
-
-        let v: serde_json::Value =
-            serde_json::from_str(raw.stdout_trimmed()).map_err(|e| internal(e.to_string()))?;
+        let swarm = docker.swarm().inspect().await.map_err(map_exec)?;
 
         Ok(Json(SwarmInfoDto {
-            node_id: str_field(&v, "NodeID"),
-            node_addr: str_field(&v, "NodeAddr"),
-            local_node_state: str_field(&v, "LocalNodeState"),
-            control_available: v
-                .get("ControlAvailable")
-                .and_then(|v| v.as_bool())
-                .unwrap_or(false),
-            nodes: v
-                .get("Nodes")
-                .and_then(|v| v.as_i64())
-                .unwrap_or(0),
-            managers: v
-                .get("Managers")
-                .and_then(|v| v.as_i64())
-                .unwrap_or(0),
+            node_id: swarm.node_id,
+            node_addr: swarm.node_addr,
+            local_node_state: swarm.local_node_state,
+            control_available: swarm.control_available,
+            nodes: swarm.nodes as i64,
+            managers: swarm.managers as i64,
         }))
     }
 
-    /// POST /swarm/tokens — get worker + manager join tokens.
     #[post("/tokens")]
     async fn tokens(
         &self,
@@ -72,22 +56,12 @@ impl SwarmController {
     ) -> Result<Json<SwarmTokensDto>, ApiError> {
         let docker = self.docker(body.server_id).await?;
 
-        let worker = docker
-            .swarm_join_token_raw(&["--quiet", "worker"])
-            .await
-            .map_err(map_exec)?;
-        let manager = docker
-            .swarm_join_token_raw(&["--quiet", "manager"])
-            .await
-            .map_err(map_exec)?;
+        let worker = docker.swarm().join_token().get(SwarmRole::Worker).await.map_err(map_exec)?;
+        let manager = docker.swarm().join_token().get(SwarmRole::Manager).await.map_err(map_exec)?;
 
-        Ok(Json(SwarmTokensDto {
-            worker: worker.stdout_trimmed().into(),
-            manager: manager.stdout_trimmed().into(),
-        }))
+        Ok(Json(SwarmTokensDto { worker, manager }))
     }
 
-    /// POST /swarm/nodes — list all nodes.
     #[post("/nodes")]
     async fn nodes(
         &self,
@@ -95,7 +69,7 @@ impl SwarmController {
         Json(body): Json<SwarmConnectionDto>,
     ) -> Result<Json<Vec<NodeDto>>, ApiError> {
         let docker = self.docker(body.server_id).await?;
-        let nodes = docker.nodes_raw(&[]).await.map_err(map_exec)?;
+        let nodes = docker.nodes().list().run_json().await.map_err(map_exec)?;
         Ok(Json(nodes.into_iter().map(NodeDto::from).collect()))
     }
 
@@ -107,7 +81,9 @@ impl SwarmController {
     ) -> Result<StatusCode, ApiError> {
         let docker = self.docker(body.server_id).await?;
         docker
-            .node_promote_raw(&[body.node_id.as_str()])
+            .nodes()
+            .promote(body.node_id)
+            .run()
             .await
             .map_err(map_exec)?;
         Ok(StatusCode::NO_CONTENT)
@@ -121,7 +97,9 @@ impl SwarmController {
     ) -> Result<StatusCode, ApiError> {
         let docker = self.docker(body.server_id).await?;
         docker
-            .node_demote_raw(&[body.node_id.as_str()])
+            .nodes()
+            .demote(body.node_id)
+            .run()
             .await
             .map_err(map_exec)?;
         Ok(StatusCode::NO_CONTENT)
@@ -134,12 +112,13 @@ impl SwarmController {
         Json(body): Json<NodeAvailabilityDto>,
     ) -> Result<StatusCode, ApiError> {
         let docker = self.docker(body.server_id).await?;
+        let node_aval = NodeAvailability::try_from(body.availability.as_str())
+            .map_err(|_| (StatusCode::BAD_REQUEST, "invalid availability value".into()))?;
         docker
-            .node_update_raw(&[
-                "--availability",
-                body.availability.to_ascii_lowercase().as_str(),
-                body.node_id.as_str(),
-            ])
+            .nodes()
+            .update(body.node_id)
+            .availability(node_aval)
+            .run()
             .await
             .map_err(map_exec)?;
         Ok(StatusCode::NO_CONTENT)
@@ -152,14 +131,10 @@ impl SwarmController {
         Json(body): Json<NodeActionDto>,
     ) -> Result<StatusCode, ApiError> {
         let docker = self.docker(body.server_id).await?;
-        docker
-            .node_remove_raw(&["--force", body.node_id.as_str()])
-            .await
-            .map_err(map_exec)?;
+        docker.nodes().remove(body.node_id).force().run().await.map_err(map_exec)?;
         Ok(StatusCode::NO_CONTENT)
     }
 
-    /// POST /swarm/leave — make a node leave the swarm.
     #[post("/leave")]
     async fn leave(
         &self,
@@ -167,13 +142,9 @@ impl SwarmController {
         Json(body): Json<SwarmConnectionDto>,
     ) -> Result<StatusCode, ApiError> {
         let docker = self.docker(body.server_id).await?;
-        docker.swarm_leave_raw(true).await.map_err(map_exec)?;
+        docker.swarm().leave().run().await.map_err(map_exec)?;
         Ok(StatusCode::NO_CONTENT)
     }
-
-    // ---------------------------------------------------------------- //
-    //  Helpers                                                          //
-    // ---------------------------------------------------------------- //
 
     async fn docker(&self, server_id: Option<i64>) -> Result<DockerCli, ApiError> {
         match server_id {
@@ -188,7 +159,6 @@ impl SwarmController {
     }
 }
 
-/// Build a RemoteExecutor from DB server+ssh_key record.
 async fn remote_executor_for(db: &SqlitePool, server_id: i64) -> Result<RemoteExecutor, ApiError> {
     let row = sqlx::query_as::<_, (String, i64, String, String, String)>(
         r#"SELECT s.ip_address, s.port, s.username, k.private_key, k.public_key

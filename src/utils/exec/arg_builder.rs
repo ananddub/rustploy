@@ -3,7 +3,11 @@
 /// Builders store a single `ArgBuilder` instead of maintaining their own
 /// `Vec<String>`. This eliminates duplicated push/extend patterns.
 #[derive(Debug, Default, Clone)]
-pub struct ArgBuilder(Vec<String>);
+pub struct ArgBuilder {
+    args: Vec<String>,
+    pub retry_limit: Option<u32>,
+    pub cancel_token: Option<tokio_util::sync::CancellationToken>,
+}
 
 impl ArgBuilder {
     /// Start a new builder, pre-seeded with Docker subcommand tokens.
@@ -11,19 +15,23 @@ impl ArgBuilder {
     /// ArgBuilder::cmd(&["container", "run"])
     /// ```
     pub fn cmd(subcmd: &[&str]) -> Self {
-        Self(subcmd.iter().map(|s| (*s).to_string()).collect())
+        Self {
+            args: subcmd.iter().map(|s| (*s).to_string()).collect(),
+            retry_limit: None,
+            cancel_token: None,
+        }
     }
 
     /// Push a bare flag (`--flag`).
     pub fn flag(&mut self, f: &str) -> &mut Self {
-        self.0.push(f.to_string());
+        self.args.push(f.to_string());
         self
     }
 
     /// Push `--key value`.
     pub fn pair(&mut self, k: &str, v: impl AsRef<str>) -> &mut Self {
-        self.0.push(k.to_string());
-        self.0.push(v.as_ref().to_string());
+        self.args.push(k.to_string());
+        self.args.push(v.as_ref().to_string());
         self
     }
 
@@ -62,25 +70,25 @@ impl ArgBuilder {
 
     /// Push a single raw argument.
     pub fn push(&mut self, v: impl Into<String>) -> &mut Self {
-        self.0.push(v.into());
+        self.args.push(v.into());
         self
     }
 
     /// Push all items from an iterator.
     pub fn push_all(&mut self, vs: impl IntoIterator<Item = impl Into<String>>) -> &mut Self {
-        self.0.extend(vs.into_iter().map(Into::into));
+        self.args.extend(vs.into_iter().map(Into::into));
         self
     }
 
     /// Consume and return the built argument list.
     pub fn build(self) -> Vec<String> {
-        self.0
+        self.args
     }
 
     /// Render as a human-readable `docker <args...>` string for dry-run / debugging.
     pub fn preview(&self) -> String {
         std::iter::once("docker")
-            .chain(self.0.iter().map(String::as_str))
+            .chain(self.args.iter().map(String::as_str))
             .collect::<Vec<_>>()
             .join(" ")
     }

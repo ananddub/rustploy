@@ -51,6 +51,12 @@ impl<'a> ServicesHandle<'a> {
     pub fn rollback(&self, name: impl Into<String>) -> ServiceRollbackBuilder<'a> {
         ServiceRollbackBuilder::new(self.cli, name)
     }
+
+    pub async fn inspect(&self, name: impl AsRef<str>) -> DockerResult<serde_json::Value> {
+        let out = self.cli.run(["service", "inspect", name.as_ref()]).await?;
+        let mut json: Vec<serde_json::Value> = serde_json::from_str(&out.stdout)?;
+        Ok(json.pop().unwrap_or_default())
+    }
 }
 
 // ── ServiceListBuilder ──────────────────────────────────────────────────────
@@ -72,16 +78,15 @@ impl<'a> ServiceListBuilder<'a> {
     }
 
     pub async fn run(self) -> DockerResult<DockerOutput> {
-        self.cli.run(&self.args.build()).await
+        self.cli.execute(&self.args).await
     }
 
     pub async fn run_json(mut self) -> DockerResult<Vec<crate::utils::docker::ServiceSummary>> {
         self.args.pair("--format", "{{json .}}");
-        let args = self.args.build();
-        let refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        self.cli.json_lines(&refs).await
+        self.cli.execute_json_lines(&self.args).await
     }
 }
+crate::impl_builder_opts!(ServiceListBuilder);
 
 // ── ServiceUpdateBuilder ────────────────────────────────────────────────────
 
@@ -114,9 +119,10 @@ impl<'a> ServiceUpdateBuilder<'a> {
 
     pub async fn run(mut self) -> DockerResult<DockerOutput> {
         self.args.push(&self.name);
-        self.cli.run(&self.args.build()).await
+        self.cli.execute(&self.args).await
     }
 }
+crate::impl_builder_opts!(ServiceUpdateBuilder);
 
 // ── ServiceCreateBuilder ────────────────────────────────────────────────────
 
@@ -142,9 +148,10 @@ impl<'a> ServiceCreateBuilder<'a> {
 
     pub async fn run(mut self) -> DockerResult<DockerOutput> {
         self.args.push(&self.image);
-        self.cli.run(&self.args.build()).await
+        self.cli.execute(&self.args).await
     }
 }
+crate::impl_builder_opts!(ServiceCreateBuilder);
 
 // ── ServiceRemoveBuilder ────────────────────────────────────────────────────
 
@@ -161,9 +168,10 @@ impl<'a> ServiceRemoveBuilder<'a> {
 
     pub async fn run(mut self) -> DockerResult<DockerOutput> {
         self.args.push(&self.name);
-        self.cli.run(&self.args.build()).await
+        self.cli.execute(&self.args).await
     }
 }
+crate::impl_builder_opts!(ServiceRemoveBuilder);
 
 // ── ServicePsBuilder ────────────────────────────────────────────────────────
 
@@ -178,11 +186,24 @@ impl<'a> ServicePsBuilder<'a> {
         Self { cli, args: ArgBuilder::cmd(&["service", "ps"]), name: name.into() }
     }
 
+    pub fn filter(mut self, f: crate::utils::docker::query::filter::TaskFilter) -> Self { self.args.filter(f); self }
+    pub fn filters(mut self, fs: impl IntoIterator<Item = crate::utils::docker::query::filter::TaskFilter>) -> Self {
+        for f in fs { self.args.filter(f); }
+        self
+    }
+
     pub async fn run(mut self) -> DockerResult<DockerOutput> {
         self.args.push(&self.name);
-        self.cli.run(&self.args.build()).await
+        self.cli.execute(&self.args).await
+    }
+
+    pub async fn run_json(mut self) -> DockerResult<Vec<crate::utils::docker::TaskSummary>> {
+        self.args.pair("--format", "{{json .}}");
+        self.args.push(&self.name);
+        self.cli.execute_json_lines(&self.args).await
     }
 }
+crate::impl_builder_opts!(ServicePsBuilder);
 
 // ── ServiceLogsBuilder ──────────────────────────────────────────────────────
 
@@ -202,14 +223,15 @@ impl<'a> ServiceLogsBuilder<'a> {
 
     pub async fn run(mut self) -> DockerResult<DockerOutput> {
         self.args.push(&self.name);
-        self.cli.run(&self.args.build()).await
+        self.cli.execute(&self.args).await
     }
     
     pub async fn stream(mut self, sender: mpsc::Sender<DockerStreamEvent>) -> DockerResult<DockerExitStatus> {
         self.args.push(&self.name);
-        self.cli.run_stream(self.args.build(), sender).await
+        self.cli.execute_stream(&self.args, sender).await
     }
 }
+crate::impl_builder_opts!(ServiceLogsBuilder);
 
 // ── ServiceScaleBuilder ─────────────────────────────────────────────────────
 
@@ -229,9 +251,10 @@ impl<'a> ServiceScaleBuilder<'a> {
     }
 
     pub async fn run(self) -> DockerResult<DockerOutput> {
-        self.cli.run(&self.args.build()).await
+        self.cli.execute(&self.args).await
     }
 }
+crate::impl_builder_opts!(ServiceScaleBuilder);
 
 // ── ServiceRollbackBuilder ──────────────────────────────────────────────────
 
@@ -248,6 +271,7 @@ impl<'a> ServiceRollbackBuilder<'a> {
 
     pub async fn run(mut self) -> DockerResult<DockerOutput> {
         self.args.push(&self.name);
-        self.cli.run(&self.args.build()).await
+        self.cli.execute(&self.args).await
     }
 }
+crate::impl_builder_opts!(ServiceRollbackBuilder);

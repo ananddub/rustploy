@@ -37,13 +37,12 @@ impl<'a> ContainerQuery<'a> {
     pub fn print(&self) -> String { self.args.preview() }
 
     pub async fn list(self) -> DockerResult<Vec<ContainerSummary>> {
-        let args = self.args.build();
-        let refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        self.cli.json_lines(&refs).await
+        self.cli.execute_json_lines(&self.args).await
     }
     pub async fn count(self) -> DockerResult<usize> { Ok(self.list().await?.len()) }
     pub async fn exists(self) -> DockerResult<bool>  { Ok(!self.list().await?.is_empty()) }
 }
+crate::impl_builder_opts!(ContainerQuery);
 
 // ── RestartPolicy ─────────────────────────────────────────────────────────────
 
@@ -141,27 +140,22 @@ impl<'a> ContainerCreate<'a> {
     pub async fn create(self) -> DockerResult<String> {
         let cli = self.cli;
         let (args, _) = self.finalize("create");
-        let a = args.build();
-        let refs: Vec<&str> = a.iter().map(String::as_str).collect();
-        Ok(cli.run(refs).await?.stdout.trim().to_string())
+        Ok(cli.execute(&args).await?.stdout.trim().to_string())
     }
 
     /// `docker container run …`
     pub async fn run(self) -> DockerResult<DockerOutput> {
         let (args, cli) = self.finalize("run");
-        let a = args.build();
-        let refs: Vec<&str> = a.iter().map(String::as_str).collect();
-        cli.run(refs).await
+        cli.execute(&args).await
     }
 
     /// `docker container run …` — streaming output.
     pub async fn run_stream(self, sender: mpsc::Sender<DockerStreamEvent>) -> DockerResult<DockerExitStatus> {
         let (args, cli) = self.finalize("run");
-        let a = args.build();
-        let refs: Vec<&str> = a.iter().map(String::as_str).collect();
-        cli.run_stream(refs, sender).await
+        cli.execute_stream(&args, sender).await
     }
 }
+crate::impl_builder_opts!(ContainerCreate);
 
 // ── ExecBuilder ───────────────────────────────────────────────────────────────
 
@@ -191,9 +185,7 @@ impl<'a> ExecBuilder<'a> {
         a.push_all(self.args.build());
         a.push(&self.id);
         a.push_all(cmd.into_iter().map(Into::into));
-        let built = a.build();
-        let refs: Vec<&str> = built.iter().map(String::as_str).collect();
-        self.cli.run(refs).await
+        self.cli.execute(&a).await
     }
 
     pub async fn run_stream(self, cmd: impl IntoIterator<Item = impl Into<String>>, sender: mpsc::Sender<DockerStreamEvent>) -> DockerResult<DockerExitStatus> {
@@ -201,11 +193,10 @@ impl<'a> ExecBuilder<'a> {
         a.push_all(self.args.build());
         a.push(&self.id);
         a.push_all(cmd.into_iter().map(Into::into));
-        let built = a.build();
-        let refs: Vec<&str> = built.iter().map(String::as_str).collect();
-        self.cli.run_stream(refs, sender).await
+        self.cli.execute_stream(&a, sender).await
     }
 }
+crate::impl_builder_opts!(ExecBuilder);
 
 // ── LogsBuilder ───────────────────────────────────────────────────────────────
 
@@ -234,9 +225,7 @@ impl<'a> LogsBuilder<'a> {
         let mut a = ArgBuilder::cmd(&["container", "logs"]);
         a.push_all(self.args.build());
         a.push(&self.id);
-        let built = a.build();
-        let refs: Vec<&str> = built.iter().map(String::as_str).collect();
-        let out = self.cli.run(refs).await?;
+        let out = self.cli.execute(&a).await?;
         Ok(format!("{}{}", out.stdout, out.stderr))
     }
 
@@ -244,11 +233,10 @@ impl<'a> LogsBuilder<'a> {
         let mut a = ArgBuilder::cmd(&["container", "logs"]);
         a.push_all(self.args.build());
         a.push(&self.id);
-        let built = a.build();
-        let refs: Vec<&str> = built.iter().map(String::as_str).collect();
-        self.cli.run_stream(refs, sender).await
+        self.cli.execute_stream(&a, sender).await
     }
 }
+crate::impl_builder_opts!(LogsBuilder);
 
 // ── StatsBuilder ──────────────────────────────────────────────────────────────
 
@@ -264,11 +252,10 @@ impl<'a> StatsBuilder<'a> {
         let mut a = ArgBuilder::cmd(&["container", "stats"]);
         a.push_all(self.args.build());
         a.push(&self.id);
-        let built = a.build();
-        let refs: Vec<&str> = built.iter().map(String::as_str).collect();
-        self.cli.run_stream(refs, sender).await
+        self.cli.execute_stream(&a, sender).await
     }
 }
+crate::impl_builder_opts!(StatsBuilder);
 
 // ── ContainerPrune ────────────────────────────────────────────────────────────
 
@@ -281,11 +268,10 @@ impl<'a> ContainerPrune<'a> {
     pub fn filter(mut self, f: ContainerFilter) -> Self { self.args.filter(f); self }
     pub fn print(&self) -> String { self.args.preview() }
     pub async fn run(self) -> DockerResult<DockerOutput> {
-        let a = self.args.build();
-        let refs: Vec<&str> = a.iter().map(String::as_str).collect();
-        self.cli.run(refs).await
+        self.cli.execute(&self.args).await
     }
 }
+crate::impl_builder_opts!(ContainerPrune);
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
@@ -299,7 +285,8 @@ mod tests {
 
     #[test]
     fn container_create_args() {
-        let c = ContainerCreate::new(&cli(), "nginx:latest")
+        let temp = cli();
+        let c = ContainerCreate::new(&temp, "nginx:latest")
             .name("web")
             .network("bridge")
             .publish(Port::tcp(8080, 80))
@@ -324,7 +311,8 @@ mod tests {
 
     #[test]
     fn container_create_tty_enabled() {
-        let c = ContainerCreate::new(&cli(), "alpine").tty(true);
+        let temp = cli();
+        let c = ContainerCreate::new(&temp, "alpine").tty(true);
         assert!(c.print_run().contains("--tty"));
     }
 
@@ -336,7 +324,8 @@ mod tests {
 
     #[test]
     fn container_query_print() {
-        let q = ContainerQuery::new(&cli()).all()
+        let tmp = cli();
+        let q = ContainerQuery::new(&tmp).all()
             .filter(ContainerFilter::Status(ContainerStatus::Running));
         assert!(q.print().contains("--all"));
         assert!(q.print().contains("status=running"));

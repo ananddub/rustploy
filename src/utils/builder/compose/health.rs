@@ -5,6 +5,7 @@ use super::{
 use crate::utils::exec::{ExecError, ExecResult};
 use tokio::time::{Duration, Instant};
 use tokio_util::sync::CancellationToken;
+use crate::utils::docker::query::filter::TaskFilter;
 
 impl ComposeBuilder {
     pub(super) async fn wait_healthy(
@@ -17,27 +18,18 @@ impl ComposeBuilder {
             self.cancelled(cancel)?;
             let health_result = match spec.runtime {
                 ComposeRuntime::Stack => {
-                    self.docker
-                        .stack_ps_raw(&[
-                            "--filter",
-                            "desired-state=running",
-                            "--format",
-                            "{{json .}}",
-                            spec.stack_name.as_str(),
-                        ])
+                    self.docker.stacks().ps(&spec.stack_name)
+                        .filter(TaskFilter::DesiredState(crate::utils::docker::query::filter::TaskDesiredState::Running))
+                        .run()
                         .await
                 }
                 ComposeRuntime::Compose => {
-                    self.docker
-                        .compose_raw(&[
-                            "--project-name",
-                            spec.stack_name.as_str(),
-                            "--env-file",
-                            spec.env_file.as_str(),
-                            "--file",
-                            spec.compose_file_path().as_str(),
-                            "ps",
-                        ])
+                    self.docker.compose()
+                        .ps()
+                        .project(&spec.stack_name)
+                        .env_file(&spec.env_file)
+                        .file(&spec.compose_file_path())
+                        .run()
                         .await
                 }
             };
@@ -45,7 +37,7 @@ impl ComposeBuilder {
                 Ok(output) => output,
                 Err(error)
                     if Instant::now() < deadline
-                        && is_transient_docker_error(&error.to_string()) =>
+                        && crate::utils::docker::error::is_transient_docker_error(&error.to_string()) =>
                 {
                     tracing::warn!(error = %error, "compose health check failed transiently; retrying");
                     tokio::time::sleep(Duration::from_secs(2)).await;
@@ -72,17 +64,3 @@ impl ComposeBuilder {
     }
 }
 
-fn is_transient_docker_error(message: &str) -> bool {
-    let message = message.to_ascii_lowercase();
-    [
-        "cannot connect to the docker daemon",
-        "docker daemon",
-        "connection refused",
-        "connection reset",
-        "service unavailable",
-        "temporarily unavailable",
-        "context deadline exceeded",
-    ]
-    .iter()
-    .any(|needle| message.contains(needle))
-}
