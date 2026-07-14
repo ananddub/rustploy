@@ -15,6 +15,19 @@ impl<'a> ImageHandle<'a> {
     pub fn build(&self, context: impl AsRef<Path>) -> BuildBuilder<'_> { BuildBuilder::new(self.0, context) }
     pub fn pull(&self, image: impl Into<String>)   -> PullBuilder<'_>  { PullBuilder::new(self.0, image) }
     pub fn prune(&self)                            -> ImagePrune<'_>   { ImagePrune::new(self.0) }
+
+    pub fn push(&self, image: impl Into<String>)   -> ImagePushBuilder<'_> { ImagePushBuilder::new(self.0, image) }
+    pub fn rm(&self, image: impl Into<String>)     -> ImageRmBuilder<'_> { ImageRmBuilder::new(self.0, image) }
+    pub fn tag(&self, source: impl Into<String>, target: impl Into<String>) -> ImageTagBuilder<'_> { ImageTagBuilder::new(self.0, source, target) }
+    pub fn history(&self, image: impl Into<String>) -> ImageHistoryBuilder<'_> { ImageHistoryBuilder::new(self.0, image) }
+    pub fn save(&self, image: impl Into<String>)   -> ImageSaveBuilder<'_> { ImageSaveBuilder::new(self.0, image) }
+    pub fn load(&self)                             -> ImageLoadBuilder<'_> { ImageLoadBuilder::new(self.0) }
+    pub fn import(&self, source: impl Into<String>)-> ImageImportBuilder<'_> { ImageImportBuilder::new(self.0, source) }
+    pub async fn inspect(&self, image: impl AsRef<str>) -> DockerResult<serde_json::Value> {
+        let out = self.0.run(["image", "inspect", image.as_ref()]).await?;
+        let mut json: Vec<serde_json::Value> = serde_json::from_str(&out.stdout)?;
+        Ok(json.pop().unwrap_or_default())
+    }
 }
 
 // ── ImageQuery ────────────────────────────────────────────────────────────────
@@ -134,6 +147,61 @@ impl<'a> ImagePrune<'a> {
     }
 }
 crate::impl_builder_opts!(ImagePrune);
+
+// ── Generated Simple Builders ───────────────────────────────────────────────
+
+pub struct ImagePushBuilder<'a> { cli: &'a DockerCli, image: String, args: ArgBuilder }
+impl<'a> ImagePushBuilder<'a> {
+    pub(crate) fn new(cli: &'a DockerCli, image: impl Into<String>) -> Self { Self { cli, image: image.into(), args: ArgBuilder::cmd(&["image", "push"]) } }
+    pub async fn run(self) -> DockerResult<DockerOutput> { let mut a = self.args; a.push(&self.image); self.cli.execute(&a).await }
+}
+crate::impl_builder_opts!(ImagePushBuilder);
+
+pub struct ImageRmBuilder<'a> { cli: &'a DockerCli, image: String, args: ArgBuilder }
+impl<'a> ImageRmBuilder<'a> {
+    pub(crate) fn new(cli: &'a DockerCli, image: impl Into<String>) -> Self { Self { cli, image: image.into(), args: ArgBuilder::cmd(&["image", "rm"]) } }
+    pub fn force(mut self) -> Self { self.args.flag("--force"); self }
+    pub async fn run(self) -> DockerResult<DockerOutput> { let mut a = self.args; a.push(&self.image); self.cli.execute(&a).await }
+}
+crate::impl_builder_opts!(ImageRmBuilder);
+
+pub struct ImageTagBuilder<'a> { cli: &'a DockerCli, source: String, target: String, args: ArgBuilder }
+impl<'a> ImageTagBuilder<'a> {
+    pub(crate) fn new(cli: &'a DockerCli, source: impl Into<String>, target: impl Into<String>) -> Self { Self { cli, source: source.into(), target: target.into(), args: ArgBuilder::cmd(&["image", "tag"]) } }
+    pub async fn run(self) -> DockerResult<DockerOutput> { let mut a = self.args; a.push(&self.source); a.push(&self.target); self.cli.execute(&a).await }
+}
+crate::impl_builder_opts!(ImageTagBuilder);
+
+pub struct ImageHistoryBuilder<'a> { cli: &'a DockerCli, image: String, args: ArgBuilder }
+impl<'a> ImageHistoryBuilder<'a> {
+    pub(crate) fn new(cli: &'a DockerCli, image: impl Into<String>) -> Self { Self { cli, image: image.into(), args: ArgBuilder::cmd(&["image", "history"]) } }
+    pub async fn run(self) -> DockerResult<DockerOutput> { let mut a = self.args; a.push(&self.image); self.cli.execute(&a).await }
+}
+crate::impl_builder_opts!(ImageHistoryBuilder);
+
+pub struct ImageSaveBuilder<'a> { cli: &'a DockerCli, image: String, args: ArgBuilder }
+impl<'a> ImageSaveBuilder<'a> {
+    pub(crate) fn new(cli: &'a DockerCli, image: impl Into<String>) -> Self { Self { cli, image: image.into(), args: ArgBuilder::cmd(&["image", "save"]) } }
+    pub fn output(mut self, path: impl Into<String>) -> Self { self.args.pair("--output", path.into()); self }
+    pub async fn run(self) -> DockerResult<DockerOutput> { let mut a = self.args; a.push(&self.image); self.cli.execute(&a).await }
+}
+crate::impl_builder_opts!(ImageSaveBuilder);
+
+pub struct ImageLoadBuilder<'a> { cli: &'a DockerCli, args: ArgBuilder }
+impl<'a> ImageLoadBuilder<'a> {
+    pub(crate) fn new(cli: &'a DockerCli) -> Self { Self { cli, args: ArgBuilder::cmd(&["image", "load"]) } }
+    pub fn input(mut self, path: impl Into<String>) -> Self { self.args.pair("--input", path.into()); self }
+    pub async fn run(self) -> DockerResult<DockerOutput> { self.cli.execute(&self.args).await }
+}
+crate::impl_builder_opts!(ImageLoadBuilder);
+
+pub struct ImageImportBuilder<'a> { cli: &'a DockerCli, source: String, args: ArgBuilder }
+impl<'a> ImageImportBuilder<'a> {
+    pub(crate) fn new(cli: &'a DockerCli, source: impl Into<String>) -> Self { Self { cli, source: source.into(), args: ArgBuilder::cmd(&["image", "import"]) } }
+    pub fn message(mut self, msg: impl Into<String>) -> Self { self.args.pair("--message", msg.into()); self }
+    pub async fn run(self) -> DockerResult<DockerOutput> { let mut a = self.args; a.push(&self.source); self.cli.execute(&a).await }
+}
+crate::impl_builder_opts!(ImageImportBuilder);
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 

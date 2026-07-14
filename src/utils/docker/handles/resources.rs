@@ -12,6 +12,14 @@ impl<'a> NetworkHandle<'a> {
     pub fn list(&self)                          -> NetworkQuery<'_>  { NetworkQuery::new(self.0) }
     pub fn create(&self, name: impl Into<String>) -> NetworkCreate<'_> { NetworkCreate::new(self.0, name) }
     pub fn prune(&self)                         -> NetworkPrune<'_>  { NetworkPrune::new(self.0) }
+    pub fn rm(&self, name: impl Into<String>)   -> NetworkRmBuilder<'_> { NetworkRmBuilder::new(self.0, name) }
+    pub fn connect(&self, network: impl Into<String>, container: impl Into<String>) -> NetworkConnectBuilder<'_> { NetworkConnectBuilder::new(self.0, network, container) }
+    pub fn disconnect(&self, network: impl Into<String>, container: impl Into<String>) -> NetworkDisconnectBuilder<'_> { NetworkDisconnectBuilder::new(self.0, network, container) }
+    pub async fn inspect(&self, name: impl AsRef<str>) -> DockerResult<serde_json::Value> {
+        let out = self.0.run(["network", "inspect", name.as_ref()]).await?;
+        let mut json: Vec<serde_json::Value> = serde_json::from_str(&out.stdout)?;
+        Ok(json.pop().unwrap_or_default())
+    }
 }
 
 pub struct NetworkQuery<'a> { cli: &'a DockerCli, args: ArgBuilder }
@@ -83,6 +91,12 @@ impl<'a> VolumeHandle<'a> {
     pub fn list(&self)                           -> VolumeQuery<'_>  { VolumeQuery::new(self.0) }
     pub fn create(&self, name: impl Into<String>) -> VolumeCreate<'_> { VolumeCreate::new(self.0, name) }
     pub fn prune(&self)                          -> VolumePrune<'_>  { VolumePrune::new(self.0) }
+    pub fn rm(&self, name: impl Into<String>)    -> VolumeRmBuilder<'_> { VolumeRmBuilder::new(self.0, name) }
+    pub async fn inspect(&self, name: impl AsRef<str>) -> DockerResult<serde_json::Value> {
+        let out = self.0.run(["volume", "inspect", name.as_ref()]).await?;
+        let mut json: Vec<serde_json::Value> = serde_json::from_str(&out.stdout)?;
+        Ok(json.pop().unwrap_or_default())
+    }
 }
 
 pub struct VolumeQuery<'a> { cli: &'a DockerCli, args: ArgBuilder }
@@ -140,3 +154,34 @@ impl<'a> VolumePrune<'a> {
     }
 }
 crate::impl_builder_opts!(VolumePrune);
+
+// ── Generated Simple Builders ───────────────────────────────────────────────
+
+pub struct NetworkRmBuilder<'a> { cli: &'a DockerCli, name: String, args: ArgBuilder }
+impl<'a> NetworkRmBuilder<'a> {
+    pub(crate) fn new(cli: &'a DockerCli, name: impl Into<String>) -> Self { Self { cli, name: name.into(), args: ArgBuilder::cmd(&["network", "rm"]) } }
+    pub async fn run(self) -> DockerResult<DockerOutput> { let mut a = self.args; a.push(&self.name); self.cli.execute(&a).await }
+}
+crate::impl_builder_opts!(NetworkRmBuilder);
+
+pub struct NetworkConnectBuilder<'a> { cli: &'a DockerCli, network: String, container: String, args: ArgBuilder }
+impl<'a> NetworkConnectBuilder<'a> {
+    pub(crate) fn new(cli: &'a DockerCli, network: impl Into<String>, container: impl Into<String>) -> Self { Self { cli, network: network.into(), container: container.into(), args: ArgBuilder::cmd(&["network", "connect"]) } }
+    pub async fn run(self) -> DockerResult<DockerOutput> { let mut a = self.args; a.push(&self.network); a.push(&self.container); self.cli.execute(&a).await }
+}
+crate::impl_builder_opts!(NetworkConnectBuilder);
+
+pub struct NetworkDisconnectBuilder<'a> { cli: &'a DockerCli, network: String, container: String, args: ArgBuilder }
+impl<'a> NetworkDisconnectBuilder<'a> {
+    pub(crate) fn new(cli: &'a DockerCli, network: impl Into<String>, container: impl Into<String>) -> Self { Self { cli, network: network.into(), container: container.into(), args: ArgBuilder::cmd(&["network", "disconnect"]) } }
+    pub async fn run(self) -> DockerResult<DockerOutput> { let mut a = self.args; a.push(&self.network); a.push(&self.container); self.cli.execute(&a).await }
+}
+crate::impl_builder_opts!(NetworkDisconnectBuilder);
+
+pub struct VolumeRmBuilder<'a> { cli: &'a DockerCli, name: String, args: ArgBuilder }
+impl<'a> VolumeRmBuilder<'a> {
+    pub(crate) fn new(cli: &'a DockerCli, name: impl Into<String>) -> Self { Self { cli, name: name.into(), args: ArgBuilder::cmd(&["volume", "rm"]) } }
+    pub async fn run(self) -> DockerResult<DockerOutput> { let mut a = self.args; a.push(&self.name); self.cli.execute(&a).await }
+}
+crate::impl_builder_opts!(VolumeRmBuilder);
+

@@ -53,7 +53,10 @@ impl DockerCli {
 
 // #[test]
 pub mod TestingDockerBuilder {
-    use crate::utils::docker::query::{ContainerFilter, ContainerStatus, HealthStatus, ImageFilter, RestartPolicy};
+    use crate::utils::builder::spec::MountKind::Volume;
+    use crate::utils::docker::core::{Cpu, Memory, Mount, Port};
+    use crate::utils::docker::handles::RestartPolicy;
+    use crate::utils::docker::query::{ContainerFilter, ContainerStatus, HealthStatus, ImageFilter, VolumeCreate};
     use super::*;
 
     #[test]
@@ -82,27 +85,24 @@ pub mod TestingDockerBuilder {
     }
     #[test]
     fn docker_container_filter(){
-        // let docker = DockerCli::new_local();
-        //
-        // let cmd =  docker
-        //     .containers()
-        //     .create("ghcr.io/example/backend:latest")
-        //     .name("backend")
-        //     .hostname("api")
-        //     .network("frontend")
-        //     .ip("172.20.0.20")
-        //     .memory("1g")
-        //     .cpus(2)
-        //     .restart(RestartPolicy::UnlessStopped)
-        //     .env("RUST_LOG","debug")
-        //     .env("DATABASE_URL","mysql://db")
-        //     .volume("app-data","/data")
-        //     .publish(8080,8080)
-        //     .health_cmd("curl -f http://localhost:8080/health || exit 1")
-        //     .health_interval("30s")
-        //     .label("app","backend")
-        //     .print();
-        // println!("docker container filter command: {}", cmd);
+        let docker = DockerCli::new_local();
+
+        let cmd =  docker
+            .containers()
+            .create("ghcr.io/example/backend:latest")
+            .name("backend")
+            .hostname("api")
+            .network("frontend")
+            .memory(Memory::mb(10))
+            .cpus(Cpu::cores(2.0))
+            .restart(RestartPolicy::UnlessStopped)
+            .env("RUST_LOG","debug")
+            .env("DATABASE_URL","mysql://db")
+            .mount(Mount::bind("/host/path","/container/path"))
+            .publish(Port::tcp(8080, 8080))
+            .label("app","backend")
+            .print_run();
+        println!("docker container filter command: {}", cmd);
     }
 
 }

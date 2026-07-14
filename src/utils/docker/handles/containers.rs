@@ -17,6 +17,24 @@ impl<'a> ContainerHandle<'a> {
     pub fn logs(&self, id: impl Into<String>)          -> LogsBuilder<'_>     { LogsBuilder::new(self.0, id) }
     pub fn stats(&self, id: impl Into<String>)         -> StatsBuilder<'_>    { StatsBuilder::new(self.0, id) }
     pub fn prune(&self)                                -> ContainerPrune<'_>  { ContainerPrune::new(self.0) }
+
+    pub fn start(&self, id: impl Into<String>)         -> ContainerStartBuilder<'_>   { ContainerStartBuilder::new(self.0, id) }
+    pub fn stop(&self, id: impl Into<String>)          -> ContainerStopBuilder<'_>    { ContainerStopBuilder::new(self.0, id) }
+    pub fn restart(&self, id: impl Into<String>)       -> ContainerRestartBuilder<'_> { ContainerRestartBuilder::new(self.0, id) }
+    pub fn pause(&self, id: impl Into<String>)         -> ContainerPauseBuilder<'_>   { ContainerPauseBuilder::new(self.0, id) }
+    pub fn unpause(&self, id: impl Into<String>)       -> ContainerUnpauseBuilder<'_> { ContainerUnpauseBuilder::new(self.0, id) }
+    pub fn kill(&self, id: impl Into<String>)          -> ContainerKillBuilder<'_>    { ContainerKillBuilder::new(self.0, id) }
+    pub fn rm(&self, id: impl Into<String>)            -> ContainerRmBuilder<'_>      { ContainerRmBuilder::new(self.0, id) }
+    pub fn rename(&self, id: impl Into<String>, name: impl Into<String>) -> ContainerRenameBuilder<'_> { ContainerRenameBuilder::new(self.0, id, name) }
+    pub fn update(&self, id: impl Into<String>)        -> ContainerUpdateBuilder<'_>  { ContainerUpdateBuilder::new(self.0, id) }
+    pub fn wait(&self, id: impl Into<String>)          -> ContainerWaitBuilder<'_>    { ContainerWaitBuilder::new(self.0, id) }
+    pub fn port(&self, id: impl Into<String>)          -> ContainerPortBuilder<'_>    { ContainerPortBuilder::new(self.0, id) }
+    pub fn top(&self, id: impl Into<String>)           -> ContainerTopBuilder<'_>     { ContainerTopBuilder::new(self.0, id) }
+    pub async fn inspect(&self, id: impl AsRef<str>)   -> DockerResult<serde_json::Value> {
+        let out = self.0.run(["container", "inspect", id.as_ref()]).await?;
+        let mut json: Vec<serde_json::Value> = serde_json::from_str(&out.stdout)?;
+        Ok(json.pop().unwrap_or_default())
+    }
 }
 
 // ── ContainerQuery ────────────────────────────────────────────────────────────
@@ -273,6 +291,98 @@ impl<'a> ContainerPrune<'a> {
 }
 crate::impl_builder_opts!(ContainerPrune);
 
+// ── Generated Simple Builders ───────────────────────────────────────────────
+
+pub struct ContainerStartBuilder<'a> { cli: &'a DockerCli, id: String, args: ArgBuilder }
+impl<'a> ContainerStartBuilder<'a> {
+    pub(crate) fn new(cli: &'a DockerCli, id: impl Into<String>) -> Self { Self { cli, id: id.into(), args: ArgBuilder::cmd(&["container", "start"]) } }
+    pub async fn run(self) -> DockerResult<DockerOutput> { let mut a = self.args; a.push(&self.id); self.cli.execute(&a).await }
+}
+crate::impl_builder_opts!(ContainerStartBuilder);
+
+pub struct ContainerStopBuilder<'a> { cli: &'a DockerCli, id: String, args: ArgBuilder }
+impl<'a> ContainerStopBuilder<'a> {
+    pub(crate) fn new(cli: &'a DockerCli, id: impl Into<String>) -> Self { Self { cli, id: id.into(), args: ArgBuilder::cmd(&["container", "stop"]) } }
+    pub async fn run(self) -> DockerResult<DockerOutput> { let mut a = self.args; a.push(&self.id); self.cli.execute(&a).await }
+}
+crate::impl_builder_opts!(ContainerStopBuilder);
+
+pub struct ContainerRestartBuilder<'a> { cli: &'a DockerCli, id: String, args: ArgBuilder }
+impl<'a> ContainerRestartBuilder<'a> {
+    pub(crate) fn new(cli: &'a DockerCli, id: impl Into<String>) -> Self { Self { cli, id: id.into(), args: ArgBuilder::cmd(&["container", "restart"]) } }
+    pub async fn run(self) -> DockerResult<DockerOutput> { let mut a = self.args; a.push(&self.id); self.cli.execute(&a).await }
+}
+crate::impl_builder_opts!(ContainerRestartBuilder);
+
+pub struct ContainerPauseBuilder<'a> { cli: &'a DockerCli, id: String, args: ArgBuilder }
+impl<'a> ContainerPauseBuilder<'a> {
+    pub(crate) fn new(cli: &'a DockerCli, id: impl Into<String>) -> Self { Self { cli, id: id.into(), args: ArgBuilder::cmd(&["container", "pause"]) } }
+    pub async fn run(self) -> DockerResult<DockerOutput> { let mut a = self.args; a.push(&self.id); self.cli.execute(&a).await }
+}
+crate::impl_builder_opts!(ContainerPauseBuilder);
+
+pub struct ContainerUnpauseBuilder<'a> { cli: &'a DockerCli, id: String, args: ArgBuilder }
+impl<'a> ContainerUnpauseBuilder<'a> {
+    pub(crate) fn new(cli: &'a DockerCli, id: impl Into<String>) -> Self { Self { cli, id: id.into(), args: ArgBuilder::cmd(&["container", "unpause"]) } }
+    pub async fn run(self) -> DockerResult<DockerOutput> { let mut a = self.args; a.push(&self.id); self.cli.execute(&a).await }
+}
+crate::impl_builder_opts!(ContainerUnpauseBuilder);
+
+pub struct ContainerKillBuilder<'a> { cli: &'a DockerCli, id: String, args: ArgBuilder }
+impl<'a> ContainerKillBuilder<'a> {
+    pub(crate) fn new(cli: &'a DockerCli, id: impl Into<String>) -> Self { Self { cli, id: id.into(), args: ArgBuilder::cmd(&["container", "kill"]) } }
+    pub async fn run(self) -> DockerResult<DockerOutput> { let mut a = self.args; a.push(&self.id); self.cli.execute(&a).await }
+}
+crate::impl_builder_opts!(ContainerKillBuilder);
+
+pub struct ContainerWaitBuilder<'a> { cli: &'a DockerCli, id: String, args: ArgBuilder }
+impl<'a> ContainerWaitBuilder<'a> {
+    pub(crate) fn new(cli: &'a DockerCli, id: impl Into<String>) -> Self { Self { cli, id: id.into(), args: ArgBuilder::cmd(&["container", "wait"]) } }
+    pub async fn run(self) -> DockerResult<DockerOutput> { let mut a = self.args; a.push(&self.id); self.cli.execute(&a).await }
+}
+crate::impl_builder_opts!(ContainerWaitBuilder);
+
+pub struct ContainerPortBuilder<'a> { cli: &'a DockerCli, id: String, args: ArgBuilder }
+impl<'a> ContainerPortBuilder<'a> {
+    pub(crate) fn new(cli: &'a DockerCli, id: impl Into<String>) -> Self { Self { cli, id: id.into(), args: ArgBuilder::cmd(&["container", "port"]) } }
+    pub async fn run(self) -> DockerResult<DockerOutput> { let mut a = self.args; a.push(&self.id); self.cli.execute(&a).await }
+}
+crate::impl_builder_opts!(ContainerPortBuilder);
+
+pub struct ContainerTopBuilder<'a> { cli: &'a DockerCli, id: String, args: ArgBuilder }
+impl<'a> ContainerTopBuilder<'a> {
+    pub(crate) fn new(cli: &'a DockerCli, id: impl Into<String>) -> Self { Self { cli, id: id.into(), args: ArgBuilder::cmd(&["container", "top"]) } }
+    pub async fn run(self) -> DockerResult<DockerOutput> { let mut a = self.args; a.push(&self.id); self.cli.execute(&a).await }
+}
+crate::impl_builder_opts!(ContainerTopBuilder);
+
+pub struct ContainerRmBuilder<'a> { cli: &'a DockerCli, id: String, args: ArgBuilder }
+impl<'a> ContainerRmBuilder<'a> {
+    pub(crate) fn new(cli: &'a DockerCli, id: impl Into<String>) -> Self { Self { cli, id: id.into(), args: ArgBuilder::cmd(&["container", "rm"]) } }
+    pub fn force(mut self) -> Self { self.args.flag("--force"); self }
+    pub fn volumes(mut self) -> Self { self.args.flag("--volumes"); self }
+    pub fn link(mut self) -> Self { self.args.flag("--link"); self }
+    pub async fn run(self) -> DockerResult<DockerOutput> { let mut a = self.args; a.push(&self.id); self.cli.execute(&a).await }
+}
+crate::impl_builder_opts!(ContainerRmBuilder);
+
+pub struct ContainerRenameBuilder<'a> { cli: &'a DockerCli, id: String, name: String, args: ArgBuilder }
+impl<'a> ContainerRenameBuilder<'a> {
+    pub(crate) fn new(cli: &'a DockerCli, id: impl Into<String>, name: impl Into<String>) -> Self { Self { cli, id: id.into(), name: name.into(), args: ArgBuilder::cmd(&["container", "rename"]) } }
+    pub async fn run(self) -> DockerResult<DockerOutput> { let mut a = self.args; a.push(&self.id); a.push(&self.name); self.cli.execute(&a).await }
+}
+crate::impl_builder_opts!(ContainerRenameBuilder);
+
+pub struct ContainerUpdateBuilder<'a> { cli: &'a DockerCli, id: String, args: ArgBuilder }
+impl<'a> ContainerUpdateBuilder<'a> {
+    pub(crate) fn new(cli: &'a DockerCli, id: impl Into<String>) -> Self { Self { cli, id: id.into(), args: ArgBuilder::cmd(&["container", "update"]) } }
+    pub fn memory(mut self, m: crate::utils::docker::core::Memory) -> Self { self.args.pair("--memory", m.to_string()); self }
+    pub fn cpus(mut self, c: crate::utils::docker::core::Cpu) -> Self { self.args.pair("--cpus", c.to_string()); self }
+    pub fn restart(mut self, p: crate::utils::docker::handles::containers::RestartPolicy) -> Self { self.args.pair("--restart", p.to_string()); self }
+    pub async fn run(self) -> DockerResult<DockerOutput> { let mut a = self.args; a.push(&self.id); self.cli.execute(&a).await }
+}
+crate::impl_builder_opts!(ContainerUpdateBuilder);
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -293,7 +403,7 @@ mod tests {
             .mount(Mount::volume("data", "/data"))
             .env("PORT", "80")
             .memory(Memory::mb(256))
-            .cpus(Cpu::new(0.5))
+            .cpus(Cpu::cores(0.5))
             .platform(Platform::LinuxAmd64)
             .restart(RestartPolicy::UnlessStopped)
             .tty(false)
