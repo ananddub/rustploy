@@ -35,14 +35,23 @@ pub fn application_config(app: &ApplicationSpec) -> Value {
                 .unwrap_or_else(|| json!({}));
         }
         routers.insert(names.0, router);
+        // Swarm overlay DNS resolves a service by just its app_name
+        // (same as dokploy's approach: http://<appName>:<port>).
+        // Only override if user explicitly set a custom service hostname.
+        let default_service = app.app_name.clone();
         let service_target = domain
             .service_name
             .as_deref()
             .filter(|s| !s.is_empty())
-            .unwrap_or_else(|| app.app_name.as_str());
+            .unwrap_or(default_service.as_str());
         services.insert(names.1,json!({"loadBalancer":{"servers":[{"url":format!("http://{}:{}",service_target,domain.port)}],"passHostHeader":true}}));
     }
-    json!({"http":{"routers":routers,"services":services,"middlewares":middlewares}})
+    let config = if middlewares.is_empty() {
+        serde_json::json!({"http":{"routers":routers,"services":services}})
+    } else {
+        serde_json::json!({"http":{"routers":routers,"services":services,"middlewares":middlewares}})
+    };
+    config
 }
 fn domain_names(app: &ApplicationSpec, domain: &DomainSpec) -> (String, String) {
     (

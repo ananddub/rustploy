@@ -92,7 +92,7 @@ fn inject_labels_for_service(
         )?,
         ComposeRuntime::Stack => insert_label(
             labels_value,
-            format!("traefik.swarm.network={TRAEFIK_NETWORK}"),
+            format!("traefik.docker.network={TRAEFIK_NETWORK}"),
         )?,
     }
 
@@ -281,7 +281,7 @@ services:
         inject_domain_labels(&mut doc, &spec(ComposeRuntime::Stack)).unwrap();
         let out = serde_yaml::to_string(&doc).unwrap();
         assert!(out.contains("traefik.enable=true"));
-        assert!(out.contains("traefik.swarm.network=rustploy-network"));
+        assert!(out.contains("traefik.docker.network=rustploy-network"));
         assert!(out.contains("traefik.http.routers.site-1-websecure.tls.certresolver=letsencrypt"));
         assert!(out.contains("rustploy-network"));
     }

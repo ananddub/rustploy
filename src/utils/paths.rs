@@ -53,7 +53,7 @@ impl RustployPaths {
     }
 
     pub fn traefik_application_file(&self, app_name: &str) -> String {
-        format!("{}/{}.json", self.traefik_dynamic(), app_name)
+        format!("{}/{}.yml", self.traefik_dynamic(), app_name)
     }
 }
 

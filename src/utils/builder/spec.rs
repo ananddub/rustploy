@@ -123,7 +123,6 @@ pub struct DeploymentResult {
     pub image: String,
     pub service_name: String,
     pub stack_file: String,
-    pub traefik_file: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

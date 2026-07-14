@@ -103,14 +103,6 @@ impl ApplicationBuilder {
         }
 
         self.cancelled(cancel)?;
-        let traefik_dir = paths.traefik_dynamic();
-        self.executor
-            .run_cancelled("mkdir", ["-p", traefik_dir.as_str()], cancel)
-            .await?;
-        let traefik_file = paths.traefik_application_file(&spec.app_name);
-        let routing = serde_json::to_vec_pretty(&traefik::application_config(spec))?;
-        self.write_file_cancelled(&traefik_file, &routing, cancel)
-            .await?;
         self.emit(BuilderEvent::Routing).await;
 
         self.emit(BuilderEvent::HealthCheck).await;
@@ -126,7 +118,6 @@ impl ApplicationBuilder {
             image: spec.image.clone(),
             service_name: spec.service_name(),
             stack_file,
-            traefik_file,
         })
     }
 
