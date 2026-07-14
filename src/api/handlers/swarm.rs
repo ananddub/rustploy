@@ -99,7 +99,6 @@ impl SwarmController {
         Ok(Json(nodes.into_iter().map(NodeDto::from).collect()))
     }
 
-    /// POST /swarm/nodes/promote — promote a worker to manager.
     #[post("/nodes/promote")]
     async fn promote(
         &self,
@@ -114,7 +113,6 @@ impl SwarmController {
         Ok(StatusCode::NO_CONTENT)
     }
 
-    /// POST /swarm/nodes/demote — demote a manager to worker.
     #[post("/nodes/demote")]
     async fn demote(
         &self,
@@ -129,7 +127,6 @@ impl SwarmController {
         Ok(StatusCode::NO_CONTENT)
     }
 
-    /// POST /swarm/nodes/availability — set node availability (active/pause/drain).
     #[post("/nodes/availability")]
     async fn set_availability(
         &self,
@@ -148,7 +145,6 @@ impl SwarmController {
         Ok(StatusCode::NO_CONTENT)
     }
 
-    /// POST /swarm/nodes/remove — remove a node from the swarm.
     #[post("/nodes/remove")]
     async fn remove_node(
         &self,
