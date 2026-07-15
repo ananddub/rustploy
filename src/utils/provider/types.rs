@@ -1,0 +1,71 @@
+use serde::{Deserialize, Serialize};
+
+/// Fixed and safe webhook events that can be listened to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WebhookEvent {
+    Push,
+    PullRequest,
+    Issues,
+    Release,
+    TagPush,
+    IssueComment,
+}
+
+impl WebhookEvent {
+    /// Convert the generic WebhookEvent into a GitHub-specific event string.
+    pub fn as_github_event(&self) -> &'static str {
+        match self {
+            Self::Push => "push",
+            Self::PullRequest => "pull_request",
+            Self::Issues => "issues",
+            Self::Release => "release",
+            Self::TagPush => "create",
+            Self::IssueComment => "issue_comment",
+        }
+    }
+
+    /// Convert the generic WebhookEvent into a GitLab-specific event string.
+    pub fn as_gitlab_event(&self) -> &'static str {
+        match self {
+            Self::Push => "push_events",
+            Self::PullRequest => "merge_requests_events",
+            Self::Issues => "issues_events",
+            Self::Release => "releases_events",
+            Self::TagPush => "tag_push_events",
+            Self::IssueComment => "note_events",
+        }
+    }
+
+    /// Convert the generic WebhookEvent into a Bitbucket-specific event string.
+    pub fn as_bitbucket_event(&self) -> &'static str {
+        match self {
+            Self::Push => "repo:push",
+            Self::PullRequest => "pullrequest:created",
+            Self::Issues => "issue:created",
+            Self::Release => "repo:push", // Bitbucket doesn't have a specific release event
+            Self::TagPush => "repo:push", // Tags are push events
+            Self::IssueComment => "issue:comment_created",
+        }
+    }
+
+    /// Convert the generic WebhookEvent into a Gitea-specific event string.
+    pub fn as_gitea_event(&self) -> &'static str {
+        match self {
+            Self::Push => "push",
+            Self::PullRequest => "pull_request",
+            Self::Issues => "issues",
+            Self::Release => "release",
+            Self::TagPush => "create",
+            Self::IssueComment => "issue_comment",
+        }
+    }
+}
+
+/// The Git protocol to use when cloning a repository.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CloneProtocol {
+    Https,
+    Ssh,
+}
+

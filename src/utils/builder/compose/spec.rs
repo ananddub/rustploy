@@ -10,6 +10,8 @@ pub enum ComposeSource {
         url: String,
         branch: String,
         submodules: bool,
+        protocol: crate::utils::provider::CloneProtocol,
+        auth: Option<crate::utils::git::types::GitAuth>,
     },
 }
 

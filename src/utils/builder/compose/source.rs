@@ -1,9 +1,9 @@
 use super::{compose::ComposeBuilder, spec::ComposeSource};
 use crate::utils::{
-    builder::{compose::spec::ComposeSpec, spec::BuilderEvent},
+    builder::compose::spec::ComposeSpec,
     exec::ExecResult,
-    git::GitCli,
 };
+use crate::utils::builder::shared::source::fetch_git_repository;
 use tokio_util::sync::CancellationToken;
 
 impl ComposeBuilder {
@@ -14,66 +14,57 @@ impl ComposeBuilder {
     ) -> ExecResult<()> {
         match &spec.source {
             ComposeSource::Raw { content } => {
-                if let Some(parent) = std::path::Path::new(&spec.compose_path).parent() {
-                    self.ctx.executor
-                        .run_cancelled("mkdir", ["-p", parent.to_string_lossy().as_ref()], cancel)
-                        .await?;
-                }
-                self.ctx.write_file_cancelled(&spec.compose_path, content.as_bytes(), cancel)
-                    .await?;
+                self.write_raw_source(spec, content, cancel).await
             }
             ComposeSource::Git {
                 url,
                 branch,
                 submodules,
+                protocol,
+                auth,
             } => {
-                let git = GitCli::from_executor(self.ctx.executor.clone())
-                    .with_repository(spec.work_directory.clone());
-                let git_dir = format!("{}/.git", spec.work_directory);
-                if self
-                    .ctx.executor
-                    .run("test", ["-d", git_dir.as_str()])
-                    .await
-                    .is_ok()
-                {
-                    self.ctx.emit(BuilderEvent::Message(format!(
-                        "fetching compose source {url} branch {branch} into {}",
-                        spec.work_directory
-                    )))
-                    .await;
-                    git.remote(&["set-url", "origin", url]).await?;
-                    git.fetch_raw_cancelled(&["--prune", "origin", branch], cancel)
-                        .await?;
-                    git.reset(&["--hard", "FETCH_HEAD"]).await?;
-                } else {
-                    if let Some(parent) = std::path::Path::new(&spec.work_directory).parent() {
-                        self.ctx.executor
-                            .run_cancelled(
-                                "mkdir",
-                                ["-p", parent.to_string_lossy().as_ref()],
-                                cancel,
-                            )
-                            .await?;
-                    }
-                    self.ctx.emit(BuilderEvent::Message(format!(
-                        "cloning compose source {url} branch {branch} into {}",
-                        spec.work_directory
-                    )))
-                    .await;
-                    GitCli::from_executor(self.ctx.executor.clone())
-                        .clone_repository_raw_cancelled(
-                            url,
-                            Some(&spec.work_directory),
-                            &["--branch", branch, "--single-branch"],
-                            cancel,
-                        )
-                        .await?;
-                }
-                if *submodules {
-                    git.submodule(&["update", "--init", "--recursive"]).await?;
-                }
+                self.fetch_git_repository(spec, url, branch, *submodules, protocol.clone(), auth.clone(), cancel).await
             }
         }
+    }
+
+    async fn write_raw_source(
+        &self,
+        spec: &ComposeSpec,
+        content: &str,
+        cancel: &CancellationToken,
+    ) -> ExecResult<()> {
+        if let Some(parent) = std::path::Path::new(&spec.compose_path).parent() {
+            self.ctx
+                .executor
+                .run_cancelled("mkdir", ["-p", parent.to_string_lossy().as_ref()], cancel)
+                .await?;
+        }
+        self.ctx
+            .write_file_cancelled(&spec.compose_path, content.as_bytes(), cancel)
+            .await?;
         Ok(())
+    }
+
+    async fn fetch_git_repository(
+        &self,
+        spec: &ComposeSpec,
+        url: &str,
+        branch: &str,
+        submodules: bool,
+        protocol: crate::utils::provider::CloneProtocol,
+        auth: Option<crate::utils::git::types::GitAuth>,
+        cancel: &CancellationToken,
+    ) -> ExecResult<()> {
+        fetch_git_repository(
+            &self.ctx,
+            &spec.work_directory,
+            url,
+            branch,
+            submodules,
+            protocol,
+            auth,
+            cancel
+        ).await
     }
 }

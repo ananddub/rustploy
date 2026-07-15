@@ -196,8 +196,7 @@ impl ComposeBuilder {
                 }
             }
             ComposeRuntime::Compose => {
-                if let Err(error) = self
-                    .ctx.docker.compose().down()
+                if let Err(error) = self.ctx.docker.compose().down()
                         .project(&spec.stack_name)
                         .env_file(&spec.env_file)
                         .file(&spec.compose_file_path())

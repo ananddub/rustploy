@@ -12,7 +12,7 @@ impl<'a> NixpacksCli<'a> {
     }
 
     pub fn build(&self, path: impl Into<String>) -> NixpacksBuildBuilder<'_> {
-        let mut args = ArgBuilder::cmd(&["nixpacks", "build"]);
+        let mut args = ArgBuilder::cmd(&["build"]);
         args.push(path.into());
         NixpacksBuildBuilder {
             executor: self.executor,

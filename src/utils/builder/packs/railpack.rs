@@ -12,7 +12,7 @@ impl<'a> RailpackCli<'a> {
     }
 
     pub fn prepare(&self, path: impl Into<String>) -> RailpackPrepareBuilder<'_> {
-        let mut args = ArgBuilder::cmd(&["railpack", "prepare"]);
+        let mut args = ArgBuilder::cmd(&["prepare"]);
         args.push(path.into());
         RailpackPrepareBuilder {
             executor: self.executor,

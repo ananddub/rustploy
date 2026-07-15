@@ -1,6 +1,6 @@
 use crate::utils::{
     exec::{ArgBuilder, ExecOutput, ExecResult},
-    git::client::GitCli,
+    git::{client::GitCli, types::GitAuth},
 };
 
 // ── AddBuilder ───────────────────────────────────────────────────────────────
@@ -123,6 +123,109 @@ impl<'a> WorktreeAddBuilder<'a> {
         a.push(&self.path);
         a.push(&self.branch);
         let built = a.build();
+        let refs: Vec<&str> = built.iter().map(String::as_str).collect();
+        self.cli.run(&refs).await
+    }
+}
+
+// ── RemoteBuilder ────────────────────────────────────────────────────────────
+
+pub struct RemoteBuilder<'a> {
+    cli: &'a GitCli,
+    args: ArgBuilder,
+}
+
+impl<'a> RemoteBuilder<'a> {
+    pub(crate) fn new(cli: &'a GitCli) -> Self {
+        Self { cli, args: ArgBuilder::cmd(&["remote"]) }
+    }
+
+    pub fn set_url(mut self, name: impl Into<String>, url: impl Into<String>) -> Self {
+        self.args.push("set-url");
+        self.args.push(name.into());
+        self.args.push(url.into());
+        self
+    }
+    
+    pub fn add(mut self, name: impl Into<String>, url: impl Into<String>) -> Self {
+        self.args.push("add");
+        self.args.push(name.into());
+        self.args.push(url.into());
+        self
+    }
+
+    pub fn arg(mut self, v: impl Into<String>) -> Self { self.args.push(v.into()); self }
+
+    pub fn print(&self) -> String { self.args.preview() }
+
+    pub async fn run(self) -> ExecResult<ExecOutput> {
+        let built = self.args.build();
+        let refs: Vec<&str> = built.iter().map(String::as_str).collect();
+        self.cli.run(&refs).await
+    }
+}
+
+// ── ResetBuilder ─────────────────────────────────────────────────────────────
+
+pub struct ResetBuilder<'a> {
+    cli: &'a GitCli,
+    args: ArgBuilder,
+}
+
+impl<'a> ResetBuilder<'a> {
+    pub(crate) fn new(cli: &'a GitCli) -> Self {
+        Self { cli, args: ArgBuilder::cmd(&["reset"]) }
+    }
+
+    pub fn hard(mut self) -> Self { self.args.flag("--hard"); self }
+    pub fn soft(mut self) -> Self { self.args.flag("--soft"); self }
+    pub fn mixed(mut self) -> Self { self.args.flag("--mixed"); self }
+    pub fn commit(mut self, commit: impl Into<String>) -> Self { self.args.push(commit.into()); self }
+    
+    pub fn arg(mut self, v: impl Into<String>) -> Self { self.args.push(v.into()); self }
+
+    pub fn print(&self) -> String { self.args.preview() }
+
+    pub async fn run(self) -> ExecResult<ExecOutput> {
+        let built = self.args.build();
+        let refs: Vec<&str> = built.iter().map(String::as_str).collect();
+        self.cli.run(&refs).await
+    }
+}
+
+// ── SubmoduleBuilder ─────────────────────────────────────────────────────────
+
+pub struct SubmoduleBuilder<'a> {
+    cli: &'a GitCli,
+    args: ArgBuilder,
+}
+
+impl<'a> SubmoduleBuilder<'a> {
+    pub(crate) fn new(cli: &'a GitCli) -> Self {
+        Self { cli, args: ArgBuilder::cmd(&["submodule"]) }
+    }
+
+    pub fn update(mut self) -> Self { self.args.push("update"); self }
+    pub fn init(mut self) -> Self { self.args.flag("--init"); self }
+    pub fn recursive(mut self) -> Self { self.args.flag("--recursive"); self }
+    pub fn auth(mut self, auth: GitAuth) -> Self {
+        match auth {
+            GitAuth::Token(token) => {
+                self.args.insert_pair(0, "-c", format!("http.extraHeader=AUTHORIZATION: bearer {}", token));
+            }
+            GitAuth::SshKey(key_path) => {
+                self.args.insert_pair(0, "-c", format!("core.sshCommand=ssh -i {} -o StrictHostKeyChecking=no", key_path));
+            }
+        }
+        self
+    }
+    
+    pub fn arg(mut self, v: impl Into<String>) -> Self { self.args.push(v.into()); self }
+
+    pub fn print(&self) -> String { self.args.preview() }
+
+    pub async fn run(self) -> ExecResult<ExecOutput> {
+        let built = self.args.build();
         let refs: Vec<&str> = built.iter().map(String::as_str).collect();
         self.cli.run(&refs).await
     }

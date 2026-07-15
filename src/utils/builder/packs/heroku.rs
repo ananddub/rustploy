@@ -1,5 +1,17 @@
 use crate::utils::exec::{ArgBuilder, CommandExecutor, ExecOutput, ExecResult};
 use tokio_util::sync::CancellationToken;
+use crate::string_enum;
+
+string_enum! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub enum HerokuBuilderImage {
+        default = Builder22;
+
+        Builder22 => "heroku/builder:22",
+        Builder20 => "heroku/builder:20",
+        Builder24 => "heroku/builder:24",
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct HerokuCli<'a> {
@@ -12,7 +24,7 @@ impl<'a> HerokuCli<'a> {
     }
 
     pub fn build(&self, image_name: impl Into<String>) -> HerokuBuildBuilder<'_> {
-        let mut args = ArgBuilder::cmd(&["pack", "build"]);
+        let mut args = ArgBuilder::cmd(&["build"]);
         args.push(image_name.into());
         HerokuBuildBuilder {
             executor: self.executor,
@@ -32,8 +44,8 @@ impl<'a> HerokuBuildBuilder<'a> {
         self
     }
 
-    pub fn builder(mut self, builder_image: impl Into<String>) -> Self {
-        self.args.pair("--builder", builder_image.into());
+    pub fn builder(mut self, builder_image: HerokuBuilderImage) -> Self {
+        self.args.pair("--builder", builder_image.as_str());
         self
     }
 

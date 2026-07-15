@@ -28,3 +28,12 @@ pub struct GitBranch {
     pub name: String,
     pub current: bool,
 }
+
+/// Authentication strategies for Git operations.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GitAuth {
+    /// Use an OAuth/Personal Access Token for HTTPS cloning.
+    Token(String),
+    /// Path to a private SSH key file for SSH cloning.
+    SshKey(String),
+}

@@ -1,5 +1,56 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+use crate::string_enum;
+
+string_enum! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub enum SourceType {
+        default = Docker;
+
+        Docker => "DOCKER",
+        Git => "GIT",
+        Github => "GITHUB",
+        Gitlab => "GITLAB",
+        Bitbucket => "BITBUCKET",
+        Gitea => "GITEA",
+        Raw => "RAW",
+    }
+}
+
+string_enum! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub enum BuildType {
+        default = Dockerfile;
+
+        Dockerfile => "DOCKERFILE",
+        Nixpacks => "NIXPACKS",
+        Paketo => "PAKETO_BUILDPACKS",
+        Heroku => "HEROKU",
+        Railpack => "RAILPACK",
+        Static => "STATIC",
+    }
+}
+
+string_enum! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub enum MountType {
+        default = Bind;
+
+        Volume => "VOLUME",
+        Bind => "BIND",
+        File => "FILE",
+    }
+}
+
+string_enum! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub enum RuntimeType {
+        default = Compose;
+
+        Compose => "DOCKER-COMPOSE",
+        Stack => "STACK",
+    }
+}
 
 #[derive(Clone, Debug)]
 pub enum SourceSpec {
@@ -11,6 +62,8 @@ pub enum SourceSpec {
         url: String,
         branch: Option<String>,
         submodules: bool,
+        protocol: crate::utils::provider::CloneProtocol,
+        auth: Option<crate::utils::git::types::GitAuth>,
     },
 }
 #[derive(Clone, Debug)]

@@ -52,6 +52,7 @@ impl DockerCli {
 
 
 // #[test]
+#[allow(non_snake_case)]
 pub mod TestingDockerBuilder {
     use crate::utils::builder::spec::MountKind::Volume;
     use crate::utils::docker::core::{Cpu, Memory, Mount, Port};

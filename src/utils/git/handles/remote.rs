@@ -1,6 +1,6 @@
 use crate::utils::{
     exec::{ArgBuilder, ExecExitStatus, ExecOutput, ExecResult, ExecStreamEvent},
-    git::client::GitCli,
+    git::{client::GitCli, types::GitAuth},
 };
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
@@ -25,6 +25,17 @@ impl<'a> CloneBuilder<'a> {
     }
 
     pub fn destination(mut self, path: impl Into<String>) -> Self { self.destination = Some(path.into()); self }
+    pub fn auth(mut self, auth: GitAuth) -> Self {
+        match auth {
+            GitAuth::Token(token) => {
+                self.args.insert_pair(0, "-c", format!("http.extraHeader=AUTHORIZATION: bearer {}", token));
+            }
+            GitAuth::SshKey(key_path) => {
+                self.args.insert_pair(0, "-c", format!("core.sshCommand=ssh -i {} -o StrictHostKeyChecking=no", key_path));
+            }
+        }
+        self
+    }
     pub fn branch(mut self, name: impl Into<String>)      -> Self { self.args.pair("--branch", name.into()); self }
     pub fn depth(mut self, n: u32)                        -> Self { self.args.pair("--depth", n.to_string()); self }
     pub fn single_branch(mut self)                        -> Self { self.args.flag("--single-branch"); self }
@@ -36,8 +47,7 @@ impl<'a> CloneBuilder<'a> {
     pub fn arg(mut self, v: impl Into<String>)            -> Self { self.args.push(v.into()); self }
 
     fn finalize(&self) -> ArgBuilder {
-        let mut a = ArgBuilder::cmd(&["clone"]);
-        a.push_all(self.args.clone().build());
+        let mut a = self.args.clone();
         a.push(&self.url);
         if let Some(dest) = &self.destination {
             a.push(dest);
@@ -83,6 +93,17 @@ impl<'a> FetchBuilder<'a> {
     }
 
     pub fn remote(mut self, remote: impl Into<String>) -> Self { self.args.push(remote.into()); self }
+    pub fn auth(mut self, auth: GitAuth) -> Self {
+        match auth {
+            GitAuth::Token(token) => {
+                self.args.insert_pair(0, "-c", format!("http.extraHeader=AUTHORIZATION: bearer {}", token));
+            }
+            GitAuth::SshKey(key_path) => {
+                self.args.insert_pair(0, "-c", format!("core.sshCommand=ssh -i {} -o StrictHostKeyChecking=no", key_path));
+            }
+        }
+        self
+    }
     pub fn all(mut self)                               -> Self { self.args.flag("--all"); self }
     pub fn prune(mut self)                             -> Self { self.args.flag("--prune"); self }
     pub fn tags(mut self)                              -> Self { self.args.flag("--tags"); self }

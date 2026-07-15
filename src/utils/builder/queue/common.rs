@@ -41,18 +41,18 @@ pub async fn process(
             let op = parse_compose_operation(&operation);
             BuilderQueue::execute_operation_compose(db.clone(), cmp_id, deployment_id, op).await
         }
-        _ => Err(format!(
+        _ => Err(crate::utils::builder::errors::BuilderError::Execution(format!(
             "deployment {deployment_id} must have exactly one of application_id or compose_id"
-        )),
+        ))),
     };
 
     let final_status = match &result {
         Ok(()) => "DONE",
-        Err(e) if is_cancelled_error(e) => "CANCELLED",
+        Err(e) if is_cancelled_error(&e.to_string()) => "CANCELLED",
         Err(_) => "ERROR",
     };
 
-    let error_message = result.err();
+    let error_message = result.err().map(|e| e.to_string());
 
     if let Err(e) = sqlx::query(
         "UPDATE deployments

@@ -210,9 +210,15 @@ impl DeploymentService {
 
         let docker = self.docker_for_server(server_id).await?;
         let service_name = format!("{app_name}_{app_name}");
-        let filter = format!("label=com.docker.swarm.service.name={service_name}");
+        let filter = crate::utils::docker::query::filter::ContainerFilter::Label(
+            "com.docker.swarm.service.name".to_string(),
+            service_name,
+        );
         let containers = docker
-            .containers_raw(false, &[filter.as_str()])
+            .containers()
+            .list()
+            .filter(filter)
+            .list()
             .await
             .map_err(|error| sqlx::Error::Protocol(error.to_string()))?;
         let targets = containers
@@ -237,9 +243,15 @@ impl DeploymentService {
         .await?;
 
         let docker = self.docker_for_server(server_id).await?;
-        let filter = format!("label=com.docker.compose.project={app_name}");
+        let filter = crate::utils::docker::query::filter::ContainerFilter::Label(
+            "com.docker.compose.project".to_string(),
+            app_name,
+        );
         let containers = docker
-            .containers_raw(false, &[filter.as_str()])
+            .containers()
+            .list()
+            .filter(filter)
+            .list()
             .await
             .map_err(|error| sqlx::Error::Protocol(error.to_string()))?;
         let targets = containers

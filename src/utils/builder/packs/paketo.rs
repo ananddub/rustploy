@@ -1,5 +1,19 @@
 use crate::utils::exec::{ArgBuilder, CommandExecutor, ExecOutput, ExecResult};
 use tokio_util::sync::CancellationToken;
+use crate::string_enum;
+
+string_enum! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub enum PaketoBuilderImage {
+        default = JammyFull;
+
+        JammyFull => "paketobuildpacks/builder-jammy-full",
+        JammyBase => "paketobuildpacks/builder-jammy-base",
+        JammyTiny => "paketobuildpacks/builder-jammy-tiny",
+        BionicFull => "paketobuildpacks/builder-bionic-full",
+        BionicBase => "paketobuildpacks/builder-bionic-base",
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct PackCli<'a> {
@@ -12,7 +26,7 @@ impl<'a> PackCli<'a> {
     }
 
     pub fn build(&self, image_name: impl Into<String>) -> PackBuildBuilder<'_> {
-        let mut args = ArgBuilder::cmd(&["pack", "build"]);
+        let mut args = ArgBuilder::cmd(&["build"]);
         args.push(image_name.into());
         PackBuildBuilder {
             executor: self.executor,
@@ -32,8 +46,8 @@ impl<'a> PackBuildBuilder<'a> {
         self
     }
 
-    pub fn builder(mut self, builder_image: impl Into<String>) -> Self {
-        self.args.pair("--builder", builder_image.into());
+    pub fn builder(mut self, builder_image: PaketoBuilderImage) -> Self {
+        self.args.pair("--builder", builder_image.as_str());
         self
     }
 

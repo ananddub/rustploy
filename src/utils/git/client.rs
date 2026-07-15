@@ -234,6 +234,18 @@ impl GitCli {
         super::handles::WorktreeBuilder::new(self)
     }
 
+    pub fn remote(&self) -> super::handles::RemoteBuilder<'_> {
+        super::handles::RemoteBuilder::new(self)
+    }
+
+    pub fn reset(&self) -> super::handles::ResetBuilder<'_> {
+        super::handles::ResetBuilder::new(self)
+    }
+
+    pub fn submodule(&self) -> super::handles::SubmoduleBuilder<'_> {
+        super::handles::SubmoduleBuilder::new(self)
+    }
+
     // ── Legacy Methods ───────────────────────────────────────────────────────────
 
 
@@ -350,7 +362,7 @@ impl GitCli {
     pub async fn rebase(&self, args: &[&str]) -> ExecResult<ExecOutput> {
         self.prefixed(&["rebase"], args).await
     }
-    pub async fn reset(&self, args: &[&str]) -> ExecResult<ExecOutput> {
+    pub async fn reset_raw(&self, args: &[&str]) -> ExecResult<ExecOutput> {
         self.prefixed(&["reset"], args).await
     }
     pub async fn restore(&self, args: &[&str]) -> ExecResult<ExecOutput> {
@@ -362,13 +374,13 @@ impl GitCli {
     pub async fn tag(&self, args: &[&str]) -> ExecResult<ExecOutput> {
         self.prefixed(&["tag"], args).await
     }
-    pub async fn remote(&self, args: &[&str]) -> ExecResult<ExecOutput> {
+    pub async fn remote_raw(&self, args: &[&str]) -> ExecResult<ExecOutput> {
         self.prefixed(&["remote"], args).await
     }
     pub async fn config(&self, args: &[&str]) -> ExecResult<ExecOutput> {
         self.prefixed(&["config"], args).await
     }
-    pub async fn submodule(&self, args: &[&str]) -> ExecResult<ExecOutput> {
+    pub async fn submodule_raw(&self, args: &[&str]) -> ExecResult<ExecOutput> {
         self.prefixed(&["submodule"], args).await
     }
     pub async fn worktree_raw(&self, args: &[&str]) -> ExecResult<ExecOutput> {

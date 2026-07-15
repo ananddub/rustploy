@@ -19,6 +19,7 @@ use crate::{
             spec::BuilderEvent,
         },
         exec::{CommandExecutor, LocalExecutor},
+        builder::errors::BuilderError,
     },
 };
 
@@ -28,11 +29,11 @@ impl BuilderQueue {
         compose_id: i64,
         deployment_id: i64,
         operation: ComposeOperation,
-    ) -> Result<(), String> {
+    ) -> Result<(), BuilderError> {
         let spec = ComposeSpecAdapter::new(db.clone())
             .load(compose_id)
             .await
-            .map_err(|e| format!("could not load compose deployment configuration: {e}"))?;
+            .map_err(|e| BuilderError::Execution(format!("could not load compose config: {e}")))?;
 
         let (environment_id, project_id, server_id) =
             sqlx::query_as::<_, (i64, i64, Option<i64>)>(
@@ -44,12 +45,12 @@ impl BuilderQueue {
             .bind(compose_id)
             .fetch_one(db.as_ref())
             .await
-            .map_err(|e| format!("could not resolve compose context: {e}"))?;
+            .map_err(|e| BuilderError::Execution(format!("could not resolve compose context: {e}")))?;
 
         let compose_key = IdType::ComposeId(compose_id);
         let state = resolve::<ApplicationState>()
             .await
-            .map_err(|e| format!("could not resolve application state: {e}"))?;
+            .map_err(|e| BuilderError::Execution(format!("could not resolve application state: {e}")))?;
         state.reset_default(compose_key.clone(), environment_id, project_id);
         let cancel = state
             .cancellation_token(compose_key.clone())
@@ -63,10 +64,11 @@ impl BuilderQueue {
                     .bind(deployment_id)
                     .execute(db.as_ref())
                     .await
-                    .map_err(|e| format!("could not persist remote compose pid file: {e}"))?;
+                    .map_err(|e| BuilderError::Execution(format!("could not persist remote compose pid file: {e}")))?;
                 CommandExecutor::Remote(
                     remote_executor(db.as_ref(), sid)
-                        .await?
+                        .await
+                        .map_err(|e| BuilderError::Execution(e.to_string()))?
                         .with_job_pid_file(pid_file),
                 )
             }
@@ -81,12 +83,12 @@ impl BuilderQueue {
             .with_events(events_tx);
 
         match operation {
-            ComposeOperation::Stop => builder.stop(&spec).await.map_err(|e| e.to_string()),
+            ComposeOperation::Stop => builder.stop(&spec).await.map_err(|e| BuilderError::Execution(e.to_string())),
             _ => builder
                 .deploy(&spec, &cancel)
                 .await
                 .map(|_| ())
-                .map_err(|e| e.to_string()),
+                .map_err(|e| BuilderError::Execution(e.to_string())),
         }
     }
 }

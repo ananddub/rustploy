@@ -20,6 +20,7 @@ use crate::{
             spec::BuilderEvent,
         },
         exec::{CommandExecutor, LocalExecutor},
+        builder::errors::BuilderError,
     },
 };
 
@@ -29,11 +30,11 @@ impl BuilderQueue {
         application_id: i64,
         deployment_id: i64,
         operation: ApplicationOperation,
-    ) -> Result<(), String> {
+    ) -> Result<(), BuilderError> {
         let spec = ApplicationSpecAdapter::new(db.clone())
             .load(application_id)
             .await
-            .map_err(|e| format!("could not load deployment configuration: {e}"))?;
+            .map_err(|e| BuilderError::Execution(format!("could not load deployment config: {e}")))?;
 
         let (environment_id, project_id, server_id) =
             sqlx::query_as::<_, (i64, i64, Option<i64>)>(
@@ -45,12 +46,12 @@ impl BuilderQueue {
             .bind(application_id)
             .fetch_one(db.as_ref())
             .await
-            .map_err(|e| format!("could not resolve deployment context: {e}"))?;
+            .map_err(|e| BuilderError::Execution(format!("could not resolve deployment context: {e}")))?;
 
         let app_key = IdType::AppId(application_id);
         let state = resolve::<ApplicationState>()
             .await
-            .map_err(|e| format!("could not resolve application state: {e}"))?;
+            .map_err(|e| BuilderError::Execution(format!("could not resolve application state: {e}")))?;
         state.reset_default(app_key.clone(), environment_id, project_id);
         let cancel = state
             .cancellation_token(app_key.clone())
@@ -64,10 +65,11 @@ impl BuilderQueue {
                     .bind(deployment_id)
                     .execute(db.as_ref())
                     .await
-                    .map_err(|e| format!("could not persist remote deployment pid file: {e}"))?;
+                    .map_err(|e| BuilderError::Execution(format!("could not persist remote deployment pid file: {e}")))?;
                 CommandExecutor::Remote(
                     remote_executor(db.as_ref(), sid)
-                        .await?
+                        .await
+                        .map_err(|e| BuilderError::Execution(e.to_string()))?
                         .with_job_pid_file(pid_file),
                 )
             }
@@ -83,7 +85,7 @@ impl BuilderQueue {
             .deploy(&spec, &cancel)
             .await
             .map(|_| ())
-            .map_err(|e| e.to_string())
+            .map_err(|e| BuilderError::Execution(e.to_string()))
     }
 }
 

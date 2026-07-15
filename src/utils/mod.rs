@@ -5,6 +5,7 @@ pub mod git;
 pub mod jwt;
 pub mod macros;
 pub mod paths;
+pub mod provider;
 pub mod session;
 pub mod setup;
 pub mod tower;

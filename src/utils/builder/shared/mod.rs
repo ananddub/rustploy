@@ -12,6 +12,11 @@ use std::sync::Arc;
 use tokio::{sync::mpsc, time::Duration};
 use tokio_util::sync::CancellationToken;
 
+pub mod mapper;
+pub mod mounts;
+pub mod source;
+pub mod traefik;
+
 /// Shared infrastructure for both `ApplicationBuilder` and `ComposeBuilder`.
 ///
 /// Owns the executor, docker client, event channel, cancellation state,

@@ -1,6 +1,10 @@
 use super::{ServerAudit, SetupConfig, validation};
 use crate::utils::{
-    docker::DockerCli,
+    docker::{
+        DockerCli,
+        core::{Mount, Port},
+        handles::containers::RestartPolicy,
+    },
     exec::{CommandExecutor, ExecResult},
 };
 
@@ -101,7 +105,7 @@ fi
     }
     pub async fn ensure_swarm(&self) -> ExecResult<()> {
         let docker = DockerCli::from_executor(self.executor.clone());
-        if docker.run(["swarm", "inspect"]).await.is_ok() {
+        if docker.swarm().inspect().await.is_ok() {
             return Ok(());
         }
         let advertise = match &self.config.advertise_addr {
@@ -117,31 +121,30 @@ fi
                 .to_owned(),
         };
         docker
-            .swarm_init_raw(&[
-                "--advertise-addr",
-                advertise.as_str(),
-                "--listen-addr",
-                "0.0.0.0:2377",
-            ])
+            .swarm()
+            .init()
+            .advertise_addr(&advertise)
+            .listen_addr("0.0.0.0:2377")
+            .run()
             .await?;
         Ok(())
     }
     pub async fn ensure_network(&self) -> ExecResult<()> {
         let docker = DockerCli::from_executor(self.executor.clone());
         if docker
-            .run(["network", "inspect", self.config.network_name.as_str()])
+            .networks()
+            .inspect(&self.config.network_name)
             .await
             .is_ok()
         {
             return Ok(());
         }
         docker
-            .network_create(&[
-                "--driver",
-                "overlay",
-                "--attachable",
-                self.config.network_name.as_str(),
-            ])
+            .networks()
+            .create(&self.config.network_name)
+            .driver("overlay")
+            .attachable()
+            .run()
             .await?;
         Ok(())
     }
@@ -180,52 +183,49 @@ fi
     pub async fn ensure_traefik(&self) -> ExecResult<()> {
         let docker = DockerCli::from_executor(self.executor.clone());
         let name = self.config.traefik_name.as_str();
-        if docker.run(["container", "inspect", name]).await.is_ok() {
-            docker.container_start(&[name]).await?;
+        if docker.containers().inspect(name).await.is_ok() {
+            docker.containers().start(name).run().await?;
             return Ok(());
         }
-        if docker.run(["service", "inspect", name]).await.is_ok() {
-            docker.service_remove(&[name]).await?;
+        if docker.services().inspect(name).await.is_ok() {
+            docker.services().remove(name).run().await?;
         }
         let image = format!("traefik:v{}", self.config.traefik_version);
-        docker.image_pull(&[image.as_str()]).await?;
-        let static_mount = format!(
-            "{}/traefik.yml:/etc/traefik/traefik.yml:ro",
-            self.config.paths.traefik
+        docker.images().pull(&image).pull().await?;
+        
+        let static_mount = Mount::bind_ro(
+            format!("{}/traefik.yml", self.config.paths.traefik),
+            "/etc/traefik/traefik.yml",
         );
-        let dynamic_mount = format!(
-            "{}:/etc/rustploy/traefik/dynamic",
-            self.config.paths.traefik_dynamic
+        let dynamic_mount = Mount::bind(
+            &self.config.paths.traefik_dynamic,
+            "/etc/rustploy/traefik/dynamic",
         );
-        let http = format!("{}:{}", self.config.http_port, self.config.http_port);
-        let https = format!("{}:{}", self.config.https_port, self.config.https_port);
-        let http3 = format!("{}:{}/udp", self.config.http3_port, self.config.http3_port);
-        let dashboard = format!("{}:8080", self.config.dashboard_port);
+        let docker_socket_mount = Mount::bind_ro(
+            "/var/run/docker.sock",
+            "/var/run/docker.sock",
+        );
+
+        let p_http = Port::tcp(self.config.http_port, self.config.http_port);
+        let p_https = Port::tcp(self.config.https_port, self.config.https_port);
+        let p_http3 = Port::udp(self.config.http3_port, self.config.http3_port);
+        let p_dashboard = Port::tcp(self.config.dashboard_port, 8080);
+
         docker
-            .container_run(&[
-                "--detach",
-                "--name",
-                name,
-                "--restart",
-                "always",
-                "--network",
-                self.config.network_name.as_str(),
-                "--volume",
-                static_mount.as_str(),
-                "--volume",
-                dynamic_mount.as_str(),
-                "--volume",
-                "/var/run/docker.sock:/var/run/docker.sock:ro",
-                "--publish",
-                http.as_str(),
-                "--publish",
-                https.as_str(),
-                "--publish",
-                http3.as_str(),
-                "--publish",
-                dashboard.as_str(),
-                image.as_str(),
-            ])
+            .containers()
+            .create(&image)
+            .detach()
+            .name(name)
+            .restart(RestartPolicy::Always)
+            .network(self.config.network_name.as_str())
+            .mount(static_mount)
+            .mount(dynamic_mount)
+            .mount(docker_socket_mount)
+            .publish(p_http)
+            .publish(p_https)
+            .publish(p_http3)
+            .publish(p_dashboard)
+            .run()
             .await?;
         Ok(())
     }

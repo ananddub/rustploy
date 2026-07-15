@@ -4,7 +4,7 @@ use crate::utils::{
     exec::{ExecError, ExecResult},
 };
 use tokio_util::sync::CancellationToken;
-use crate::utils::builder::packs::{nixpacks::NixpacksCli, paketo::PackCli, railpack::RailpackCli, heroku::HerokuCli};
+use crate::utils::builder::packs::{nixpacks::NixpacksCli, paketo::{PackCli, PaketoBuilderImage}, railpack::RailpackCli, heroku::{HerokuCli, HerokuBuilderImage}};
 
 impl ApplicationBuilder {
     pub(super) async fn build_image(
@@ -58,7 +58,7 @@ impl ApplicationBuilder {
                 let mut builder = cli
                     .build(spec.image.as_str())
                     .path(spec.work_directory.as_str())
-                    .builder("paketobuildpacks/builder-jammy-full");
+                    .builder(PaketoBuilderImage::JammyFull);
                 for (k, v) in &spec.build_args {
                     builder = builder.env(k, v);
                 }
@@ -74,7 +74,7 @@ impl ApplicationBuilder {
                 let mut builder = cli
                     .build(spec.image.as_str())
                     .path(spec.work_directory.as_str())
-                    .builder("heroku/builder:22");
+                    .builder(HerokuBuilderImage::Builder22);
                 for (k, v) in &spec.build_args {
                     builder = builder.env(k, v);
                 }

@@ -57,7 +57,7 @@ pub(crate) async fn audit(
         }
     };
     let docker = crate::utils::docker::DockerCli::from_executor(executor.clone());
-    let network_exists = docker.run(["network", "inspect", network]).await.is_ok();
+    let network_exists = docker.networks().inspect(network).await.is_ok();
     let base_directory_exists = executor.run("test", ["-d", base]).await.is_ok();
     let mut checked_ports = Vec::new();
     for port in ports {

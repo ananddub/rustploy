@@ -94,91 +94,25 @@ fn inject_labels_for_service(
 }
 
 fn create_domain_labels(spec: &ComposeSpec, domain: &DomainSpec) -> Vec<String> {
-    let mut traefik = TraefikBuilder::new()
-        .enable()
-        .network(TRAEFIK_NETWORK);
-    let router_name = format!("{}-{}", spec.app_name, domain.key);
-    let entrypoint = domain.entrypoint.clone().unwrap_or_else(|| {
-        if domain.https {
-            "websecure".into()
-        } else {
-            "web".into()
-        }
-    });
-
-    let rule = {
-        let base = Rule::host(&domain.host);
-        if domain.path != "/" {
-            base.and(Rule::path_prefix(&domain.path))
-        } else {
-            base
-        }
+    let shared_domain = crate::utils::builder::shared::traefik::SharedDomain {
+        key: domain.key.clone(),
+        host: domain.host.clone(),
+        https: domain.https,
+        port: domain.port,
+        service_name: domain.service_name.clone(),
+        path: domain.path.clone(),
+        internal_path: domain.internal_path.clone(),
+        strip_path: domain.strip_path,
+        entrypoint: domain.entrypoint.clone(),
+        certificate_type: domain.certificate_type.clone(),
+        custom_cert_resolver: domain.custom_cert_resolver.clone(),
+        middlewares: domain.middlewares.clone(),
     };
-
-    let mut middleware_names: Vec<String> = Vec::new();
-
-    if domain.strip_path && domain.path != "/" {
-        let name = format!("stripprefix-{router_name}");
-        traefik = traefik.middleware(Middleware::StripPrefix {
-            name: name.clone(),
-            prefixes: vec![domain.path.clone()],
-        });
-        middleware_names.push(name);
-    }
-
-    if domain.internal_path != "/" && domain.internal_path != domain.path {
-        let name = format!("addprefix-{router_name}");
-        traefik = traefik.middleware(Middleware::AddPrefix {
-            name: name.clone(),
-            prefix: domain.internal_path.clone(),
-        });
-        middleware_names.push(name);
-    }
-
-    middleware_names.extend(domain.middlewares.clone());
-
-    let mut r = traefik
-        .router(&router_name)
-        .rule(&rule)
-        .entrypoint(&entrypoint);
-
-    if !middleware_names.is_empty() {
-        r = r.middlewares(&middleware_names);
-    }
-
-    if domain.https {
-        r = r.tls(true);
-        let cert_type = CertificateType::from(domain.certificate_type.as_str());
-        match cert_type {
-            CertificateType::LetsEncrypt => {
-                r = r.cert_resolver("letsencrypt");
-            }
-            CertificateType::Custom => {
-                if let Some(resolver) = &domain.custom_cert_resolver {
-                    r = r.cert_resolver(resolver);
-                }
-            }
-            CertificateType::None => {}
-        }
-    }
-
-    traefik = r
-        .service(&router_name)
-        .service(&router_name)
-        .port(domain.port)
-        .finish();
-
-    if domain.https && domain.entrypoint.is_none() {
-        let redirect_name = format!("{router_name}-redirect");
-        traefik = traefik
-            .router(&redirect_name)
-            .rule(&rule)
-            .entrypoint("web")
-            .middleware("redirect-to-https@file")
-            .finish();
-    }
-
-    traefik.build()
+    
+    let mut map = crate::utils::builder::shared::traefik::build_traefik_labels(&spec.app_name, &[shared_domain]);
+    // The key in the map will be domain.service_name (prefixed) or app_name fallback.
+    // Since there's only 1 domain passed, we just take the first/only value.
+    map.into_values().next().unwrap_or_default()
 }
 
 fn add_network_to_service(service: &mut Value) -> ExecResult<()> {
@@ -254,75 +188,29 @@ pub fn build_compose_service_labels(
     app_name: &str,
     domains: &[crate::services::domain::DomainRecord],
 ) -> std::collections::HashMap<String, Vec<String>> {
-    use std::collections::HashMap;
-    let mut builders: HashMap<String, TraefikBuilder> = HashMap::new();
-
-    for domain in domains {
-        let service_name = match &domain.service_name {
-            Some(s) if !s.is_empty() => {
-                if s.starts_with(&format!("{app_name}_")) {
-                    s.clone()
-                } else {
-                    format!("{app_name}_{s}")
-                }
-            }
-            _ => continue, // skip domains without service_name for compose stack
-        };
-
-        let mut traefik = TraefikBuilder::new()
-            .enable()
-            .network(TRAEFIK_NETWORK);
-        let key = domain.id.to_string();
-        let entrypoint = domain.custom_entrypoint.clone()
-            .unwrap_or_else(|| if domain.https != 0 { "websecure".into() } else { "web".into() });
-        let router_name = format!("{app_name}-{key}");
-
-        let rule = {
-            let base = Rule::host(&domain.host);
-            if let Some(path) = &domain.path {
-                if path != "/" {
-                    base.and(Rule::path_prefix(path))
-                } else {
-                    base
-                }
-            } else {
-                base
-            }
-        };
-
-        let mut r = traefik
-            .router(&router_name)
-            .rule(&rule)
-            .entrypoint(&entrypoint);
-
-        if domain.https != 0 {
-            r = r.tls(true);
-            let cert = &domain.certificate_type;
-            if cert.eq_ignore_ascii_case("LETSENCRYPT") {
-                r = r.cert_resolver("letsencrypt");
-            }
+    let shared_domains: Vec<crate::utils::builder::shared::traefik::SharedDomain> = domains.iter().filter_map(|d| {
+        // skip domains without service_name for compose stack
+        if d.service_name.as_ref().map(|s| s.is_empty()).unwrap_or(true) {
+            return None;
         }
+        
+        Some(crate::utils::builder::shared::traefik::SharedDomain {
+            key: d.id.to_string(),
+            host: d.host.clone(),
+            https: d.https != 0,
+            port: d.port.unwrap_or(3000) as u16,
+            service_name: d.service_name.clone(),
+            path: d.path.clone().unwrap_or_else(|| "/".to_string()),
+            internal_path: d.internal_path.clone().unwrap_or_else(|| "/".to_string()),
+            strip_path: d.strip_path != 0,
+            entrypoint: d.custom_entrypoint.clone(),
+            certificate_type: d.certificate_type.clone(),
+            custom_cert_resolver: d.custom_cert_resolver.clone(),
+            middlewares: vec![], // Compose currently doesn't map middlewares field
+        })
+    }).collect();
 
-        traefik = r
-            .service(&router_name)
-            .service(&router_name)
-            .port(domain.port.unwrap_or(3000) as u16)
-            .finish();
-
-        if domain.https != 0 && domain.custom_entrypoint.is_none() {
-            let redirect_name = format!("{router_name}-redirect");
-            traefik = traefik
-                .router(&redirect_name)
-                .rule(&rule)
-                .entrypoint("web")
-                .middleware("redirect-to-https@file")
-                .finish();
-        }
-
-        builders.entry(service_name).or_insert_with(TraefikBuilder::new).labels.extend(traefik.labels);
-    }
-
-    builders.into_iter().map(|(k, v)| (k, v.build())).collect()
+    crate::utils::builder::shared::traefik::build_traefik_labels(app_name, &shared_domains)
 }
 
 fn command_error(message: impl Into<String>) -> ExecError {

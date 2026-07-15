@@ -1,9 +1,10 @@
 use super::application::ApplicationBuilder;
 use crate::utils::{
-    builder::spec::{ApplicationSpec, BuilderEvent, SourceSpec},
+    builder::spec::{ApplicationSpec, SourceSpec},
     exec::{ExecError, ExecResult},
     git::GitCli,
 };
+use crate::utils::builder::shared::source::fetch_git_repository;
 use tokio_util::sync::CancellationToken;
 
 impl ApplicationBuilder {
@@ -14,72 +15,85 @@ impl ApplicationBuilder {
     ) -> ExecResult<()> {
         match &spec.source {
             SourceSpec::Docker { image, registry } => {
-                if let Some(auth) = registry {
-                    self.ctx.docker
-                        .login(Some(&auth.registry), &auth.username, &auth.password)
-                        .await?;
-                    let pull = self.ctx.docker.images().pull(image.as_str()).cancel_with(cancel.clone()).pull().await;
-                    let logout = self.ctx.docker.logout(Some(&auth.registry)).await;
-                    match (pull, logout) {
-                        (Err(error), _) => return Err(error),
-                        (Ok(_), Err(error)) => return Err(error),
-                        (Ok(_), Ok(_)) => {}
-                    }
-                } else {
-                    self.ctx.docker.images().pull(image.as_str()).cancel_with(cancel.clone()).pull().await?;
-                }
+                self.pull_docker_image(image, registry, cancel).await
             }
             SourceSpec::Git {
                 url,
                 branch,
                 submodules,
+                protocol,
+                auth,
             } => {
-                let git = GitCli::from_executor(self.ctx.executor.clone())
-                    .with_repository(spec.work_directory.clone());
-                let branch = resolve_branch(&GitCli::from_executor(self.ctx.executor.clone()), url, branch, cancel)
-                    .await?;
-                let git_dir = format!("{}/.git", spec.work_directory);
-                if self
-                    .ctx.executor
-                    .run("test", ["-d", git_dir.as_str()])
-                    .await
-                    .is_ok()
-                {
-                    self.ctx.emit(BuilderEvent::Message(format!(
-                        "fetching {url} branch {branch} into {}",
-                        spec.work_directory
-                    )))
-                    .await;
-                    git.remote(&["set-url", "origin", url]).await?;
-                    git.fetch_raw_cancelled(&["--prune", "origin", branch.as_str()], cancel)
-                        .await?;
-                    git.reset(&["--hard", "FETCH_HEAD"]).await?;
-                } else {
-                    if let Some(parent) = std::path::Path::new(&spec.work_directory).parent() {
-                        self.ctx.executor
-                            .run("mkdir", ["-p", parent.to_string_lossy().as_ref()])
-                            .await?;
-                    }
-                    self.ctx.emit(BuilderEvent::Message(format!(
-                        "cloning {url} branch {branch} into {}",
-                        spec.work_directory
-                    )))
-                    .await;
-                    GitCli::from_executor(self.ctx.executor.clone())
-                        .clone_repository_raw_cancelled(
-                            url,
-                            Some(&spec.work_directory),
-                            &["--branch", branch.as_str(), "--single-branch"],
-                            cancel,
-                        )
-                        .await?;
-                }
-                if *submodules {
-                    git.submodule(&["update", "--init", "--recursive"]).await?;
-                }
+                self.fetch_git_repository(spec, url, branch, *submodules, protocol.clone(), auth.clone(), cancel).await
             }
         }
-        Ok(())
+    }
+
+    async fn pull_docker_image(
+        &self,
+        image: &str,
+        registry: &Option<crate::utils::builder::spec::RegistryAuth>,
+        cancel: &CancellationToken,
+    ) -> ExecResult<()> {
+        if let Some(auth) = registry {
+            self.ctx
+                .docker
+                .login(Some(&auth.registry), &auth.username, &auth.password)
+                .await?;
+            let pull = self
+                .ctx
+                .docker
+                .images()
+                .pull(image)
+                .cancel_with(cancel.clone())
+                .pull()
+                .await;
+            let logout = self.ctx.docker.logout(Some(&auth.registry)).await;
+            match (pull, logout) {
+                (Err(error), _) => return Err(error),
+                (Ok(_), Err(error)) => return Err(error),
+                (Ok(_), Ok(_)) => Ok(()),
+            }
+        } else {
+            self.ctx
+                .docker
+                .images()
+                .pull(image)
+                .cancel_with(cancel.clone())
+                .pull()
+                .await?;
+            Ok(())
+        }
+    }
+
+    async fn fetch_git_repository(
+        &self,
+        spec: &ApplicationSpec,
+        url: &str,
+        branch_opt: &Option<String>,
+        submodules: bool,
+        protocol: crate::utils::provider::CloneProtocol,
+        auth: Option<crate::utils::git::types::GitAuth>,
+        cancel: &CancellationToken,
+    ) -> ExecResult<()> {
+        let branch = resolve_branch(
+            &GitCli::from_executor(self.ctx.executor.clone()),
+            url,
+            branch_opt,
+            cancel,
+        )
+        .await?;
+        
+        fetch_git_repository(
+            &self.ctx,
+            &spec.work_directory,
+            url,
+            &branch,
+            submodules,
+            protocol,
+            auth,
+            cancel
+        ).await
     }
 }
 

@@ -5,8 +5,8 @@ use sqlx::SqlitePool;
 
 use crate::api::dto::domain::{CreateDomainDto, PatchDomainDto};
 use crate::services::compose::ComposeType;
-use crate::utils::builder::application::traefik::build_traefik_labels;
 use crate::utils::builder::compose::labels::build_compose_service_labels;
+use crate::utils::builder::shared::traefik::build_traefik_labels;
 use crate::utils::builder::spec::{ApplicationSpec, DomainSpec, ResourceSpec, SourceSpec};
 use crate::utils::docker::DockerCli;
 use crate::utils::exec::{CommandExecutor, LocalExecutor};
@@ -233,46 +233,25 @@ impl DomainService {
             .await
             .map_err(|e| format!("could not load domains: {e}"))?;
 
-        // Build minimal ApplicationSpec just for label generation.
-        let spec = ApplicationSpec {
-            app_name: app_name.clone(),
-            stack_name: app_name.clone(),
-            source: SourceSpec::Docker { image: String::new(), registry: None },
-            build: None,
-            work_directory: String::new(),
-            image: String::new(),
-            environment: Default::default(),
-            build_args: Default::default(),
-            build_secrets: Default::default(),
-            command: None,
-            args: vec![],
-            replicas: 1,
-            network: "rustploy-network".into(),
-            mounts: vec![],
-            domains: domains
-                .iter()
-                .map(|d| DomainSpec {
-                    key: d.id.to_string(),
-                    host: d.host.clone(),
-                    https: d.https != 0,
-                    port: d.port.unwrap_or(3000) as u16,
-                    service_name: d.service_name.clone(),
-                    path: d.path.clone().unwrap_or_else(|| "/".into()),
-                    internal_path: d.internal_path.clone().unwrap_or_else(|| "/".into()),
-                    strip_path: d.strip_path != 0,
-                    entrypoint: d.custom_entrypoint.clone(),
-                    certificate_type: d.certificate_type.clone(),
-                    custom_cert_resolver: d.custom_cert_resolver.clone(),
-                    middlewares: serde_json::from_str(&d.middlewares).unwrap_or_default(),
-                })
-                .collect(),
-            resources: ResourceSpec::default(),
-            healthcheck: None,
-            placement_constraints: vec![],
-            stop_grace_period: None,
-        };
+        let shared_domains: Vec<crate::utils::builder::shared::traefik::SharedDomain> = domains.iter().map(|d| {
+            crate::utils::builder::shared::traefik::SharedDomain {
+                key: d.id.to_string(),
+                host: d.host.clone(),
+                https: d.https != 0,
+                port: d.port.unwrap_or(3000) as u16,
+                service_name: d.service_name.clone(),
+                path: d.path.clone().unwrap_or_else(|| "/".into()),
+                internal_path: d.internal_path.clone().unwrap_or_else(|| "/".into()),
+                strip_path: d.strip_path != 0,
+                entrypoint: d.custom_entrypoint.clone(),
+                certificate_type: d.certificate_type.clone(),
+                custom_cert_resolver: d.custom_cert_resolver.clone(),
+                middlewares: serde_json::from_str(&d.middlewares).unwrap_or_default(),
+            }
+        }).collect();
 
-        let new_labels = build_traefik_labels(&spec);
+        let traefik_map = build_traefik_labels(&app_name, &shared_domains);
+        let new_labels: Vec<String> = traefik_map.into_values().flatten().collect();
 
         // Build docker executor (local or remote).
         let executor = match server_id {
@@ -289,13 +268,16 @@ impl DomainService {
         let docker = DockerCli::from_executor(executor);
 
         // Get current traefik labels to remove stale ones.
-        let inspect_out = docker
-            .run(["service", "inspect", "--format", "{{json .Spec.Labels}}", &service_name])
+        let inspect_res = docker
+            .services()
+            .inspect(&service_name)
             .await
             .map_err(|e| format!("service inspect failed: {e}"))?;
 
-        let current: serde_json::Map<String, serde_json::Value> =
-            serde_json::from_str(inspect_out.stdout_trimmed()).unwrap_or_default();
+        let current = inspect_res["Spec"]["Labels"]
+            .as_object()
+            .cloned()
+            .unwrap_or_default();
 
         let stale: Vec<String> = current
             .keys()
@@ -303,26 +285,24 @@ impl DomainService {
             .cloned()
             .collect();
 
-        let mut args: Vec<String> = vec![];
-        for key in &stale {
-            args.push("--label-rm".into());
-            args.push(key.clone());
+        let mut update = docker.services().update(&service_name);
+        let mut has_changes = false;
+        for key in stale {
+            update = update.label_rm(key);
+            has_changes = true;
         }
         for label in &new_labels {
-            args.push("--label-add".into());
-            args.push(label.clone());
+            if let Some((k, v)) = label.split_once('=') {
+                update = update.label_add(k, v);
+                has_changes = true;
+            }
         }
 
-        if args.is_empty() {
+        if !has_changes {
             return Ok(());
         }
 
-        args.push(service_name.clone());
-        let refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-        docker
-            .service_update(&refs)
-            .await
-            .map_err(|e| format!("service update failed: {e}"))?;
+        update.run().await.map_err(|e| format!("service update failed: {e}"))?;
 
         tracing::info!(
             application_id,
@@ -376,30 +356,34 @@ impl DomainService {
                 let labels = build_compose_service_labels(&app_name, &domains);
                 for (service_name, service_labels) in labels {
                     // Remove stale traefik labels first.
-                    let inspect_out = docker
-                        .run(["service", "inspect", "--format", "{{json .Spec.Labels}}", &service_name])
+                    let inspect_res = docker
+                        .services()
+                        .inspect(&service_name)
                         .await
                         .map_err(|e| format!("service inspect failed: {e}"))?;
-                    let current: serde_json::Map<String, serde_json::Value> =
-                        serde_json::from_str(inspect_out.stdout_trimmed()).unwrap_or_default();
+                    let current = inspect_res["Spec"]["Labels"]
+                        .as_object()
+                        .cloned()
+                        .unwrap_or_default();
                     let stale: Vec<String> = current.keys()
                         .filter(|k| k.starts_with("traefik."))
                         .cloned()
                         .collect();
 
-                    let mut args: Vec<String> = vec![];
-                    for key in &stale {
-                        args.push("--label-rm".into());
-                        args.push(key.clone());
+                    let mut update = docker.services().update(&service_name);
+                    let mut has_changes = false;
+                    for key in stale {
+                        update = update.label_rm(key);
+                        has_changes = true;
                     }
                     for label in &service_labels {
-                        args.push("--label-add".into());
-                        args.push(label.clone());
+                        if let Some((k, v)) = label.split_once('=') {
+                            update = update.label_add(k, v);
+                            has_changes = true;
+                        }
                     }
-                    if args.is_empty() { continue; }
-                    args.push(service_name.clone());
-                    let refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-                    docker.service_update(&refs).await
+                    if !has_changes { continue; }
+                    update.run().await
                         .map_err(|e| format!("service update labels failed: {e}"))?;
 
                     tracing::info!(compose_id, service = %service_name, "traefik labels updated for compose stack service");
@@ -410,13 +394,16 @@ impl DomainService {
                 let paths = rustploy_paths();
                 let env_file = format!("{}/{app_name}/.env", paths.compose_dir("").trim_end_matches('/'));
                 let compose_file = format!("{}/{app_name}/source/docker-compose.yml", paths.compose_dir("").trim_end_matches('/'));
-                executor.run("docker", [
-                    "compose",
-                    "--project-name", &app_name,
-                    "--env-file", &env_file,
-                    "--file", &compose_file,
-                    "up", "--detach", "--no-build",
-                ]).await.map_err(|e| format!("compose up failed: {e}"))?;
+                
+                docker.compose().up()
+                    .project(&app_name)
+                    .env_file(&env_file)
+                    .file(&compose_file)
+                    .detach()
+                    .custom_arg("--no-build")
+                    .run()
+                    .await
+                    .map_err(|e| format!("compose up failed: {e}"))?;
                 tracing::info!(compose_id, "traefik labels updated via compose up");
             }
         }
