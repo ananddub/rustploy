@@ -86,17 +86,6 @@ fn inject_labels_for_service(
                 .or_insert_with(|| Value::Sequence(vec![]))
         }
     };
-    insert_label(labels_value, "traefik.enable=true")?;
-    match spec.runtime {
-        ComposeRuntime::Compose => insert_label(
-            labels_value,
-            format!("traefik.docker.network={TRAEFIK_NETWORK}"),
-        )?,
-        ComposeRuntime::Stack => insert_label(
-            labels_value,
-            format!("traefik.docker.network={TRAEFIK_NETWORK}"),
-        )?,
-    }
 
     for label in create_domain_labels(spec, domain) {
         insert_label(labels_value, label)?;
@@ -105,7 +94,9 @@ fn inject_labels_for_service(
 }
 
 fn create_domain_labels(spec: &ComposeSpec, domain: &DomainSpec) -> Vec<String> {
-    let mut traefik = TraefikBuilder::new();
+    let mut traefik = TraefikBuilder::new()
+        .enable()
+        .network(TRAEFIK_NETWORK);
     let router_name = format!("{}-{}", spec.app_name, domain.key);
     let entrypoint = domain.entrypoint.clone().unwrap_or_else(|| {
         if domain.https {
@@ -264,7 +255,7 @@ pub fn build_compose_service_labels(
     domains: &[crate::services::domain::DomainRecord],
 ) -> std::collections::HashMap<String, Vec<String>> {
     use std::collections::HashMap;
-    let mut result: HashMap<String, Vec<String>> = HashMap::new();
+    let mut builders: HashMap<String, TraefikBuilder> = HashMap::new();
 
     for domain in domains {
         let service_name = match &domain.service_name {
@@ -278,14 +269,9 @@ pub fn build_compose_service_labels(
             _ => continue, // skip domains without service_name for compose stack
         };
 
-        let entry = result.entry(service_name.clone()).or_default();
-
-        if entry.is_empty() {
-            entry.push("traefik.enable=true".into());
-            entry.push(format!("traefik.docker.network={TRAEFIK_NETWORK}"));
-        }
-
-        let mut traefik = TraefikBuilder::new();
+        let mut traefik = TraefikBuilder::new()
+            .enable()
+            .network(TRAEFIK_NETWORK);
         let key = domain.id.to_string();
         let entrypoint = domain.custom_entrypoint.clone()
             .unwrap_or_else(|| if domain.https != 0 { "websecure".into() } else { "web".into() });
@@ -333,10 +319,10 @@ pub fn build_compose_service_labels(
                 .finish();
         }
 
-        entry.extend(traefik.build());
+        builders.entry(service_name).or_insert_with(TraefikBuilder::new).labels.extend(traefik.labels);
     }
 
-    result
+    builders.into_iter().map(|(k, v)| (k, v.build())).collect()
 }
 
 fn command_error(message: impl Into<String>) -> ExecError {
