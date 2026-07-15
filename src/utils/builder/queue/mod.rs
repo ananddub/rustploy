@@ -5,3 +5,4 @@ pub mod common;
 pub mod compose;
 pub mod queue;
 pub mod types;
+pub mod deployment_log;

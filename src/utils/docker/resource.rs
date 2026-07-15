@@ -51,14 +51,13 @@ impl DockerCli {
 
 
 
-// #[test]
+#[cfg(test)]
 #[allow(non_snake_case)]
 pub mod TestingDockerBuilder {
-    use crate::utils::builder::spec::MountKind::Volume;
+    use super::*;
     use crate::utils::docker::core::{Cpu, Memory, Mount, Port};
     use crate::utils::docker::handles::RestartPolicy;
-    use crate::utils::docker::query::{ContainerFilter, ContainerStatus, HealthStatus, ImageFilter, VolumeCreate};
-    use super::*;
+    use crate::utils::docker::query::ImageFilter;
 
     #[test]
     fn docker_test() {

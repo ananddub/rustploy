@@ -55,6 +55,14 @@ impl RustployPaths {
     pub fn traefik_application_file(&self, app_name: &str) -> String {
         format!("{}/{}.yml", self.traefik_dynamic(), app_name)
     }
+
+    pub fn deployment_logs(&self) -> String {
+        format!("{}/logs/deployments", self.base)
+    }
+
+    pub fn deployment_log_file(&self, deployment_id: i64) -> String {
+        format!("{}/{}.log", self.deployment_logs(), deployment_id)
+    }
 }
 
 pub fn rustploy_paths() -> RustployPaths {

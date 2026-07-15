@@ -5,9 +5,6 @@ use super::{
 use crate::utils::{
     builder::spec::DomainSpec,
     exec::{ExecError, ExecResult},
-    traefik::{
-        middleware::Middleware, rule::Rule, traefik::TraefikBuilder, types::CertificateType,
-    },
 };
 use serde_yaml::{Mapping, Value};
 use tokio_util::sync::CancellationToken;
@@ -109,7 +106,7 @@ fn create_domain_labels(spec: &ComposeSpec, domain: &DomainSpec) -> Vec<String> 
         middlewares: domain.middlewares.clone(),
     };
     
-    let mut map = crate::utils::builder::shared::traefik::build_traefik_labels(&spec.app_name, &[shared_domain]);
+    let map = crate::utils::builder::shared::traefik::build_traefik_labels(&spec.app_name, &[shared_domain]);
     // The key in the map will be domain.service_name (prefixed) or app_name fallback.
     // Since there's only 1 domain passed, we just take the first/only value.
     map.into_values().next().unwrap_or_default()

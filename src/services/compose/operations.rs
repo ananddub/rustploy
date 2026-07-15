@@ -1,13 +1,11 @@
 use auto_di::resolve;
 use sqlx::Row;
-use uuid::Uuid;
 use std::sync::Arc;
 use sqlx::SqlitePool;
 
 use crate::utils::builder::queue::BuilderQueue;
 use crate::utils::builder::{custom_type::IdType, hash_state::ApplicationState};
 use crate::utils::docker::DockerCli;
-use crate::utils::docker::expand::ServiceFilterExt;
 use crate::utils::docker::query::ServiceFilter;
 use super::{ComposeOperation, ComposeOperationResult, ComposeRecord, ComposeService, auto_excuter::compose_new_db, ComposeType};
 
@@ -53,7 +51,7 @@ impl ComposeService {
         .fetch_one(&mut *tx)
         .await?;
 
-        let log_path = format!("logs/compose/{}/{}.log", id, Uuid::new_v4());
+        let log_path = format!("pending-compose-{}", id);
         let deployment = sqlx::query(
             r#"INSERT INTO deployments (title, description, status, state, log_path, operation, compose_id, server_id, last_state_at)
                VALUES (?, ?, 'QUEUED', 'QUEUE', ?, ?, ?, ?, strftime('%s', 'now'))
@@ -68,8 +66,20 @@ impl ComposeService {
         .fetch_one(&mut *tx)
         .await?;
 
-        tx.commit().await?;
         let deployment_id: i64 = deployment.get("id");
+        let log_path = crate::utils::paths::rustploy_paths().deployment_log_file(deployment_id);
+
+        sqlx::query("UPDATE deployments SET log_path = ? WHERE id = ?")
+            .bind(&log_path)
+            .bind(deployment_id)
+            .execute(&mut *tx)
+            .await?;
+
+        tx.commit().await?;
+
+        if let Ok(mut log) = crate::utils::builder::queue::deployment_log::DeploymentLog::open(deployment_id).await {
+            let _ = log.write_line(&format!("[QUEUED] deployment queued for {}", operation.as_str())).await;
+        }
 
         resolve::<BuilderQueue>()
             .await

@@ -5,7 +5,6 @@ use crate::utils::{
         query::filter::ServiceFilter,
         DockerOutput, DockerResult, DockerExitStatus, DockerStreamEvent,
     },
-    exec::ExecOutput,
 };
 use tokio::sync::mpsc;
 

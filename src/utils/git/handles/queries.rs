@@ -1,5 +1,5 @@
 use crate::utils::{
-    exec::{ArgBuilder, ExecExitStatus, ExecOutput, ExecResult, ExecStreamEvent},
+    exec::{ArgBuilder, ExecOutput, ExecResult},
     git::{client::GitCli, GitBranch},
 };
 use tokio_util::sync::CancellationToken;

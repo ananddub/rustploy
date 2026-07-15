@@ -184,13 +184,6 @@ async fn remote_executor_for(db: &SqlitePool, server_id: i64) -> Result<RemoteEx
     .with_sudo())
 }
 
-fn str_field(v: &serde_json::Value, key: &str) -> String {
-    v.get(key)
-        .and_then(|v| v.as_str())
-        .unwrap_or_default()
-        .to_owned()
-}
-
 fn map_exec(error: ExecError) -> ApiError {
     tracing::error!(error = %error, "swarm command failed");
     match error {
@@ -198,8 +191,4 @@ fn map_exec(error: ExecError) -> ApiError {
         ExecError::Ssh(_) => (StatusCode::BAD_GATEWAY, error.to_string()),
         _ => (StatusCode::INTERNAL_SERVER_ERROR, error.to_string()),
     }
-}
-
-fn internal(msg: String) -> ApiError {
-    (StatusCode::INTERNAL_SERVER_ERROR, msg)
 }

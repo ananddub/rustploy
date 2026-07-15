@@ -98,6 +98,13 @@ impl BuilderQueue {
     }
 
     pub async fn cancel_queued_application(&self, application_id: i64) -> sqlx::Result<bool> {
+        let ids: Vec<i64> = sqlx::query_scalar::<_, i64>(
+            "SELECT id FROM deployments WHERE application_id = ? AND status = 'QUEUED'",
+        )
+        .bind(application_id)
+        .fetch_all(self.db.as_ref())
+        .await?;
+
         let rows = sqlx::query(
             "UPDATE deployments
              SET status        = 'CANCELLED',
@@ -109,10 +116,25 @@ impl BuilderQueue {
         .bind(application_id)
         .execute(self.db.as_ref())
         .await?;
+
+        if rows.rows_affected() > 0 {
+            for id in ids {
+                if let Ok(mut log) = super::deployment_log::DeploymentLog::open(id).await {
+                    let _ = log.write_line("[CANCELLED] deployment cancelled before worker started").await;
+                }
+            }
+        }
         Ok(rows.rows_affected() > 0)
     }
 
     pub async fn cancel_queued_compose(&self, compose_id: i64) -> sqlx::Result<bool> {
+        let ids: Vec<i64> = sqlx::query_scalar::<_, i64>(
+            "SELECT id FROM deployments WHERE compose_id = ? AND status = 'QUEUED'",
+        )
+        .bind(compose_id)
+        .fetch_all(self.db.as_ref())
+        .await?;
+
         let rows = sqlx::query(
             "UPDATE deployments
              SET status        = 'CANCELLED',
@@ -124,6 +146,14 @@ impl BuilderQueue {
         .bind(compose_id)
         .execute(self.db.as_ref())
         .await?;
+
+        if rows.rows_affected() > 0 {
+            for id in ids {
+                if let Ok(mut log) = super::deployment_log::DeploymentLog::open(id).await {
+                    let _ = log.write_line("[CANCELLED] deployment cancelled before worker started").await;
+                }
+            }
+        }
         Ok(rows.rows_affected() > 0)
     }
 

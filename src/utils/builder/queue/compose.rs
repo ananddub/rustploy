@@ -15,8 +15,7 @@ use crate::{
             compose::{adapter::ComposeSpecAdapter, ComposeBuilder},
             custom_type::IdType,
             hash_state::ApplicationState,
-            queue::{common, queue::BuilderQueue},
-            spec::BuilderEvent,
+            queue::queue::BuilderQueue,
         },
         exec::{CommandExecutor, LocalExecutor},
         builder::errors::BuilderError,
@@ -76,52 +75,26 @@ impl BuilderQueue {
         };
 
         let (events_tx, events_rx) = mpsc::channel(64);
-        tokio::spawn(record_builder_events(db.clone(), deployment_id, events_rx));
+        tokio::spawn(super::deployment_log::record_builder_events(db.clone(), deployment_id, events_rx, "compose"));
 
         let builder = ComposeBuilder::new(executor)
             .with_state(state, compose_key)
-            .with_events(events_tx);
+            .with_events(events_tx.clone());
 
-        match operation {
-            ComposeOperation::Stop => builder.stop(&spec).await.map_err(|e| BuilderError::Execution(e.to_string())),
-            _ => builder
-                .deploy(&spec, &cancel)
-                .await
-                .map(|_| ())
-                .map_err(|e| BuilderError::Execution(e.to_string())),
-        }
-    }
-}
-
-async fn record_builder_events(
-    db: Arc<SqlitePool>,
-    deployment_id: i64,
-    mut events: mpsc::Receiver<BuilderEvent>,
-) {
-    while let Some(event) = events.recv().await {
-        if let BuilderEvent::Message(message) = &event {
-            tracing::info!(deployment_id, message = %message, "compose deployment message");
-            continue;
-        }
-        let state = common::builder_event_state(&event);
-        let message = match &event {
-            BuilderEvent::Failed(e) => Some(e.as_str()),
-            _ => None,
+        let events_tx_clone = events_tx.clone();
+        let build_future = async move {
+            match operation {
+                ComposeOperation::Stop => builder.stop(&spec).await.map_err(|e| BuilderError::Execution(e.to_string())),
+                _ => builder
+                    .deploy(&spec, &cancel)
+                    .await
+                    .map(|_| ())
+                    .map_err(|e| BuilderError::Execution(e.to_string())),
+            }
         };
-        if let Err(e) = sqlx::query(
-            "UPDATE deployments
-             SET state         = ?,
-                 error_message = COALESCE(?, error_message),
-                 last_state_at = strftime('%s', 'now')
-             WHERE id = ? AND status = 'RUNNING'",
-        )
-        .bind(state)
-        .bind(message)
-        .bind(deployment_id)
-        .execute(db.as_ref())
-        .await
-        {
-            tracing::error!(deployment_id, error = %e, "could not persist compose builder event");
-        }
+
+        super::deployment_log::DEPLOYMENT_SENDER
+            .scope(events_tx_clone, build_future)
+            .await
     }
 }

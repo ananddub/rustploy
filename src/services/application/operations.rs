@@ -1,6 +1,5 @@
 use auto_di::resolve;
 use sqlx::Row;
-use uuid::Uuid;
 
 use crate::services::application::auto_excuter::app_new_cmd;
 use crate::utils::builder::queue::BuilderQueue;
@@ -55,7 +54,7 @@ impl ApplicationService {
         .fetch_one(&mut *tx)
         .await?;
 
-        let log_path = format!("logs/applications/{}/{}.log", id, Uuid::new_v4());
+        let log_path = format!("pending-app-{}", id);
         let deployment = sqlx::query(
             r#"INSERT INTO deployments (title, description, status, state, log_path, operation, application_id, server_id, last_state_at)
                VALUES (?, ?, 'QUEUED', 'QUEUE', ?, ?, ?, ?, strftime('%s', 'now'))
@@ -70,8 +69,20 @@ impl ApplicationService {
         .fetch_one(&mut *tx)
         .await?;
 
-        tx.commit().await?;
         let deployment_id: i64 = deployment.get("id");
+        let log_path = crate::utils::paths::rustploy_paths().deployment_log_file(deployment_id);
+
+        sqlx::query("UPDATE deployments SET log_path = ? WHERE id = ?")
+            .bind(&log_path)
+            .bind(deployment_id)
+            .execute(&mut *tx)
+            .await?;
+
+        tx.commit().await?;
+
+        if let Ok(mut log) = crate::utils::builder::queue::deployment_log::DeploymentLog::open(deployment_id).await {
+            let _ = log.write_line(&format!("[QUEUED] deployment queued for {}", operation.as_str())).await;
+        }
 
         resolve::<BuilderQueue>()
             .await

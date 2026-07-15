@@ -1,4 +1,5 @@
 use crate::utils::builder::errors::AdapterError;
+use crate::utils::builder::spec::SourceType;
 
 pub enum GitProvider {
     Github { owner: String, repo: String },
@@ -20,7 +21,7 @@ impl GitProvider {
 }
 
 pub struct GitProviderBuilder<'a> {
-    pub source_type: &'a str,
+    pub source_type: SourceType,
     pub repository: Option<&'a str>,
     pub owner: Option<&'a str>,
     pub gitlab_repository: Option<&'a str>,
@@ -32,7 +33,7 @@ pub struct GitProviderBuilder<'a> {
 }
 
 impl<'a> GitProviderBuilder<'a> {
-    pub fn new(source_type: &'a str) -> Self {
+    pub fn new(source_type: SourceType) -> Self {
         Self {
             source_type,
             repository: None,
@@ -75,12 +76,12 @@ impl<'a> GitProviderBuilder<'a> {
     }
 
     pub fn build(self) -> Result<GitProvider, AdapterError> {
-        match self.source_type.to_uppercase().as_str() {
-            "GITHUB" => Ok(GitProvider::Github {
+        match self.source_type {
+            SourceType::Github => Ok(GitProvider::Github {
                 owner: self.owner.ok_or(AdapterError::MissingField("owner"))?.into(),
                 repo: self.repository.ok_or(AdapterError::MissingField("repository"))?.into(),
             }),
-            "GITLAB" => {
+            SourceType::Gitlab => {
                 let url = self.gitlab_repository.ok_or(AdapterError::MissingField("gitlab_repository"))?;
                 if url.contains("://") || url.starts_with("git@") {
                     Ok(GitProvider::Custom { url: url.into() })
@@ -91,7 +92,7 @@ impl<'a> GitProviderBuilder<'a> {
                     })
                 }
             }
-            "BITBUCKET" => {
+            SourceType::Bitbucket => {
                 let url = self.bitbucket_repository.ok_or(AdapterError::MissingField("bitbucket_repository"))?;
                 if url.contains("://") || url.starts_with("git@") {
                     Ok(GitProvider::Custom { url: url.into() })
@@ -102,7 +103,7 @@ impl<'a> GitProviderBuilder<'a> {
                     })
                 }
             }
-            "GITEA" => {
+            SourceType::Gitea => {
                 let url = self.gitea_repository
                     .filter(|value| value.contains("://") || value.starts_with("git@"))
                     .ok_or_else(|| AdapterError::InvalidField {
@@ -111,11 +112,11 @@ impl<'a> GitProviderBuilder<'a> {
                     })?;
                 Ok(GitProvider::Gitea { url: url.into() })
             }
-            "GIT" => {
+            SourceType::Git => {
                 let url = self.custom_git_url.ok_or(AdapterError::MissingField("custom_git_url"))?;
                 Ok(GitProvider::Custom { url: url.into() })
             }
-            other => Err(AdapterError::UnsupportedSourceType(other.into())),
+            other => Err(AdapterError::UnsupportedSourceType(other.to_string())),
         }
     }
 }

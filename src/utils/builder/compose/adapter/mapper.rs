@@ -95,7 +95,7 @@ fn source(compose: &ComposeRow) -> Result<ComposeSource, AdapterError> {
             content: compose.compose_file.clone(),
         }),
         _ => {
-            let provider = GitProviderBuilder::new(&compose.source_type)
+            let provider = GitProviderBuilder::new(source_type)
                 .github(compose.owner.as_deref(), compose.repository.as_deref())
                 .gitlab(compose.gitlab_owner.as_deref(), compose.gitlab_repository.as_deref())
                 .bitbucket(compose.bitbucket_owner.as_deref(), compose.bitbucket_repository.as_deref())

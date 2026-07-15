@@ -1,16 +1,12 @@
-use std::{convert::Infallible, pin::Pin, sync::Arc};
+use std::sync::Arc;
 
 use auto_route::controller;
 use axum::{
     Json,
     extract::{Path, Query},
     http::StatusCode,
-    response::sse::{Event, Sse},
+    response::sse::Sse,
 };
-use futures::Stream;
-use serde_json::json;
-use tokio::sync::{broadcast, mpsc};
-use tokio::time::{Duration, MissedTickBehavior};
 
 use crate::{
     api::dto::deployment::{
@@ -18,15 +14,17 @@ use crate::{
         DockerLogQuery, DockerStatsQuery,
     },
     services::deployment::{CancelDeploymentResult, DeploymentListFilter, DeploymentService},
-    utils::{
-        builder::custom_type::{DeployEvent, DeployState, DeploySubscription, IdType},
-        docker::DockerStreamEvent,
-        jwt::claim::Claims,
-    },
+    utils::builder::custom_type::IdType,
+};
+
+pub mod stream;
+
+use stream::{
+    deployment_event_stream, deployment_log_stream, docker_stats_stream, docker_stream,
+    DeploymentEventStream,
 };
 
 type ApiError = (StatusCode, String);
-type DeploymentEventStream = Pin<Box<dyn Stream<Item = Result<Event, Infallible>> + Send>>;
 type DeploymentSse = Sse<DeploymentEventStream>;
 
 pub struct DeploymentController {
@@ -42,7 +40,7 @@ impl DeploymentController {
     #[get]
     async fn list(
         &self,
-        _claims: Claims,
+        _claims: crate::utils::jwt::claim::Claims,
         Query(query): Query<DeploymentListQuery>,
     ) -> Result<Json<Vec<DeploymentResponseDto>>, ApiError> {
         self.service
@@ -62,7 +60,7 @@ impl DeploymentController {
     }
 
     #[get("/active")]
-    async fn active(&self, _claims: Claims) -> Result<Json<Vec<ActiveDeploymentDto>>, ApiError> {
+    async fn active(&self, _claims: crate::utils::jwt::claim::Claims) -> Result<Json<Vec<ActiveDeploymentDto>>, ApiError> {
         self.service
             .list_active_components()
             .await
@@ -74,7 +72,7 @@ impl DeploymentController {
     #[get("/running")]
     async fn running(
         &self,
-        _claims: Claims,
+        _claims: crate::utils::jwt::claim::Claims,
         Query(query): Query<DeploymentListQuery>,
     ) -> Result<Json<Vec<DeploymentResponseDto>>, ApiError> {
         self.service
@@ -88,7 +86,7 @@ impl DeploymentController {
     #[get("/{id}")]
     async fn get(
         &self,
-        _claims: Claims,
+        _claims: crate::utils::jwt::claim::Claims,
         Path(id): Path<i64>,
     ) -> Result<Json<DeploymentResponseDto>, ApiError> {
         self.service
@@ -102,7 +100,7 @@ impl DeploymentController {
     #[get("/application/{id}/events")]
     async fn application_events(
         &self,
-        _claims: Claims,
+        _claims: crate::utils::jwt::claim::Claims,
         Path(id): Path<i64>,
     ) -> Result<DeploymentSse, ApiError> {
         self.events(IdType::AppId(id)).await
@@ -111,7 +109,7 @@ impl DeploymentController {
     #[get("/compose/{id}/events")]
     async fn compose_events(
         &self,
-        _claims: Claims,
+        _claims: crate::utils::jwt::claim::Claims,
         Path(id): Path<i64>,
     ) -> Result<DeploymentSse, ApiError> {
         self.events(IdType::ComposeId(id)).await
@@ -120,7 +118,7 @@ impl DeploymentController {
     #[get("/application/{id}/stats")]
     async fn application_stats(
         &self,
-        _claims: Claims,
+        _claims: crate::utils::jwt::claim::Claims,
         Path(id): Path<i64>,
         Query(query): Query<DockerStatsQuery>,
     ) -> Result<DeploymentSse, ApiError> {
@@ -136,7 +134,7 @@ impl DeploymentController {
     #[get("/compose/{id}/stats")]
     async fn compose_stats(
         &self,
-        _claims: Claims,
+        _claims: crate::utils::jwt::claim::Claims,
         Path(id): Path<i64>,
         Query(query): Query<DockerStatsQuery>,
     ) -> Result<DeploymentSse, ApiError> {
@@ -152,7 +150,7 @@ impl DeploymentController {
     #[get("/docker/container/{target}/logs")]
     async fn docker_container_logs(
         &self,
-        _claims: Claims,
+        _claims: crate::utils::jwt::claim::Claims,
         Path(target): Path<String>,
         Query(query): Query<DockerLogQuery>,
     ) -> Result<DeploymentSse, ApiError> {
@@ -172,7 +170,7 @@ impl DeploymentController {
     #[get("/docker/stats")]
     async fn docker_global_stats(
         &self,
-        _claims: Claims,
+        _claims: crate::utils::jwt::claim::Claims,
         Query(query): Query<DockerStatsQuery>,
     ) -> Result<DeploymentSse, ApiError> {
         let receiver = self
@@ -187,7 +185,7 @@ impl DeploymentController {
     #[get("/docker/container/{target}/stats")]
     async fn docker_container_stats(
         &self,
-        _claims: Claims,
+        _claims: crate::utils::jwt::claim::Claims,
         Path(target): Path<String>,
         Query(query): Query<DockerStatsQuery>,
     ) -> Result<DeploymentSse, ApiError> {
@@ -203,7 +201,7 @@ impl DeploymentController {
     #[get("/docker/service/{target}/logs")]
     async fn docker_service_logs(
         &self,
-        _claims: Claims,
+        _claims: crate::utils::jwt::claim::Claims,
         Path(target): Path<String>,
         Query(query): Query<DockerLogQuery>,
     ) -> Result<DeploymentSse, ApiError> {
@@ -223,7 +221,7 @@ impl DeploymentController {
     #[get("/docker/compose/logs")]
     async fn docker_compose_logs(
         &self,
-        _claims: Claims,
+        _claims: crate::utils::jwt::claim::Claims,
         Query(query): Query<ComposeLogQuery>,
     ) -> Result<DeploymentSse, ApiError> {
         let server_id = query.server_id;
@@ -238,7 +236,7 @@ impl DeploymentController {
     }
 
     #[post("/{id}/cancel")]
-    async fn cancel(&self, _claims: Claims, Path(id): Path<i64>) -> Result<StatusCode, ApiError> {
+    async fn cancel(&self, _claims: crate::utils::jwt::claim::Claims, Path(id): Path<i64>) -> Result<StatusCode, ApiError> {
         match self.service.cancel(id).await {
             Ok(CancelDeploymentResult::CancelRequested) => Ok(StatusCode::ACCEPTED),
             Ok(CancelDeploymentResult::NotRunning) => Err((
@@ -255,6 +253,51 @@ impl DeploymentController {
             )),
             Err(error) => Err(map_sqlx_error(error)),
         }
+    }
+
+    #[get("/{id}/logs")]
+    async fn stream_logs(
+        &self,
+        _claims: crate::utils::jwt::claim::Claims,
+        Path(id): Path<i64>,
+    ) -> Result<DeploymentSse, ApiError> {
+        let receiver = self
+            .service
+            .stream_deployment_log(id)
+            .await
+            .map_err(map_sqlx_error)?;
+
+        Ok(Sse::new(deployment_log_stream(receiver)))
+    }
+
+    #[get("/application/{id}/logs")]
+    async fn application_latest_logs(
+        &self,
+        _claims: crate::utils::jwt::claim::Claims,
+        Path(id): Path<i64>,
+    ) -> Result<DeploymentSse, ApiError> {
+        let receiver = self
+            .service
+            .stream_application_latest_log(id)
+            .await
+            .map_err(map_sqlx_error)?;
+
+        Ok(Sse::new(deployment_log_stream(receiver)))
+    }
+
+    #[get("/compose/{id}/logs")]
+    async fn compose_latest_logs(
+        &self,
+        _claims: crate::utils::jwt::claim::Claims,
+        Path(id): Path<i64>,
+    ) -> Result<DeploymentSse, ApiError> {
+        let receiver = self
+            .service
+            .stream_compose_latest_log(id)
+            .await
+            .map_err(map_sqlx_error)?;
+
+        Ok(Sse::new(deployment_log_stream(receiver)))
     }
 
     async fn events(&self, id: IdType) -> Result<DeploymentSse, ApiError> {
@@ -285,165 +328,6 @@ fn map_sqlx_error(error: sqlx::Error) -> ApiError {
             )
         }
     }
-}
-
-fn deployment_event_stream(subscription: DeploySubscription) -> DeploymentEventStream {
-    let initial_state = subscription.state.borrow().clone();
-    let mut keep_alive = tokio::time::interval(Duration::from_secs(15));
-    keep_alive.set_missed_tick_behavior(MissedTickBehavior::Delay);
-
-    Box::pin(futures::stream::unfold(
-        (subscription, Some(initial_state), keep_alive),
-        |(mut subscription, initial_state, mut keep_alive)| async move {
-            if let Some(state) = initial_state {
-                return Some((Ok(state_event(state)), (subscription, None, keep_alive)));
-            }
-
-            loop {
-                tokio::select! {
-                    _ = keep_alive.tick() => {
-                        return Some((Ok(keep_alive_event()), (subscription, None, keep_alive)));
-                    }
-                    changed = subscription.state.changed() => {
-                        if changed.is_err() {
-                            return None;
-                        }
-
-                        let state = subscription.state.borrow().clone();
-                        return Some((Ok(state_event(state)), (subscription, None, keep_alive)));
-                    }
-                    received = subscription.events.recv() => {
-                        match received {
-                            Ok(event) => {
-                                return Some((Ok(deploy_event(event)), (subscription, None, keep_alive)));
-                            }
-                            Err(broadcast::error::RecvError::Lagged(skipped)) => {
-                                return Some((Ok(lagged_event(skipped)), (subscription, None, keep_alive)));
-                            }
-                            Err(broadcast::error::RecvError::Closed) => {
-                                return None;
-                            }
-                        }
-                    }
-                }
-            }
-        },
-    ))
-}
-
-fn keep_alive_event() -> Event {
-    Event::default()
-        .event("keep-alive")
-        .data(json_payload(json!({
-            "type": "keep-alive",
-        })))
-}
-
-fn state_event(state: DeployState) -> Event {
-    Event::default().event("state").data(json_payload(json!({
-        "type": "state",
-        "state": format!("{state:?}"),
-    })))
-}
-
-fn deploy_event(event: DeployEvent) -> Event {
-    match event {
-        DeployEvent::StateChanged(state) => state_event(state),
-        DeployEvent::Log(line) => Event::default().event("log").data(json_payload(json!({
-            "type": "log",
-            "line": line,
-        }))),
-        DeployEvent::Message(message) => {
-            Event::default().event("message").data(json_payload(json!({
-                "type": "message",
-                "message": message,
-            })))
-        }
-    }
-}
-
-fn lagged_event(skipped: u64) -> Event {
-    Event::default().event("lagged").data(json_payload(json!({
-        "type": "lagged",
-        "skipped": skipped,
-    })))
-}
-
-fn json_payload(value: serde_json::Value) -> String {
-    serde_json::to_string(&value).unwrap_or_else(|_| "{}".into())
-}
-
-fn docker_stream(receiver: mpsc::Receiver<DockerStreamEvent>) -> DeploymentEventStream {
-    let mut keep_alive = tokio::time::interval(Duration::from_secs(15));
-    keep_alive.set_missed_tick_behavior(MissedTickBehavior::Delay);
-
-    Box::pin(futures::stream::unfold(
-        (receiver, keep_alive),
-        |(mut receiver, mut keep_alive)| async move {
-            loop {
-                tokio::select! {
-                    _ = keep_alive.tick() => {
-                        return Some((Ok(keep_alive_event()), (receiver, keep_alive)));
-                    }
-                    received = receiver.recv() => {
-                        let event = match received {
-                            Some(DockerStreamEvent::Stdout(bytes)) => docker_log_event("stdout", bytes),
-                            Some(DockerStreamEvent::Stderr(bytes)) => docker_log_event("stderr", bytes),
-                            None => return None,
-                        };
-                        return Some((Ok(event), (receiver, keep_alive)));
-                    }
-                }
-            }
-        },
-    ))
-}
-
-fn docker_log_event(stream: &str, bytes: Vec<u8>) -> Event {
-    Event::default().event(stream).data(json_payload(json!({
-        "type": stream,
-        "line": String::from_utf8_lossy(&bytes),
-    })))
-}
-
-fn docker_stats_stream(receiver: mpsc::Receiver<DockerStreamEvent>) -> DeploymentEventStream {
-    let mut keep_alive = tokio::time::interval(Duration::from_secs(15));
-    keep_alive.set_missed_tick_behavior(MissedTickBehavior::Delay);
-
-    Box::pin(futures::stream::unfold(
-        (receiver, keep_alive),
-        |(mut receiver, mut keep_alive)| async move {
-            loop {
-                tokio::select! {
-                    _ = keep_alive.tick() => {
-                        return Some((Ok(keep_alive_event()), (receiver, keep_alive)));
-                    }
-                    received = receiver.recv() => {
-                        let event = match received {
-                            Some(DockerStreamEvent::Stdout(bytes)) => docker_stats_event(bytes),
-                            Some(DockerStreamEvent::Stderr(bytes)) => docker_log_event("stderr", bytes),
-                            None => return None,
-                        };
-                        return Some((Ok(event), (receiver, keep_alive)));
-                    }
-                }
-            }
-        },
-    ))
-}
-
-fn docker_stats_event(bytes: Vec<u8>) -> Event {
-    let line = String::from_utf8_lossy(&bytes);
-    let value = serde_json::from_str::<serde_json::Value>(line.trim()).unwrap_or_else(|_| {
-        json!({
-            "raw": line,
-        })
-    });
-
-    Event::default().event("stats").data(json_payload(json!({
-        "type": "stats",
-        "stats": value,
-    })))
 }
 
 fn docker_log_options(

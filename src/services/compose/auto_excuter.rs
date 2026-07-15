@@ -9,7 +9,7 @@ pub async  fn compose_new_db(db :Arc<SqlitePool>, compose_id: i64) -> Result<Com
     )
         .fetch_one(db.as_ref())
         .await?;
-    let mut cmd:CommandExecutor ;
+    let cmd:CommandExecutor ;
     if compose_user.server_id.is_none() {
         cmd  = CommandExecutor::Local(LocalExecutor::new());
         tracing::warn!(application_id = compose_user.id, "application has no server assigned; cannot cancel operation");

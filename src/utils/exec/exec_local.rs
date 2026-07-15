@@ -27,12 +27,21 @@ impl LocalExecutor {
         I: IntoIterator<Item = S>,
         S: AsRef<OsStr>,
     {
-        checked(
+        let res = checked(
             self.command(program, args)
                 .output()
                 .await
                 .map_err(|source| io_command(program, source))?,
-        )
+        );
+        if let Ok(ref out) = res {
+            for line in out.stdout.lines() {
+                crate::utils::builder::queue::deployment_log::log_message(line.to_string());
+            }
+            for line in out.stderr.lines() {
+                crate::utils::builder::queue::deployment_log::log_message(line.to_string());
+            }
+        }
+        res
     }
     pub async fn run_cancelled<I, S>(
         &self,
@@ -50,8 +59,13 @@ impl LocalExecutor {
         let mut child = c.spawn().map_err(|source| io_command(program, source))?;
         let stdout = child.stdout.take();
         let stderr = child.stderr.take();
-        let stdout_task = tokio::spawn(read_pipe_with_trace(program.to_owned(), "stdout", stdout));
-        let stderr_task = tokio::spawn(read_pipe_with_trace(program.to_owned(), "stderr", stderr));
+
+        let sender = crate::utils::builder::queue::deployment_log::DEPLOYMENT_SENDER
+            .try_with(|tx| tx.clone())
+            .ok();
+
+        let stdout_task = tokio::spawn(read_pipe_with_trace(program.to_owned(), "stdout", stdout, sender.clone()));
+        let stderr_task = tokio::spawn(read_pipe_with_trace(program.to_owned(), "stderr", stderr, sender));
         tokio::select! {
             status = child.wait() => {
                 let stdout = join_pipe(stdout_task).await?;
@@ -86,12 +100,21 @@ impl LocalExecutor {
             .expect("piped stdin")
             .write_all(stdin.as_ref())
             .await?;
-        checked(
+        let res = checked(
             child
                 .wait_with_output()
                 .await
                 .map_err(|source| io_command(program, source))?,
-        )
+        );
+        if let Ok(ref out) = res {
+            for line in out.stdout.lines() {
+                crate::utils::builder::queue::deployment_log::log_message(line.to_string());
+            }
+            for line in out.stderr.lines() {
+                crate::utils::builder::queue::deployment_log::log_message(line.to_string());
+            }
+        }
+        res
     }
     pub async fn run_with_stdin_cancelled<I, S>(
         &self,
@@ -115,8 +138,13 @@ impl LocalExecutor {
         let stdout = child.stdout.take();
         let stderr = child.stderr.take();
         tracing::debug!(program, "starting local command with stdin");
-        let stdout_task = tokio::spawn(read_pipe_with_trace(program.to_owned(), "stdout", stdout));
-        let stderr_task = tokio::spawn(read_pipe_with_trace(program.to_owned(), "stderr", stderr));
+
+        let sender = crate::utils::builder::queue::deployment_log::DEPLOYMENT_SENDER
+            .try_with(|tx| tx.clone())
+            .ok();
+
+        let stdout_task = tokio::spawn(read_pipe_with_trace(program.to_owned(), "stdout", stdout, sender.clone()));
+        let stderr_task = tokio::spawn(read_pipe_with_trace(program.to_owned(), "stderr", stderr, sender));
         tokio::select! {
             status = child.wait() => {
                 let stdout = join_pipe(stdout_task).await?;
@@ -196,6 +224,7 @@ async fn read_pipe_with_trace(
     program: String,
     stream: &'static str,
     pipe: Option<impl AsyncRead + Unpin>,
+    sender: Option<tokio::sync::mpsc::Sender<crate::utils::builder::spec::BuilderEvent>>,
 ) -> Result<Vec<u8>, std::io::Error> {
     let mut data = Vec::new();
     if let Some(mut pipe) = pipe {
@@ -209,6 +238,17 @@ async fn read_pipe_with_trace(
             for line in String::from_utf8_lossy(chunk).lines() {
                 if !line.trim().is_empty() {
                     tracing::info!(program = %program, stream, line = %line, "command output");
+                }
+                if let Some(ref tx) = sender {
+                    let event = crate::utils::builder::spec::BuilderEvent::Message(line.to_string());
+                    if let Err(tokio::sync::mpsc::error::TrySendError::Full(event)) = tx.try_send(event) {
+                        let tx = tx.clone();
+                        tokio::spawn(async move {
+                            let _ = tx.send(event).await;
+                        });
+                    }
+                } else {
+                    crate::utils::builder::queue::deployment_log::log_message(line.to_string());
                 }
             }
             data.extend_from_slice(chunk);

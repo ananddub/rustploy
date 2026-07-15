@@ -1,7 +1,7 @@
 use crate::utils::{
     builder::shared::BuilderContext,
     exec::ExecResult,
-    provider::{CloneProtocol, CustomClient},
+    provider::CustomClient,
 };
 use tokio_util::sync::CancellationToken;
 

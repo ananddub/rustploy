@@ -9,7 +9,7 @@ pub async  fn app_new_cmd(db :Arc<SqlitePool>, app_id: i64) -> Result<CommandExe
     )
     .fetch_one(db.as_ref())
     .await?;
-    let mut cmd:CommandExecutor ;
+    let cmd:CommandExecutor ;
     if app_user.server_id.is_none() {
         cmd  = CommandExecutor::Local(LocalExecutor::new());
         tracing::warn!(application_id = app_user.id, "application has no server assigned; cannot cancel operation");

@@ -16,8 +16,7 @@ use crate::{
             application::ApplicationBuilder,
             custom_type::IdType,
             hash_state::ApplicationState,
-            queue::{common, queue::BuilderQueue},
-            spec::BuilderEvent,
+            queue::queue::BuilderQueue,
         },
         exec::{CommandExecutor, LocalExecutor},
         builder::errors::BuilderError,
@@ -29,7 +28,7 @@ impl BuilderQueue {
         db: Arc<SqlitePool>,
         application_id: i64,
         deployment_id: i64,
-        operation: ApplicationOperation,
+        _operation: ApplicationOperation,
     ) -> Result<(), BuilderError> {
         let spec = ApplicationSpecAdapter::new(db.clone())
             .load(application_id)
@@ -77,47 +76,21 @@ impl BuilderQueue {
         };
 
         let (events_tx, events_rx) = mpsc::channel(6);
-        tokio::spawn(record_builder_events(db.clone(), deployment_id, events_rx));
+        tokio::spawn(super::deployment_log::record_builder_events(db.clone(), deployment_id, events_rx, "app"));
 
-        ApplicationBuilder::new(executor)
-            .with_state(state, app_key)
-            .with_events(events_tx)
-            .deploy(&spec, &cancel)
-            .await
-            .map(|_| ())
-            .map_err(|e| BuilderError::Execution(e.to_string()))
-    }
-}
-
-async fn record_builder_events(
-    db: Arc<SqlitePool>,
-    deployment_id: i64,
-    mut events: mpsc::Receiver<BuilderEvent>,
-) {
-    while let Some(event) = events.recv().await {
-        if let BuilderEvent::Message(message) = &event {
-            tracing::info!(deployment_id, message = %message, "app deployment message");
-            continue;
-        }
-        let state = common::builder_event_state(&event);
-        let message = match &event {
-            BuilderEvent::Failed(e) => Some(e.as_str()),
-            _ => None,
+        let events_tx_clone = events_tx.clone();
+        let build_future = async move {
+            ApplicationBuilder::new(executor)
+                .with_state(state, app_key)
+                .with_events(events_tx)
+                .deploy(&spec, &cancel)
+                .await
+                .map(|_| ())
+                .map_err(|e| BuilderError::Execution(e.to_string()))
         };
-        if let Err(e) = sqlx::query(
-            "UPDATE deployments
-             SET state         = ?,
-                 error_message = COALESCE(?, error_message),
-                 last_state_at = strftime('%s', 'now')
-             WHERE id = ? AND status = 'RUNNING'",
-        )
-        .bind(state)
-        .bind(message)
-        .bind(deployment_id)
-        .execute(db.as_ref())
-        .await
-        {
-            tracing::error!(deployment_id, error = %e, "could not persist app builder event");
-        }
+
+        super::deployment_log::DEPLOYMENT_SENDER
+            .scope(events_tx_clone, build_future)
+            .await
     }
 }

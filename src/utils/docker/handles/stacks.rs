@@ -1,12 +1,8 @@
-use crate::utils::{
-    docker::{
-        core::{types::ResolveImage, ArgBuilder},
-        client::DockerCli,
-        DockerOutput, DockerResult,
-    },
-    exec::ExecOutput,
+use crate::utils::docker::{
+    core::{types::ResolveImage, ArgBuilder},
+    client::DockerCli,
+    DockerOutput, DockerResult,
 };
-use tokio_util::sync::CancellationToken;
 
 // ── StacksHandle ────────────────────────────────────────────────────────────
 
@@ -66,7 +62,7 @@ impl<'a> StackDeployBuilder<'a> {
     pub fn resolve_image(mut self, resolve: ResolveImage) -> Self { self.args.pair("--resolve-image", resolve.to_string()); self }
     
     // Internal helper for stdin injection
-    fn stdin(mut self, data: Vec<u8>) -> Self {
+    fn stdin(mut self, _data: Vec<u8>) -> Self {
         self.args.pair_opt("--__internal_stdin", None as Option<&str>); // marker
         // Not perfectly clean inside ArgBuilder but we can use executor's run_with_stdin
         self

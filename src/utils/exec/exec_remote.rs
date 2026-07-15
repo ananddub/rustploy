@@ -512,7 +512,11 @@ impl RemoteExecutor {
                             return Err(ExecError::StreamCancelled);
                         }
                     } else {
-                        stdout.extend_from_slice(&data)
+                        stdout.extend_from_slice(&data);
+                        let s = String::from_utf8_lossy(&data);
+                        for line in s.lines() {
+                            crate::utils::builder::queue::deployment_log::log_message(line.to_string());
+                        }
                     }
                 }
                 ChannelMsg::ExtendedData { data, .. } => {
@@ -526,7 +530,11 @@ impl RemoteExecutor {
                             return Err(ExecError::StreamCancelled);
                         }
                     } else {
-                        stderr.extend_from_slice(&data)
+                        stderr.extend_from_slice(&data);
+                        let s = String::from_utf8_lossy(&data);
+                        for line in s.lines() {
+                            crate::utils::builder::queue::deployment_log::log_message(line.to_string());
+                        }
                     }
                 }
                 ChannelMsg::ExitStatus { exit_status } => {

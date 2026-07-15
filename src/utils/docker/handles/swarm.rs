@@ -1,10 +1,7 @@
-use crate::utils::{
-    docker::{
-        core::{types::SwarmRole, ArgBuilder},
-        client::DockerCli,
-        DockerOutput, DockerResult,
-    },
-    exec::ExecOutput,
+use crate::utils::docker::{
+    core::{types::SwarmRole, ArgBuilder},
+    client::DockerCli,
+    DockerOutput, DockerResult,
 };
 
 // ── SwarmHandle ─────────────────────────────────────────────────────────────
