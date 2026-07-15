@@ -31,15 +31,13 @@ impl<'a> LsRemoteBuilder<'a> {
     pub fn ref_pattern(mut self, pattern: impl Into<String>) -> Self { self.args.push(pattern.into()); self }
 
     pub fn print(&self) -> String {
-        let mut a = ArgBuilder::cmd(&["ls-remote"]);
-        a.push_all(self.args.clone().build());
+        let mut a = self.args.clone();
         a.push(&self.repository);
         a.preview()
     }
 
     pub async fn output(self) -> ExecResult<ExecOutput> {
-        let mut a = ArgBuilder::cmd(&["ls-remote"]);
-        a.push_all(self.args.build());
+        let mut a = self.args;
         a.push(&self.repository);
         let built = a.build();
         let refs: Vec<&str> = built.iter().map(String::as_str).collect();
@@ -47,8 +45,7 @@ impl<'a> LsRemoteBuilder<'a> {
     }
     
     pub async fn output_cancelled(self, cancel: &CancellationToken) -> ExecResult<ExecOutput> {
-        let mut a = ArgBuilder::cmd(&["ls-remote"]);
-        a.push_all(self.args.build());
+        let mut a = self.args;
         a.push(&self.repository);
         let built = a.build();
         let refs: Vec<&str> = built.iter().map(String::as_str).collect();

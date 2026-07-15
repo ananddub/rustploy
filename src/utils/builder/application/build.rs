@@ -91,9 +91,13 @@ impl ApplicationBuilder {
                         cancel,
                     )
                     .await?;
-                let args = railpack_build_args(spec, version, &plan)?;
-                let refs = args.iter().map(String::as_str).collect::<Vec<_>>();
-                self.docker.image_build_cancelled(&refs, cancel).await?;
+                let _ = self.docker.images().build(&spec.work_directory)
+                    .tag(spec.image.clone())
+                    .dockerfile(&plan)
+                    .build_arg("BUILDKIT_SYNTAX", format!("ghcr.io/railwayapp/railpack-frontend:v{version}"))
+                    .cancel_with(cancel.clone())
+                    .build()
+                    .await?;
             }
             BuildStrategy::Static {
                 publish_directory,
@@ -115,24 +119,24 @@ impl ApplicationBuilder {
         no_cache: bool,
         cancel: &CancellationToken,
     ) -> ExecResult<()> {
-        // let image = self.docker.images().build(
-        //     join_path(&spec.work_directory, default_if_empty(dockerfile, "Dockerfile"))
-        // );
-        let mut args = vec![
-            "build".to_owned(),
-            "--tag".into(),
-            spec.image.clone(),
-            "--file".into(),
-            join_path(&spec.work_directory, default_if_empty(dockerfile, "Dockerfile")),
-        ];
-        if let Some(target) = target {
-            args.extend(["--target".into(), target.clone()]);
+        let context_path = join_path(&spec.work_directory, default_if_empty(context, "."));
+        let dockerfile_path = join_path(&spec.work_directory, default_if_empty(dockerfile, "Dockerfile"));
+        
+        validate_build_context(Some(&context_path))?;
+        
+        let images = self.docker.images();
+        let mut builder = images.build(context_path.clone())
+            .tag(spec.image.clone())
+            .dockerfile(dockerfile_path.clone());
+
+        if let Some(t) = target {
+            builder = builder.target(t.clone());
         }
         if no_cache {
-            args.push("--no-cache".into());
+            builder = builder.no_cache();
         }
         for (key, value) in &spec.build_args {
-            args.extend(["--build-arg".into(), format!("{key}={value}")]);
+            builder = builder.build_arg(key.clone(), value.clone());
         }
 
         let secret_dir = format!("/tmp/rustploy-secrets-{}", spec.app_name);
@@ -145,23 +149,31 @@ impl ApplicationBuilder {
             let path = format!("{secret_dir}/{key}");
             self.write_file_cancelled(&path, value.as_bytes(), cancel)
                 .await?;
-            args.extend(["--secret".into(), format!("id={key},src={path}")]);
+            builder = builder.secret(format!("id={key},src={path}"));
         }
 
-        args.push(join_path(&spec.work_directory, default_if_empty(context, ".")));
-        let refs = args.iter().map(String::as_str).collect::<Vec<_>>();
-        validate_build_context(refs.last().copied())?;
         self.emit(BuilderEvent::Message(format!(
             "docker build image {} using dockerfile {} and context {}",
             spec.image,
-            join_path(&spec.work_directory, default_if_empty(dockerfile, "Dockerfile")),
-            refs.last().copied().unwrap_or("")
+            dockerfile_path,
+            context_path
         )))
         .await;
-        tracing::info!(image = %spec.image, args = ?args, "running docker image build");
-        let result = self.docker.image_build_cancelled(&refs, cancel).await;
+        
+        let print_args = builder.print();
+        tracing::info!(image = %spec.image, command = %print_args, "running docker image build");
+        
+        let result = builder
+            .cancel_with(cancel.clone())
+            .build()
+            .await;
+            
         let _ = self.executor.run("rm", ["-rf", secret_dir.as_str()]).await;
-        result.map(|_| ())
+        
+        result.map(|_| ()).map_err(|e| ExecError::CommandFailed {
+            code: None,
+            stderr: e.to_string(),
+        })
     }
 
     async fn build_static(
@@ -194,46 +206,17 @@ impl ApplicationBuilder {
             )
             .await?;
         }
-        let args = static_build_args(spec)?;
-        let refs = args.iter().map(String::as_str).collect::<Vec<_>>();
-        self.docker
-            .image_build_cancelled(&refs, cancel)
+        self.docker.images().build(spec.work_directory.clone())
+            .tag(spec.image.clone())
+            .dockerfile(format!("{}/Dockerfile.rustploy", spec.work_directory))
+            .cancel_with(cancel.clone())
+            .build()
             .await
             .map(|_| ())
     }
 }
 
-fn static_build_args(spec: &ApplicationSpec) -> ExecResult<Vec<String>> {
-    let args = vec![
-        "--tag".into(),
-        spec.image.clone(),
-        "--file".into(),
-        format!("{}/Dockerfile.rustploy", spec.work_directory),
-        spec.work_directory.clone(),
-    ];
-    validate_build_context(args.last().map(String::as_str))?;
-    tracing::info!(image = %spec.image, args = ?args, "running docker static image build");
-    Ok(args)
-}
 
-fn railpack_build_args(
-    spec: &ApplicationSpec,
-    version: &str,
-    plan: &str,
-) -> ExecResult<Vec<String>> {
-    let args = vec![
-        "--build-arg".into(),
-        format!("BUILDKIT_SYNTAX=ghcr.io/railwayapp/railpack-frontend:v{version}"),
-        "--file".into(),
-        plan.into(),
-        "--tag".into(),
-        spec.image.clone(),
-        spec.work_directory.clone(),
-    ];
-    validate_build_context(args.last().map(String::as_str))?;
-    tracing::info!(image = %spec.image, args = ?args, "running docker railpack image build");
-    Ok(args)
-}
 
 fn default_if_empty<'a>(value: &'a str, default: &'a str) -> &'a str {
     let value = value.trim();

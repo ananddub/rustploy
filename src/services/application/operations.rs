@@ -6,7 +6,7 @@ use crate::services::application::auto_excuter::app_new_cmd;
 use crate::utils::builder::queue::BuilderQueue;
 use crate::utils::builder::{custom_type::IdType, hash_state::ApplicationState};
 use crate::utils::docker::DockerCli;
-use crate::utils::docker::expand::ServiceFilterExt;
+use crate::utils::docker::query::filter::ServiceFilter;
 
 use super::{
     ApplicationOperation, ApplicationOperationResult, ApplicationRecord, ApplicationService,
@@ -114,7 +114,10 @@ impl ApplicationService {
                 .map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
             let docker_cli = DockerCli::from_executor(cmd);
             let services = docker_cli
-                .services_raw(&[&app_user.app_name.sv_name_left()])
+                .services()
+                .list()
+                .filter(ServiceFilter::name(format!("{}_", app_user.app_name)))
+                .run_json()
                 .await
                 .map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
             if services.is_empty() {
@@ -125,7 +128,10 @@ impl ApplicationService {
                 if &s.replicas != "0/0" {
                     flag = true;
                     docker_cli
-                        .service_scale(&[&s.name.equal_op("0", false)])
+                        .services()
+                        .scale()
+                        .service(&s.name, 0)
+                        .run()
                         .await
                         .map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
                 }

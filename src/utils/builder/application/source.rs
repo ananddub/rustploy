@@ -18,7 +18,7 @@ impl ApplicationBuilder {
                     self.docker
                         .login(Some(&auth.registry), &auth.username, &auth.password)
                         .await?;
-                    let pull = self.docker.image_pull_cancelled(&[image], cancel).await;
+                    let pull = self.docker.images().pull(image.as_str()).cancel_with(cancel.clone()).pull().await;
                     let logout = self.docker.logout(Some(&auth.registry)).await;
                     match (pull, logout) {
                         (Err(error), _) => return Err(error),
@@ -26,7 +26,7 @@ impl ApplicationBuilder {
                         (Ok(_), Ok(_)) => {}
                     }
                 } else {
-                    self.docker.image_pull_cancelled(&[image], cancel).await?;
+                    self.docker.images().pull(image.as_str()).cancel_with(cancel.clone()).pull().await?;
                 }
             }
             SourceSpec::Git {

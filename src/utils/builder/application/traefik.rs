@@ -1,131 +1,106 @@
-use crate::utils::builder::spec::{ApplicationSpec, DomainSpec};
-use serde_json::{Map, Value, json};
+use crate::utils::{
+    builder::spec::ApplicationSpec,
+    traefik::{
+        middleware::Middleware, rule::Rule, traefik::TraefikBuilder, types::CertificateType,
+    },
+};
 
-pub fn application_config(app: &ApplicationSpec) -> Value {
-    let mut routers = Map::new();
-    let mut services = Map::new();
-    let mut middlewares = Map::new();
+pub fn build_traefik_labels(app: &ApplicationSpec) -> Vec<String> {
+    if app.domains.is_empty() {
+        return vec![];
+    }
+
+    let mut traefik = TraefikBuilder::new().enable().network(&app.network);
+
     for domain in &app.domains {
-        let names = domain_names(app, domain);
-        let mut middleware_names = domain.middlewares.clone();
-        if domain.internal_path != "/" && domain.internal_path != domain.path {
-            let name = format!("addprefix-{}-{}", app.app_name, domain.key);
-            middlewares.insert(
-                name.clone(),
-                json!({"addPrefix":{"prefix":domain.internal_path}}),
-            );
-            middleware_names.push(name);
-        }
-        if domain.strip_path && domain.path != "/" {
-            let name = format!("stripprefix-{}-{}", app.app_name, domain.key);
-            middlewares.insert(
-                name.clone(),
-                json!({"stripPrefix":{"prefixes":[domain.path]}}),
-            );
-            middleware_names.push(name);
-        }
-        let mut router = json!({"rule":rule(domain),"service":names.1,"entryPoints":[domain.entrypoint.clone().unwrap_or_else(||if domain.https{"websecure".into()}else{"web".into()})],"middlewares":middleware_names});
-        if domain.https {
-            let resolver = domain.custom_cert_resolver.clone().or_else(|| {
-                (domain.certificate_type.eq_ignore_ascii_case("LETSENCRYPT"))
-                    .then(|| "letsencrypt".into())
-            });
-            router["tls"] = resolver
-                .map(|r| json!({"certResolver":r}))
-                .unwrap_or_else(|| json!({}));
-        }
-        routers.insert(names.0, router);
-        // Swarm overlay DNS resolves a service by just its app_name
-        // (same as dokploy's approach: http://<appName>:<port>).
-        // Only override if user explicitly set a custom service hostname.
-        let default_service = app.app_name.clone();
-        let service_target = domain
-            .service_name
-            .as_deref()
-            .filter(|s| !s.is_empty())
-            .unwrap_or(default_service.as_str());
-        services.insert(names.1,json!({"loadBalancer":{"servers":[{"url":format!("http://{}:{}",service_target,domain.port)}],"passHostHeader":true}}));
-    }
-    let config = if middlewares.is_empty() {
-        serde_json::json!({"http":{"routers":routers,"services":services}})
-    } else {
-        serde_json::json!({"http":{"routers":routers,"services":services,"middlewares":middlewares}})
-    };
-    config
-}
-fn domain_names(app: &ApplicationSpec, domain: &DomainSpec) -> (String, String) {
-    (
-        format!("{}-{}-router", app.app_name, domain.key),
-        format!("{}-{}-service", app.app_name, domain.key),
-    )
-}
-fn rule(domain: &DomainSpec) -> String {
-    let host = format!("Host(`{}`)", domain.host);
-    if domain.path != "/" {
-        format!("{host} && PathPrefix(`{}`)", domain.path)
-    } else {
-        host
-    }
-}
+        let router_name = format!("{}-{}", app.app_name, domain.key);
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::utils::builder::spec::*;
-    use std::collections::BTreeMap;
-    #[test]
-    fn generates_https_path_router_and_middlewares() {
-        let app = ApplicationSpec {
-            app_name: "api".into(),
-            stack_name: "prod".into(),
-            source: SourceSpec::Docker {
-                image: "api:1".into(),
-                registry: None,
-            },
-            build: None,
-            work_directory: "/tmp".into(),
-            image: "api:1".into(),
-            environment: BTreeMap::new(),
-            build_args: BTreeMap::new(),
-            build_secrets: BTreeMap::new(),
-            command: None,
-            args: vec![],
-            replicas: 1,
-            network: "rustploy-network".into(),
-            mounts: vec![],
-            domains: vec![DomainSpec {
-                key: "1".into(),
-                host: "api.example.com".into(),
-                https: true,
-                port: 3000,
-                service_name: None,
-                path: "/v1".into(),
-                internal_path: "/api".into(),
-                strip_path: true,
-                entrypoint: None,
-                certificate_type: "LETSENCRYPT".into(),
-                custom_cert_resolver: None,
-                middlewares: vec![],
-            }],
-            resources: ResourceSpec::default(),
-            healthcheck: None,
-            placement_constraints: vec![],
-            stop_grace_period: None,
+        let entrypoint = domain.entrypoint.clone().unwrap_or_else(|| {
+            if domain.https {
+                "websecure".into()
+            } else {
+                "web".into()
+            }
+        });
+
+        // Build the routing rule from structured types.
+        let rule = {
+            let base = Rule::host(&domain.host);
+            if domain.path != "/" {
+                base.and(Rule::path_prefix(&domain.path))
+            } else {
+                base
+            }
         };
-        let value = application_config(&app);
-        assert_eq!(
-            value["http"]["routers"]["api-1-router"]["tls"]["certResolver"],
-            "letsencrypt"
-        );
-        assert!(
-            value["http"]["middlewares"]
-                .get("addprefix-api-1")
-                .is_some()
-        );
-        assert!(
-            value["http"]["middlewares"]
-                .get("stripprefix-api-1")
-                .is_some()
-        );
+
+        // --- Middlewares ---
+        let mut middleware_names: Vec<String> = Vec::new();
+
+        if domain.strip_path && domain.path != "/" {
+            let name = format!("stripprefix-{router_name}");
+            traefik = traefik.middleware(Middleware::StripPrefix {
+                name: name.clone(),
+                prefixes: vec![domain.path.clone()],
+            });
+            middleware_names.push(name);
+        }
+
+        if domain.internal_path != "/" && domain.internal_path != domain.path {
+            let name = format!("addprefix-{router_name}");
+            traefik = traefik.middleware(Middleware::AddPrefix {
+                name: name.clone(),
+                prefix: domain.internal_path.clone(),
+            });
+            middleware_names.push(name);
+        }
+
+        middleware_names.extend(domain.middlewares.clone());
+
+        // --- Main router: build fully before finalizing with .service() ---
+        let mut r = traefik
+            .router(&router_name)
+            .rule(&rule)
+            .entrypoint(&entrypoint);
+
+        if !middleware_names.is_empty() {
+            r = r.middlewares(&middleware_names);
+        }
+
+        if domain.https {
+            r = r.tls(true);
+            let cert_type = CertificateType::from(domain.certificate_type.as_str());
+            match cert_type {
+                CertificateType::LetsEncrypt => {
+                    r = r.cert_resolver("letsencrypt");
+                }
+                CertificateType::Custom => {
+                    if let Some(resolver) = &domain.custom_cert_resolver {
+                        r = r.cert_resolver(resolver);
+                    }
+                }
+                CertificateType::None => {}
+            }
+        }
+
+        // .service(name) finalizes the router and returns TraefikBuilder,
+        // then we chain .service(name) (ServiceBuilder) -> .port() -> .finish().
+        traefik = r
+            .service(&router_name) // RouterBuilder → TraefikBuilder
+            .service(&router_name) // TraefikBuilder → ServiceBuilder
+            .port(domain.port) // ServiceBuilder → ServiceBuilder
+            .finish(); // ServiceBuilder → TraefikBuilder
+
+        // --- HTTP → HTTPS redirect router (only when no custom entrypoint is set) ---
+        if domain.https && domain.entrypoint.is_none() {
+            let redirect_name = format!("{router_name}-redirect");
+            traefik = traefik
+                .router(&redirect_name)
+                .rule(&rule)
+                .entrypoint("web")
+                .middleware("redirect-to-https@file")
+                .finish();
+        }
     }
+
+    traefik.build()
 }

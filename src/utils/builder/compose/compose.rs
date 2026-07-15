@@ -224,30 +224,12 @@ impl ComposeBuilder {
         }
     }
 
-    async fn docker_compose_with_retry(
-        &self,
-        args: &[&str],
-        cancel: &CancellationToken,
-    ) -> ExecResult<()> {
-        let mut attempts = 0;
-        loop {
-            attempts += 1;
-            self.cancelled(cancel)?;
-            match self.docker.compose_raw_cancelled(args, cancel).await {
-                Ok(_) => return Ok(()),
-                Err(error) if attempts < 4 && crate::utils::docker::error::is_transient_docker_error(&error.to_string()) => {
-                    tracing::warn!(attempts, error = %error, "docker compose command failed transiently; retrying");
-                    tokio::time::sleep(Duration::from_secs(2 * attempts)).await;
-                }
-                Err(error) => return Err(error),
-            }
-        }
-    }
+
 
     async fn cleanup_failed_deploy(&self, spec: &ComposeSpec) {
         match spec.runtime {
             ComposeRuntime::Stack => {
-                if let Err(error) = self.docker.stack_remove_raw(&[&spec.stack_name]).await {
+                if let Err(error) = self.docker.stacks().remove(&spec.stack_name).run().await {
                     tracing::warn!(stack = %spec.stack_name, error = %error, "compose stack cleanup failed");
                 }
             }

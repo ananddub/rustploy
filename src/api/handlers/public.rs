@@ -45,6 +45,7 @@ impl Public {
         }
 
         GitCli::new_local()
+            .queries()
             .remote_branches(repository_url)
             .await
             .map(|branches| Json(branches.into_iter().map(|branch| branch.name).collect()))

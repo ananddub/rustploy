@@ -18,6 +18,7 @@ use crate::{
 };
 use crate::services::compose::ComposeType;
 use crate::services::schedule::types::{ScheduleAction, ScheduleType, ShellType};
+use crate::utils::docker::query::ContainerFilter;
 
 #[derive(Debug, Clone)]
 pub struct ScheduleRunResult {
@@ -440,9 +441,11 @@ impl ScheduleService {
     ) -> sqlx::Result<ScheduleRunResult> {
         let command = schedule_command(&schedule)?;
         let docker = self.docker_for_server(server_id).await?;
-        let filter = format!("label=com.docker.swarm.service.name={service_name}");
         let container = docker
-            .containers_raw(false, &[filter.as_str()])
+            .containers()
+            .list()
+            .filter(ContainerFilter::label("com.docker.swarm.service.name", service_name))
+            .list()
             .await
             .map_err(|e| sqlx::Error::Protocol(e.to_string()))?
             .into_iter()
@@ -460,7 +463,9 @@ impl ScheduleService {
         })?;
         let shell = v.executable();
         let output = docker
-            .container_exec(&container.id, &[shell, "-lc", command])
+            .containers()
+            .exec(&container.id)
+            .run([shell, "-lc", command])
             .await
             .map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
         Ok(ScheduleRunResult {
@@ -483,10 +488,12 @@ impl ScheduleService {
     ) -> sqlx::Result<ScheduleRunResult> {
         let command = schedule_command(&schedule)?;
         let docker = self.docker_for_server(server_id).await?;
-        let project_filter = format!("label=com.docker.compose.project={project_name}");
-        let service_filter = format!("label=com.docker.compose.service={service_name}");
         let container = docker
-            .containers_raw(false, &[project_filter.as_str(), service_filter.as_str()])
+            .containers()
+            .list()
+            .filter(ContainerFilter::label("com.docker.compose.project", project_name))
+            .filter(ContainerFilter::label("com.docker.compose.service", service_name))
+            .list()
             .await
             .map_err(|e| sqlx::Error::Protocol(e.to_string()))?
             .into_iter()
@@ -504,7 +511,9 @@ impl ScheduleService {
         })?;
         let shell = v.executable();
         let output = docker
-            .container_exec(&container.id, &[shell, "-lc", command])
+            .containers()
+            .exec(&container.id)
+            .run([shell, "-lc", command])
             .await
             .map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
         Ok(ScheduleRunResult {

@@ -5,7 +5,7 @@ use sqlx::SqlitePool;
 
 use crate::api::dto::domain::{CreateDomainDto, PatchDomainDto};
 use crate::services::compose::ComposeType;
-use crate::utils::builder::application::stack::build_traefik_labels;
+use crate::utils::builder::application::traefik::build_traefik_labels;
 use crate::utils::builder::compose::labels::build_compose_service_labels;
 use crate::utils::builder::spec::{ApplicationSpec, DomainSpec, ResourceSpec, SourceSpec};
 use crate::utils::docker::DockerCli;

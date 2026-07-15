@@ -8,8 +8,8 @@ use crate::utils::builder::queue::BuilderQueue;
 use crate::utils::builder::{custom_type::IdType, hash_state::ApplicationState};
 use crate::utils::docker::DockerCli;
 use crate::utils::docker::expand::ServiceFilterExt;
-
-use super::{ComposeOperation, ComposeOperationResult, ComposeRecord, ComposeService, auto_excuter::compose_new_db,  ComposeType};
+use crate::utils::docker::query::ServiceFilter;
+use super::{ComposeOperation, ComposeOperationResult, ComposeRecord, ComposeService, auto_excuter::compose_new_db, ComposeType};
 
 impl ComposeService {
     pub async fn run_operation(
@@ -171,34 +171,25 @@ async fn scale_down_compose(
 
     match compose_type {
         ComposeType::DockerCompose => {
-            // docker compose --project-name <name> down
-            docker
-                .compose_raw(&["--project-name", app_name, "down"])
-                .await
+            docker.compose().down().project(app_name).run().await
                 .map(|_| ())
                 .map_err(|e| format!("compose down failed: {e}"))
         }
         ComposeType::Stack => {
-            let services = docker
-                .services_raw(&[&app_name.sv_name_left()])
+            let services = docker.services().list().filter(ServiceFilter::Name(app_name.to_string())).run_json()
                 .await
-                .map_err(|e| format!("could not list stack services: {e}"))?;
+                .map_err(|e| format!("could not get stack service: {e}"))?;
 
             if services.is_empty() {
                 return Ok(());
             }
+            for service in services {
+                if service.replicas != "0/0" {
+                    docker.services().scale().service(&service.name,0).run().await.map_err(|e| format!("service scale 0 failed: {e}"))?;
+                }
+            }
+            Ok(())
 
-            let scale_args: Vec<String> = services
-                .iter()
-                .map(|s| s.name.equal_op("0", false))
-                .collect();
-            let scale_refs: Vec<&str> = scale_args.iter().map(|s| s.as_str()).collect();
-
-            docker
-                .service_scale(&scale_refs)
-                .await
-                .map(|_| ())
-                .map_err(|e| format!("service scale 0 failed: {e}"))
         }
     }
 }

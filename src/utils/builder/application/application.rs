@@ -91,19 +91,8 @@ impl ApplicationBuilder {
             .cancel_with(cancel.clone())
             .run()
             .await
-            // .stack_deploy_with_retry(
-            //     &[
-            //         "--compose-file",
-            //         stack_file.as_str(),
-            //         "--with-registry-auth",
-            //         spec.stack_name.as_str(),
-            //     ],
-            //     cancel,
-            // )
-            // .await
         {
-            self.docker.services().rollback(spec.service_name().clone()).run().await?;
-            // self.rollback_application(spec, None).await;
+            self.docker.services().rollback(spec.service_name().as_str()).run().await?;
             self.emit(BuilderEvent::Failed(error.to_string())).await;
             return Err(error);
         }
@@ -113,8 +102,7 @@ impl ApplicationBuilder {
 
         self.emit(BuilderEvent::HealthCheck).await;
         if let Err(error) = self.wait_healthy(spec, cancel).await {
-            self.docker.services().rollback(spec.service_name().clone()).run().await?;
-            // self.rollback_application(spec, None).await;
+            self.docker.services().rollback(spec.service_name().as_str()).run().await?;
             self.emit(BuilderEvent::Failed(error.to_string())).await;
             return Err(error);
         }
@@ -153,32 +141,12 @@ impl ApplicationBuilder {
         }
     }
 
-    async fn stack_deploy_with_retry(
-        &self,
-        args: &[&str],
-        cancel: &CancellationToken,
-    ) -> ExecResult<()> {
-        let mut attempts = 0;
-        loop {
-            self.cancelled(cancel)?;
-            attempts += 1;
-            match self.docker.stack_deploy_raw_cancelled(args, cancel).await {
-                Ok(_) => return Ok(()),
-                Err(error) if attempts < 4 && is_transient_docker_error(&error.to_string()) => {
-                    tracing::warn!(attempts, error = %error, "docker stack deploy failed transiently; retrying");
-                    tokio::time::sleep(Duration::from_secs(2 * attempts)).await;
-                }
-                Err(error) => return Err(error),
-            }
-        }
-    }
-
     async fn rollback_application(&self, spec: &ApplicationSpec, traefik_file: Option<&str>) {
         if let Some(path) = traefik_file {
             let _ = self.executor.run("rm", ["-f", path]).await;
         }
         let service = spec.service_name();
-        if let Err(error) = self.docker.service_rollback(&[service.as_str()]).await {
+        if let Err(error) = self.docker.services().rollback(service.as_str()).run().await {
             tracing::warn!(service = %service, error = %error, "application rollback attempt failed");
         }
     }

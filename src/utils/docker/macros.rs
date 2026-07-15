@@ -35,25 +35,25 @@ macro_rules! impl_compose_opts {
         impl<'a> $builder<'a> {
             /// Specify an alternate compose file
             pub fn file(mut self, f: impl Into<String>) -> Self {
-                self.args.pair("--file", f.into());
+                self.args.insert_pair(1, "--file", f.into());
                 self
             }
 
             /// Specify an alternate environment file
             pub fn env_file(mut self, f: impl Into<String>) -> Self {
-                self.args.pair("--env-file", f.into());
+                self.args.insert_pair(1, "--env-file", f.into());
                 self
             }
 
             /// Specify an alternate project name
             pub fn project(mut self, p: impl Into<String>) -> Self {
-                self.args.pair("--project-name", p.into());
+                self.args.insert_pair(1, "--project-name", p.into());
                 self
             }
             
             /// Specify a profile to enable
             pub fn profile(mut self, p: impl Into<String>) -> Self {
-                self.args.pair("--profile", p.into());
+                self.args.insert_pair(1, "--profile", p.into());
                 self
             }
         }

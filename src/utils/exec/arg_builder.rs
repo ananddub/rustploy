@@ -35,6 +35,13 @@ impl ArgBuilder {
         self
     }
 
+    /// Insert `--key value` at a specific index.
+    pub fn insert_pair(&mut self, index: usize, k: &str, v: impl AsRef<str>) -> &mut Self {
+        self.args.insert(index, v.as_ref().to_string());
+        self.args.insert(index, k.to_string());
+        self
+    }
+
     /// Push `--key value` only when `cond` is true.
     pub fn pair_if(&mut self, k: &str, v: impl AsRef<str>, cond: bool) -> &mut Self {
         if cond { self.pair(k, v); }
