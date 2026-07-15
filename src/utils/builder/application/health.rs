@@ -16,9 +16,7 @@ impl ApplicationBuilder {
         let deadline = Instant::now() + self.ctx.health_timeout;
         loop {
             self.ctx.cancelled(cancel)?;
-            let health_result = self
-                .ctx
-                .docker
+            let health_result = self.ctx .docker
                 .services()
                 .ps(spec.service_name())
                 .filter(TaskFilter::DesiredState(TaskDesiredState::Running))
