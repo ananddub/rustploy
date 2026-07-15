@@ -443,7 +443,7 @@ impl ScheduleService {
         let docker = self.docker_for_server(server_id).await?;
         let container = docker
             .containers()
-            .list()
+            .ps()
             .filter(ContainerFilter::label("com.docker.swarm.service.name", service_name))
             .list()
             .await
@@ -490,7 +490,7 @@ impl ScheduleService {
         let docker = self.docker_for_server(server_id).await?;
         let container = docker
             .containers()
-            .list()
+            .ps()
             .filter(ContainerFilter::label("com.docker.compose.project", project_name))
             .filter(ContainerFilter::label("com.docker.compose.service", service_name))
             .list()

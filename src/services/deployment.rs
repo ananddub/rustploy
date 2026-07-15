@@ -216,7 +216,7 @@ impl DeploymentService {
         );
         let containers = docker
             .containers()
-            .list()
+            .ps()
             .filter(filter)
             .list()
             .await
@@ -249,7 +249,7 @@ impl DeploymentService {
         );
         let containers = docker
             .containers()
-            .list()
+            .ps()
             .filter(filter)
             .list()
             .await

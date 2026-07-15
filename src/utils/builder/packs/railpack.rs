@@ -1,5 +1,8 @@
 use crate::utils::exec::{ArgBuilder, CommandExecutor, ExecOutput, ExecResult};
 use tokio_util::sync::CancellationToken;
+use crate::utils::docker::DockerCli;
+use crate::utils::docker::handles::RestartPolicy;
+use crate::utils::docker::query::{ContainerFilter, ContainerStatus};
 
 #[derive(Clone, Debug)]
 pub struct RailpackCli<'a> {
@@ -68,6 +71,31 @@ impl<'a> RailpackPrepareBuilder<'a> {
     }
 
     pub async fn run(self, cancel: &CancellationToken) -> ExecResult<ExecOutput> {
+        let docker = DockerCli::from_executor(self.executor.clone());
+        let name = "rustploy_buildkit".to_string();
+        let is_running = docker.containers()
+            .ps()
+            .filters([
+                ContainerFilter::Name(name.clone()),
+                ContainerFilter::Status(ContainerStatus::Running)
+            ])
+            .exists()
+            .await
+            .unwrap_or(false);
+
+        if !is_running {
+            let _ = docker.containers()
+                .create("moby/buildkit")
+                .name(name.clone())
+                .detach()
+                .restart(RestartPolicy::Always)
+                .privileged()
+                .run()
+                .await;
+        }else {
+            let _ = docker.containers().start(name.clone()).run().await;
+        }
+
         self.executor.run_cancelled("railpack", self.args.build(), cancel).await
     }
 }

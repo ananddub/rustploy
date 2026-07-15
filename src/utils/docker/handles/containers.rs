@@ -11,7 +11,7 @@ use tokio::sync::mpsc;
 pub struct ContainerHandle<'a>(pub(crate) &'a DockerCli);
 
 impl<'a> ContainerHandle<'a> {
-    pub fn list(&self)                                 -> ContainerQuery<'_>  { ContainerQuery::new(self.0) }
+    pub fn ps(&self)                                   -> ContainerQuery<'_>  { ContainerQuery::new(self.0) }
     pub fn create(&self, image: impl Into<String>)     -> ContainerCreate<'_> { ContainerCreate::new(self.0, image) }
     pub fn exec(&self, id: impl Into<String>)          -> ExecBuilder<'_>     { ExecBuilder::new(self.0, id) }
     pub fn logs(&self, id: impl Into<String>)          -> LogsBuilder<'_>     { LogsBuilder::new(self.0, id) }
@@ -133,6 +133,16 @@ impl<'a> ContainerCreate<'a> {
     pub fn interactive(mut self)          -> Self { self.args.flag("--interactive"); self }
     pub fn detach(mut self)               -> Self { self.args.flag("--detach"); self }
     pub fn rm(mut self)                   -> Self { self.args.flag("--rm"); self }
+    pub fn privileged(mut self)           -> Self { self.args.flag("--privileged"); self }
+    pub fn cap_add(mut self, cap: impl Into<String>) -> Self { self.args.pair("--cap-add", cap.into()); self }
+    pub fn cap_drop(mut self, cap: impl Into<String>) -> Self { self.args.pair("--cap-drop", cap.into()); self }
+    pub fn add_host(mut self, host_ip: impl Into<String>) -> Self { self.args.pair("--add-host", host_ip.into()); self }
+    pub fn dns(mut self, dns: impl Into<String>) -> Self { self.args.pair("--dns", dns.into()); self }
+    pub fn shm_size(mut self, size: impl Into<String>) -> Self { self.args.pair("--shm-size", size.into()); self }
+    pub fn security_opt(mut self, opt: impl Into<String>) -> Self { self.args.pair("--security-opt", opt.into()); self }
+    pub fn init(mut self) -> Self { self.args.flag("--init"); self }
+    pub fn device(mut self, dev: impl Into<String>) -> Self { self.args.pair("--device", dev.into()); self }
+    pub fn network_alias(mut self, alias: impl Into<String>) -> Self { self.args.pair("--network-alias", alias.into()); self }
     /// Pass any raw flag not covered by the builder.
     pub fn arg(mut self, v: impl Into<String>) -> Self { self.args.push(v.into()); self }
 
@@ -407,7 +417,12 @@ mod tests {
             .platform(Platform::LinuxAmd64)
             .restart(RestartPolicy::UnlessStopped)
             .tty(false)
-            .detach();
+            .detach()
+            .privileged()
+            .cap_add("NET_ADMIN")
+            .add_host("host.docker.internal:host-gateway")
+            .dns("8.8.8.8")
+            .init();
 
         let preview = c.print_run();
         assert!(preview.contains("container run"));
@@ -416,6 +431,11 @@ mod tests {
         assert!(preview.contains("256m"));
         assert!(preview.contains("0.50"));
         assert!(preview.contains("linux/amd64"));
+        assert!(preview.contains("--privileged"));
+        assert!(preview.contains("--cap-add NET_ADMIN"));
+        assert!(preview.contains("--add-host host.docker.internal:host-gateway"));
+        assert!(preview.contains("--dns 8.8.8.8"));
+        assert!(preview.contains("--init"));
         assert!(!preview.contains("--tty"));
     }
 

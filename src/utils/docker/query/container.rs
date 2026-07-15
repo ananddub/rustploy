@@ -140,6 +140,16 @@ pub struct ContainerCreate<'a> {
     interactive: bool,
     detach: bool,
     rm: bool,
+    privileged: bool,
+    cap_add: Vec<String>,
+    cap_drop: Vec<String>,
+    add_hosts: Vec<String>,
+    dns: Vec<String>,
+    shm_size: Option<String>,
+    security_opts: Vec<String>,
+    init: bool,
+    devices: Vec<String>,
+    network_aliases: Vec<String>,
     extra: Vec<String>,
 }
 
@@ -154,6 +164,16 @@ impl<'a> ContainerCreate<'a> {
             command: vec![], entrypoint: vec![],
             workdir: None, user: None, platform: None,
             tty: false, interactive: false, detach: false, rm: false,
+            privileged: false,
+            cap_add: vec![],
+            cap_drop: vec![],
+            add_hosts: vec![],
+            dns: vec![],
+            shm_size: None,
+            security_opts: vec![],
+            init: false,
+            devices: vec![],
+            network_aliases: vec![],
             extra: vec![],
         }
     }
@@ -230,6 +250,17 @@ impl<'a> ContainerCreate<'a> {
     pub fn detach(mut self) -> Self { self.detach = true; self }
     /// Remove the container when it exits (`--rm`).
     pub fn rm(mut self) -> Self { self.rm = true; self }
+    /// Give extended privileges to this container (`--privileged`).
+    pub fn privileged(mut self) -> Self { self.privileged = true; self }
+    pub fn cap_add(mut self, cap: impl Into<String>) -> Self { self.cap_add.push(cap.into()); self }
+    pub fn cap_drop(mut self, cap: impl Into<String>) -> Self { self.cap_drop.push(cap.into()); self }
+    pub fn add_host(mut self, host_ip: impl Into<String>) -> Self { self.add_hosts.push(host_ip.into()); self }
+    pub fn dns(mut self, server: impl Into<String>) -> Self { self.dns.push(server.into()); self }
+    pub fn shm_size(mut self, size: impl Into<String>) -> Self { self.shm_size = Some(size.into()); self }
+    pub fn security_opt(mut self, opt: impl Into<String>) -> Self { self.security_opts.push(opt.into()); self }
+    pub fn init(mut self) -> Self { self.init = true; self }
+    pub fn device(mut self, dev: impl Into<String>) -> Self { self.devices.push(dev.into()); self }
+    pub fn network_alias(mut self, alias: impl Into<String>) -> Self { self.network_aliases.push(alias.into()); self }
 
     /// Pass any raw flag not yet covered by the builder.
     pub fn arg(mut self, v: impl Into<String>) -> Self { self.extra.push(v.into()); self }
@@ -289,6 +320,17 @@ impl<'a> ContainerCreate<'a> {
         if self.interactive { a.push("--interactive".into()); }
         if self.detach      { a.push("--detach".into()); }
         if self.rm          { a.push("--rm".into()); }
+        if self.privileged  { a.push("--privileged".into()); }
+
+        for cap in &self.cap_add { a.extend(["--cap-add".into(), cap.clone()]); }
+        for cap in &self.cap_drop { a.extend(["--cap-drop".into(), cap.clone()]); }
+        for host in &self.add_hosts { a.extend(["--add-host".into(), host.clone()]); }
+        for server in &self.dns { a.extend(["--dns".into(), server.clone()]); }
+        if let Some(s) = &self.shm_size { a.extend(["--shm-size".into(), s.clone()]); }
+        for opt in &self.security_opts { a.extend(["--security-opt".into(), opt.clone()]); }
+        if self.init { a.push("--init".into()); }
+        for dev in &self.devices { a.extend(["--device".into(), dev.clone()]); }
+        for alias in &self.network_aliases { a.extend(["--network-alias".into(), alias.clone()]); }
 
         a.extend(self.extra.clone());
         a.push(self.image.clone());
@@ -367,7 +409,12 @@ mod tests {
             .restart(RestartPolicy::UnlessStopped)
             .tty(false)
             .interactive()
-            .detach();
+            .detach()
+            .privileged()
+            .cap_add("NET_ADMIN")
+            .add_host("host.docker.internal:host-gateway")
+            .dns("8.8.8.8")
+            .init();
 
         let opts = builder.build_opts();
         assert!(opts.contains(&"--name".to_string()));
@@ -377,6 +424,14 @@ mod tests {
         assert!(opts.contains(&"8080:80/tcp".to_string()));
         assert!(opts.contains(&"--restart".to_string()));
         assert!(opts.contains(&"unless-stopped".to_string()));
+        assert!(opts.contains(&"--privileged".to_string()));
+        assert!(opts.contains(&"--cap-add".to_string()));
+        assert!(opts.contains(&"NET_ADMIN".to_string()));
+        assert!(opts.contains(&"--add-host".to_string()));
+        assert!(opts.contains(&"host.docker.internal:host-gateway".to_string()));
+        assert!(opts.contains(&"--dns".to_string()));
+        assert!(opts.contains(&"8.8.8.8".to_string()));
+        assert!(opts.contains(&"--init".to_string()));
         assert!(!opts.contains(&"--tty".to_string()));
         assert!(opts.contains(&"--interactive".to_string()));
         assert!(opts.contains(&"--detach".to_string()));
