@@ -15,11 +15,11 @@ impl ComposeBuilder {
         match &spec.source {
             ComposeSource::Raw { content } => {
                 if let Some(parent) = std::path::Path::new(&spec.compose_path).parent() {
-                    self.executor
+                    self.ctx.executor
                         .run_cancelled("mkdir", ["-p", parent.to_string_lossy().as_ref()], cancel)
                         .await?;
                 }
-                self.write_file_cancelled(&spec.compose_path, content.as_bytes(), cancel)
+                self.ctx.write_file_cancelled(&spec.compose_path, content.as_bytes(), cancel)
                     .await?;
             }
             ComposeSource::Git {
@@ -27,16 +27,16 @@ impl ComposeBuilder {
                 branch,
                 submodules,
             } => {
-                let git = GitCli::from_executor(self.executor.clone())
+                let git = GitCli::from_executor(self.ctx.executor.clone())
                     .with_repository(spec.work_directory.clone());
                 let git_dir = format!("{}/.git", spec.work_directory);
                 if self
-                    .executor
+                    .ctx.executor
                     .run("test", ["-d", git_dir.as_str()])
                     .await
                     .is_ok()
                 {
-                    self.emit(BuilderEvent::Message(format!(
+                    self.ctx.emit(BuilderEvent::Message(format!(
                         "fetching compose source {url} branch {branch} into {}",
                         spec.work_directory
                     )))
@@ -47,7 +47,7 @@ impl ComposeBuilder {
                     git.reset(&["--hard", "FETCH_HEAD"]).await?;
                 } else {
                     if let Some(parent) = std::path::Path::new(&spec.work_directory).parent() {
-                        self.executor
+                        self.ctx.executor
                             .run_cancelled(
                                 "mkdir",
                                 ["-p", parent.to_string_lossy().as_ref()],
@@ -55,12 +55,12 @@ impl ComposeBuilder {
                             )
                             .await?;
                     }
-                    self.emit(BuilderEvent::Message(format!(
+                    self.ctx.emit(BuilderEvent::Message(format!(
                         "cloning compose source {url} branch {branch} into {}",
                         spec.work_directory
                     )))
                     .await;
-                    GitCli::from_executor(self.executor.clone())
+                    GitCli::from_executor(self.ctx.executor.clone())
                         .clone_repository_raw_cancelled(
                             url,
                             Some(&spec.work_directory),

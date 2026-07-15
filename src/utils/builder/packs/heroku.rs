@@ -1,0 +1,110 @@
+use crate::utils::exec::{ArgBuilder, CommandExecutor, ExecOutput, ExecResult};
+use tokio_util::sync::CancellationToken;
+
+#[derive(Clone, Debug)]
+pub struct HerokuCli<'a> {
+    pub(crate) executor: &'a CommandExecutor,
+}
+
+impl<'a> HerokuCli<'a> {
+    pub fn new(executor: &'a CommandExecutor) -> Self {
+        Self { executor }
+    }
+
+    pub fn build(&self, image_name: impl Into<String>) -> HerokuBuildBuilder<'_> {
+        let mut args = ArgBuilder::cmd(&["pack", "build"]);
+        args.push(image_name.into());
+        HerokuBuildBuilder {
+            executor: self.executor,
+            args,
+        }
+    }
+}
+
+pub struct HerokuBuildBuilder<'a> {
+    executor: &'a CommandExecutor,
+    args: ArgBuilder,
+}
+
+impl<'a> HerokuBuildBuilder<'a> {
+    pub fn path(mut self, path: impl Into<String>) -> Self {
+        self.args.pair("--path", path.into());
+        self
+    }
+
+    pub fn builder(mut self, builder_image: impl Into<String>) -> Self {
+        self.args.pair("--builder", builder_image.into());
+        self
+    }
+
+    pub fn buildpack(mut self, buildpacks: impl IntoIterator<Item = impl Into<String>>) -> Self {
+        for bp in buildpacks {
+            self.args.pair("--buildpack", bp.into());
+        }
+        self
+    }
+
+    pub fn cache_image(mut self, image: impl Into<String>) -> Self {
+        self.args.pair("--cache-image", image.into());
+        self
+    }
+
+    pub fn clear_cache(mut self) -> Self {
+        self.args.flag("--clear-cache");
+        self
+    }
+
+    pub fn publish(mut self) -> Self {
+        self.args.flag("--publish");
+        self
+    }
+
+    pub fn buildpack_registry(mut self, registry: impl Into<String>) -> Self {
+        self.args.pair("--buildpack-registry", registry.into());
+        self
+    }
+
+    pub fn env(mut self, k: impl AsRef<str>, v: impl AsRef<str>) -> Self {
+        self.args.pair("--env", format!("{}={}", k.as_ref(), v.as_ref()));
+        self
+    }
+
+    pub fn network(mut self, network: impl Into<String>) -> Self {
+        self.args.pair("--network", network.into());
+        self
+    }
+
+    pub fn volume(mut self, volume: impl Into<String>) -> Self {
+        self.args.pair("--volume", volume.into());
+        self
+    }
+
+    pub fn cache(mut self, cache_config: impl Into<String>) -> Self {
+        self.args.pair("--cache", cache_config.into());
+        self
+    }
+
+    pub fn trust_extra_buildpacks(mut self) -> Self {
+        self.args.flag("--trust-extra-buildpacks");
+        self
+    }
+
+    pub fn workspace(mut self, path: impl Into<String>) -> Self {
+        self.args.pair("--workspace", path.into());
+        self
+    }
+
+    pub fn uid(mut self, uid: u32) -> Self {
+        self.args.pair("--uid", uid.to_string());
+        self
+    }
+
+    pub fn gid(mut self, gid: u32) -> Self {
+        self.args.pair("--gid", gid.to_string());
+        self
+    }
+
+    pub async fn run(self, cancel: &CancellationToken) -> ExecResult<ExecOutput> {
+        self.executor.run_cancelled("pack", self.args.build(), cancel).await
+    }
+}

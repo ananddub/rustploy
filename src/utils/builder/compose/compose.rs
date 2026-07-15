@@ -6,52 +6,43 @@ use super::{
 };
 use crate::utils::{
     builder::{
-        custom_type::{DeployEvent, DeployState, IdType},
-        hash_state::ApplicationState,
+        shared::BuilderContext,
         spec::BuilderEvent,
         swarm::{ensure_overlay_network, ensure_swarm_manager, RUSTPLOY_NETWORK},
     },
-    docker::DockerCli,
     exec::{CommandExecutor, ExecError, ExecResult},
 };
-use std::sync::Arc;
-use tokio::{sync::mpsc, time::Duration};
 use tokio_util::sync::CancellationToken;
 use crate::utils::docker::core::types::ResolveImage;
-use crate::utils::exec::ExecOutput;
 
 #[derive(Clone, Debug)]
 pub struct ComposeBuilder {
-    pub(super) executor: CommandExecutor,
-    pub(super) docker: DockerCli,
-    events: Option<mpsc::Sender<BuilderEvent>>,
-    state: Option<(Arc<ApplicationState>, IdType)>,
-    pub(super) health_timeout: Duration,
+    pub(super) ctx: BuilderContext,
 }
 
 impl ComposeBuilder {
     pub fn new(executor: CommandExecutor) -> Self {
         Self {
-            docker: DockerCli::from_executor(executor.clone()),
-            executor,
-            events: None,
-            state: None,
-            health_timeout: Duration::from_secs(120),
+            ctx: BuilderContext::new(executor),
         }
     }
 
-    pub fn with_events(mut self, events: mpsc::Sender<BuilderEvent>) -> Self {
-        self.events = Some(events);
+    pub fn with_events(mut self, events: tokio::sync::mpsc::Sender<BuilderEvent>) -> Self {
+        self.ctx = self.ctx.with_events(events);
         self
     }
 
-    pub fn with_state(mut self, state: Arc<ApplicationState>, id: IdType) -> Self {
-        self.state = Some((state, id));
+    pub fn with_state(
+        mut self,
+        state: std::sync::Arc<crate::utils::builder::hash_state::ApplicationState>,
+        id: crate::utils::builder::custom_type::IdType,
+    ) -> Self {
+        self.ctx = self.ctx.with_state(state, id);
         self
     }
 
-    pub fn with_health_timeout(mut self, timeout: Duration) -> Self {
-        self.health_timeout = timeout;
+    pub fn with_health_timeout(mut self, timeout: tokio::time::Duration) -> Self {
+        self.ctx = self.ctx.with_health_timeout(timeout);
         self
     }
 
@@ -61,34 +52,34 @@ impl ComposeBuilder {
         cancel: &CancellationToken,
     ) -> ExecResult<ComposeDeploymentResult> {
         validate_spec(spec)?;
-        self.emit(BuilderEvent::Preparing).await;
-        self.cancelled(cancel)?;
+        self.ctx.emit(BuilderEvent::Preparing).await;
+        self.ctx.cancelled(cancel)?;
         self.prepare_source(spec, cancel).await?;
-        self.emit(BuilderEvent::SourceReady).await;
+        self.ctx.emit(BuilderEvent::SourceReady).await;
         self.prepare_runtime_files(spec, cancel).await?;
         write_labeled_compose(self, spec, cancel).await?;
 
-        self.emit(BuilderEvent::Deploying).await;
+        self.ctx.emit(BuilderEvent::Deploying).await;
         let deploy_result = match spec.runtime {
             ComposeRuntime::Stack => self.deploy_stack(spec, cancel).await,
             ComposeRuntime::Compose => self.deploy_compose(spec, cancel).await,
         };
         if let Err(error) = deploy_result {
             self.cleanup_failed_deploy(spec).await;
-            self.emit(BuilderEvent::Failed(error.to_string())).await;
+            self.ctx.emit(BuilderEvent::Failed(error.to_string())).await;
             return Err(error);
         }
 
-        self.emit(BuilderEvent::Routing).await;
+        self.ctx.emit(BuilderEvent::Routing).await;
 
-        self.emit(BuilderEvent::HealthCheck).await;
+        self.ctx.emit(BuilderEvent::HealthCheck).await;
         if let Err(error) = self.wait_healthy(spec, cancel).await {
             self.cleanup_failed_deploy(spec).await;
-            self.emit(BuilderEvent::Failed(error.to_string())).await;
+            self.ctx.emit(BuilderEvent::Failed(error.to_string())).await;
             return Err(error);
         }
 
-        self.emit(BuilderEvent::Deployed).await;
+        self.ctx.emit(BuilderEvent::Deployed).await;
         Ok(ComposeDeploymentResult {
             app_name: spec.app_name.clone(),
             stack_name: spec.stack_name.clone(),
@@ -99,34 +90,32 @@ impl ComposeBuilder {
     pub async fn stop(&self, spec: &ComposeSpec) -> ExecResult<()> {
         match spec.runtime {
             ComposeRuntime::Stack => {
-                self.docker.stacks().remove(&spec.stack_name).run().await?;
+                self.ctx.docker.stacks().remove(&spec.stack_name).run().await?;
             }
             ComposeRuntime::Compose => {
-                self.docker.compose().down()
+                self.ctx.docker.compose().down()
                     .project(&spec.stack_name)
                     .env_file(&spec.env_file)
                     .file(&spec.compose_file_path())
                     .retry(3)
                     .run()
                     .await?;
-
             }
         }
-        self.emit(BuilderEvent::Cancelled).await;
+        self.ctx.emit(BuilderEvent::Cancelled).await;
         Ok(())
     }
 
     async fn deploy_stack(&self, spec: &ComposeSpec, cancel: &CancellationToken) -> ExecResult<()> {
-        ensure_swarm_manager(&self.executor, &self.docker, cancel).await?;
-        ensure_overlay_network(&self.docker, RUSTPLOY_NETWORK, cancel).await?;
-        self.emit(BuilderEvent::Message(format!(
+        ensure_swarm_manager(&self.ctx.executor, &self.ctx.docker, cancel).await?;
+        ensure_overlay_network(&self.ctx.docker, RUSTPLOY_NETWORK, cancel).await?;
+        self.ctx.emit(BuilderEvent::Message(format!(
             "building compose stack {} from {}",
             spec.stack_name,
             spec.compose_file_path()
         )))
         .await;
-        // self.docker.stacks().deploy(&spec.stack_name).await?;
-        self.docker.compose()
+        self.ctx.docker.compose()
             .build()
             .project(&spec.stack_name)
             .env_file(&spec.env_file)
@@ -135,7 +124,7 @@ impl ComposeBuilder {
             .cancel_with(cancel.clone())
             .run()
             .await?;
-        let f = self.docker.compose()
+        let f = self.ctx.docker.compose()
             .config()
             .env_file(&spec.env_file)
             .file(&spec.compose_file_path())
@@ -144,7 +133,7 @@ impl ComposeBuilder {
             .run()
             .await?;
         fs::write(&spec.rendered_stack_file, f.stdout).await.map_err(ExecError::Io)?;
-        self.docker.stacks().deploy(&spec.stack_name)
+        self.ctx.docker.stacks().deploy(&spec.stack_name)
             .compose_file(&spec.rendered_stack_file)
             .with_registry_auth()
             .resolve_image(ResolveImage::Never)
@@ -161,13 +150,13 @@ impl ComposeBuilder {
         spec: &ComposeSpec,
         cancel: &CancellationToken,
     ) -> ExecResult<()> {
-        self.emit(BuilderEvent::Message(format!(
+        self.ctx.emit(BuilderEvent::Message(format!(
             "docker compose build project {} file {}",
             spec.stack_name,
             spec.compose_file_path()
         )))
         .await;
-        self.docker.compose()
+        self.ctx.docker.compose()
             .build()
             .project(&spec.stack_name)
             .env_file(&spec.env_file)
@@ -176,13 +165,13 @@ impl ComposeBuilder {
             .cancel_with(cancel.clone())
             .run()
             .await?;
-        self.emit(BuilderEvent::Message(format!(
+        self.ctx.emit(BuilderEvent::Message(format!(
             "docker compose up project {} file {}",
             spec.stack_name,
             spec.compose_file_path()
         )))
         .await;
-        self.docker.compose()
+        self.ctx.docker.compose()
             .up()
             .project(&spec.stack_name)
             .env_file(&spec.env_file)
@@ -199,43 +188,16 @@ impl ComposeBuilder {
 
     }
 
-    pub(super) async fn write_file_cancelled(
-        &self,
-        path: &str,
-        content: &[u8],
-        cancel: &CancellationToken,
-    ) -> ExecResult<()> {
-        self.executor
-            .run_with_stdin_cancelled(
-                "sh",
-                ["-c", "umask 077; cat > \"$1\"", "rustploy-write", path],
-                content,
-                cancel,
-            )
-            .await?;
-        Ok(())
-    }
-
-    pub(super) fn cancelled(&self, token: &CancellationToken) -> ExecResult<()> {
-        if token.is_cancelled() {
-            Err(ExecError::StreamCancelled)
-        } else {
-            Ok(())
-        }
-    }
-
-
-
     async fn cleanup_failed_deploy(&self, spec: &ComposeSpec) {
         match spec.runtime {
             ComposeRuntime::Stack => {
-                if let Err(error) = self.docker.stacks().remove(&spec.stack_name).run().await {
+                if let Err(error) = self.ctx.docker.stacks().remove(&spec.stack_name).run().await {
                     tracing::warn!(stack = %spec.stack_name, error = %error, "compose stack cleanup failed");
                 }
             }
             ComposeRuntime::Compose => {
                 if let Err(error) = self
-                    .docker.compose().down()
+                    .ctx.docker.compose().down()
                         .project(&spec.stack_name)
                         .env_file(&spec.env_file)
                         .file(&spec.compose_file_path())
@@ -249,34 +211,4 @@ impl ComposeBuilder {
             }
         }
     }
-
-    pub(super) async fn emit(&self, event: BuilderEvent) {
-        if let Some(sender) = &self.events {
-            let _ = sender.send(event.clone()).await;
-        }
-        if let Some((state, id)) = &self.state
-            && let BuilderEvent::Message(message) = &event
-        {
-            if let Some(sender) = state.get_broadcast_send(id.clone()) {
-                let _ = sender.send(DeployEvent::Message(message.clone()));
-            }
-        }
-        if let Some((state, id)) = &self.state {
-            let deploy_state = match event {
-                BuilderEvent::Preparing => DeployState::Preparing,
-                BuilderEvent::SourceReady => DeployState::GitSuccess,
-                BuilderEvent::Building => DeployState::Building,
-                BuilderEvent::ImageReady => DeployState::BuildSuccess,
-                BuilderEvent::Deploying | BuilderEvent::Routing => DeployState::Deploying,
-                BuilderEvent::HealthCheck => DeployState::HealthCheck,
-                BuilderEvent::Deployed => DeployState::Deployed,
-                BuilderEvent::Cancelled => DeployState::StoppedByUser,
-                BuilderEvent::Message(_) => return,
-                BuilderEvent::Failed(error) => DeployState::Failed(error),
-                BuilderEvent::RecoverAfterRestart => DeployState::RecoverAfterRestart,
-            };
-            let _ = state.send_state(id.clone(), deploy_state);
-        }
-    }
 }
-

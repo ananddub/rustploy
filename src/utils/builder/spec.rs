@@ -29,6 +29,7 @@ pub enum BuildStrategy {
     },
     Nixpacks,
     Paketo,
+    Heroku,
     Railpack {
         version: String,
     },

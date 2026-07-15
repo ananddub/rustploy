@@ -25,7 +25,7 @@ pub(super) async fn write_labeled_compose(
 
     let compose_path = spec.compose_file_path();
     let output = builder
-        .executor
+        .ctx.executor
         .run_cancelled("cat", [compose_path.as_str()], cancel)
         .await?;
     let mut document = serde_yaml::from_str::<Value>(&output.stdout)
@@ -36,7 +36,7 @@ pub(super) async fn write_labeled_compose(
     let content = serde_yaml::to_string(&document)
         .map_err(|error| ExecError::Json(serde_json::Error::io(std::io::Error::other(error))))?;
     builder
-        .write_file_cancelled(&compose_path, content.as_bytes(), cancel)
+        .ctx.write_file_cancelled(&compose_path, content.as_bytes(), cancel)
         .await
 }
 

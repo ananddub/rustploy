@@ -13,54 +13,78 @@ impl ComposeBuilder {
         spec: &ComposeSpec,
         cancel: &CancellationToken,
     ) -> ExecResult<()> {
-        let deadline = Instant::now() + self.health_timeout;
+        let deadline = Instant::now() + self.ctx.health_timeout;
         loop {
-            self.cancelled(cancel)?;
-            let health_result = match spec.runtime {
+            self.ctx.cancelled(cancel)?;
+            
+            let is_healthy = match spec.runtime {
                 ComposeRuntime::Stack => {
-                    self.docker.stacks().ps(&spec.stack_name)
+                    let rows = match self.ctx.docker.stacks().ps(&spec.stack_name)
                         .filter(TaskFilter::DesiredState(crate::utils::docker::query::filter::TaskDesiredState::Running))
-                        .run()
+                        .run_json()
                         .await
+                    {
+                        Ok(rows) => rows,
+                        Err(error) => {
+                            if Instant::now() < deadline && crate::utils::docker::error::is_transient_docker_error(&error.to_string()) {
+                                tracing::warn!(error = %error, "compose health check failed transiently; retrying");
+                                tokio::time::sleep(Duration::from_secs(2)).await;
+                                continue;
+                            }
+                            return Err(error);
+                        }
+                    };
+                    
+                    if let Some(error) = rows.iter().map(|row| row.error.as_str()).find(|e| !e.is_empty()) {
+                        return Err(ExecError::CommandFailed {
+                            code: None,
+                            stderr: error.into(),
+                        });
+                    }
+                    
+                    rows.iter().any(|row| row.current_state.starts_with("Running"))
                 }
                 ComposeRuntime::Compose => {
-                    self.docker.compose()
+                    let rows = match self.ctx.docker.compose()
                         .ps()
                         .project(&spec.stack_name)
                         .env_file(&spec.env_file)
                         .file(&spec.compose_file_path())
-                        .run()
+                        .list()
                         .await
+                    {
+                        Ok(rows) => rows,
+                        Err(error) => {
+                            if Instant::now() < deadline && crate::utils::docker::error::is_transient_docker_error(&error.to_string()) {
+                                tracing::warn!(error = %error, "compose health check failed transiently; retrying");
+                                tokio::time::sleep(Duration::from_secs(2)).await;
+                                continue;
+                            }
+                            return Err(error);
+                        }
+                    };
+                    
+                    if rows.iter().any(|row| row.state.to_lowercase().contains("exit")) {
+                         return Err(ExecError::CommandFailed {
+                             code: None,
+                             stderr: format!("container exited: {:?}", rows),
+                         });
+                    }
+                    
+                    !rows.is_empty() && rows.iter().any(|row| row.state.to_lowercase().contains("running"))
                 }
             };
-            let output = match health_result {
-                Ok(output) => output,
-                Err(error)
-                    if Instant::now() < deadline
-                        && crate::utils::docker::error::is_transient_docker_error(&error.to_string()) =>
-                {
-                    tracing::warn!(error = %error, "compose health check failed transiently; retrying");
-                    tokio::time::sleep(Duration::from_secs(2)).await;
-                    continue;
-                }
-                Err(error) => return Err(error),
-            };
-            if output.stdout.contains("Running") || output.stdout.contains("running") {
+
+            if is_healthy {
                 return Ok(());
             }
-            if output.stdout.contains("Rejected") || output.stdout.contains("Exit") {
-                return Err(ExecError::CommandFailed {
-                    code: None,
-                    stderr: output.stdout,
-                });
-            }
+
             if Instant::now() >= deadline {
                 return Err(ExecError::Timeout {
-                    seconds: self.health_timeout.as_secs(),
+                    seconds: self.ctx.health_timeout.as_secs(),
                 });
             }
             tokio::time::sleep(Duration::from_secs(2)).await;
         }
     }
 }
-

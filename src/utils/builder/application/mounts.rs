@@ -19,7 +19,7 @@ impl ApplicationBuilder {
                         code: None,
                         stderr: "invalid file mount source".into(),
                     })?;
-                self.executor
+                self.ctx.executor
                     .run_cancelled("mkdir", ["-p", parent.to_string_lossy().as_ref()], cancel)
                     .await?;
                 let content = mount
@@ -29,7 +29,7 @@ impl ApplicationBuilder {
                         code: None,
                         stderr: format!("file mount {} has no content", mount.target),
                     })?;
-                self.write_file_cancelled(&mount.source, content.as_bytes(), cancel)
+                self.ctx.write_file_cancelled(&mount.source, content.as_bytes(), cancel)
                     .await?;
             }
         }

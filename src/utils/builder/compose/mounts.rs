@@ -15,11 +15,11 @@ impl ComposeBuilder {
         cancel: &CancellationToken,
     ) -> ExecResult<()> {
         if let Some(parent) = std::path::Path::new(&spec.env_file).parent() {
-            self.executor
+            self.ctx.executor
                 .run_cancelled("mkdir", ["-p", parent.to_string_lossy().as_ref()], cancel)
                 .await?;
         }
-        self.write_file_cancelled(&spec.env_file, env_file(spec).as_bytes(), cancel)
+        self.ctx.write_file_cancelled(&spec.env_file, env_file(spec).as_bytes(), cancel)
             .await?;
         for mount in &spec.mounts {
             self.prepare_file_mount(mount, cancel).await?;
@@ -41,7 +41,7 @@ impl ComposeBuilder {
                 code: None,
                 stderr: "invalid file mount source".into(),
             })?;
-        self.executor
+        self.ctx.executor
             .run_cancelled("mkdir", ["-p", parent.to_string_lossy().as_ref()], cancel)
             .await?;
         let content = mount
@@ -51,7 +51,7 @@ impl ComposeBuilder {
                 code: None,
                 stderr: format!("file mount {} has no content", mount.target),
             })?;
-        self.write_file_cancelled(&mount.source, content.as_bytes(), cancel)
+        self.ctx.write_file_cancelled(&mount.source, content.as_bytes(), cancel)
             .await
     }
 }

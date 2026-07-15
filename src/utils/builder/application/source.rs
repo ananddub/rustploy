@@ -15,18 +15,18 @@ impl ApplicationBuilder {
         match &spec.source {
             SourceSpec::Docker { image, registry } => {
                 if let Some(auth) = registry {
-                    self.docker
+                    self.ctx.docker
                         .login(Some(&auth.registry), &auth.username, &auth.password)
                         .await?;
-                    let pull = self.docker.images().pull(image.as_str()).cancel_with(cancel.clone()).pull().await;
-                    let logout = self.docker.logout(Some(&auth.registry)).await;
+                    let pull = self.ctx.docker.images().pull(image.as_str()).cancel_with(cancel.clone()).pull().await;
+                    let logout = self.ctx.docker.logout(Some(&auth.registry)).await;
                     match (pull, logout) {
                         (Err(error), _) => return Err(error),
                         (Ok(_), Err(error)) => return Err(error),
                         (Ok(_), Ok(_)) => {}
                     }
                 } else {
-                    self.docker.images().pull(image.as_str()).cancel_with(cancel.clone()).pull().await?;
+                    self.ctx.docker.images().pull(image.as_str()).cancel_with(cancel.clone()).pull().await?;
                 }
             }
             SourceSpec::Git {
@@ -34,18 +34,18 @@ impl ApplicationBuilder {
                 branch,
                 submodules,
             } => {
-                let git = GitCli::from_executor(self.executor.clone())
+                let git = GitCli::from_executor(self.ctx.executor.clone())
                     .with_repository(spec.work_directory.clone());
-                let branch = resolve_branch(&GitCli::from_executor(self.executor.clone()), url, branch, cancel)
+                let branch = resolve_branch(&GitCli::from_executor(self.ctx.executor.clone()), url, branch, cancel)
                     .await?;
                 let git_dir = format!("{}/.git", spec.work_directory);
                 if self
-                    .executor
+                    .ctx.executor
                     .run("test", ["-d", git_dir.as_str()])
                     .await
                     .is_ok()
                 {
-                    self.emit(BuilderEvent::Message(format!(
+                    self.ctx.emit(BuilderEvent::Message(format!(
                         "fetching {url} branch {branch} into {}",
                         spec.work_directory
                     )))
@@ -56,16 +56,16 @@ impl ApplicationBuilder {
                     git.reset(&["--hard", "FETCH_HEAD"]).await?;
                 } else {
                     if let Some(parent) = std::path::Path::new(&spec.work_directory).parent() {
-                        self.executor
+                        self.ctx.executor
                             .run("mkdir", ["-p", parent.to_string_lossy().as_ref()])
                             .await?;
                     }
-                    self.emit(BuilderEvent::Message(format!(
+                    self.ctx.emit(BuilderEvent::Message(format!(
                         "cloning {url} branch {branch} into {}",
                         spec.work_directory
                     )))
                     .await;
-                    GitCli::from_executor(self.executor.clone())
+                    GitCli::from_executor(self.ctx.executor.clone())
                         .clone_repository_raw_cancelled(
                             url,
                             Some(&spec.work_directory),

@@ -4,6 +4,7 @@ use crate::utils::{
     exec::{ExecError, ExecResult},
 };
 use tokio_util::sync::CancellationToken;
+use crate::utils::builder::packs::{nixpacks::NixpacksCli, paketo::PackCli, railpack::RailpackCli, heroku::HerokuCli};
 
 impl ApplicationBuilder {
     pub(super) async fn build_image(
@@ -33,65 +34,68 @@ impl ApplicationBuilder {
                     .await?
             }
             BuildStrategy::Nixpacks => {
-                self.emit(BuilderEvent::Message(format!(
+                self.ctx.emit(BuilderEvent::Message(format!(
                     "building image {} with nixpacks from {}",
                     spec.image, spec.work_directory
                 )))
                 .await;
-                self.executor
-                    .run_cancelled(
-                        "nixpacks",
-                        [
-                            "build",
-                            spec.work_directory.as_str(),
-                            "--name",
-                            spec.image.as_str(),
-                        ],
-                        cancel,
-                    )
-                    .await?;
+                let cli = NixpacksCli::new(&self.ctx.executor);
+                let mut builder = cli
+                    .build(spec.work_directory.as_str())
+                    .name(spec.image.as_str());
+                for (k, v) in &spec.build_args {
+                    builder = builder.env(k, v);
+                }
+                builder.run(cancel).await?;
             }
             BuildStrategy::Paketo => {
-                self.emit(BuilderEvent::Message(format!(
+                self.ctx.emit(BuilderEvent::Message(format!(
                     "building image {} with Paketo from {}",
                     spec.image, spec.work_directory
                 )))
                 .await;
-                self.executor
-                    .run_cancelled(
-                        "pack",
-                        [
-                            "build",
-                            spec.image.as_str(),
-                            "--path",
-                            spec.work_directory.as_str(),
-                            "--builder",
-                            "paketobuildpacks/builder-jammy-full",
-                        ],
-                        cancel,
-                    )
-                    .await?;
+                let cli = PackCli::new(&self.ctx.executor);
+                let mut builder = cli
+                    .build(spec.image.as_str())
+                    .path(spec.work_directory.as_str())
+                    .builder("paketobuildpacks/builder-jammy-full");
+                for (k, v) in &spec.build_args {
+                    builder = builder.env(k, v);
+                }
+                builder.run(cancel).await?;
+            }
+            BuildStrategy::Heroku => {
+                self.ctx.emit(BuilderEvent::Message(format!(
+                    "building image {} with Heroku from {}",
+                    spec.image, spec.work_directory
+                )))
+                .await;
+                let cli = HerokuCli::new(&self.ctx.executor);
+                let mut builder = cli
+                    .build(spec.image.as_str())
+                    .path(spec.work_directory.as_str())
+                    .builder("heroku/builder:22");
+                for (k, v) in &spec.build_args {
+                    builder = builder.env(k, v);
+                }
+                builder.run(cancel).await?;
             }
             BuildStrategy::Railpack { version } => {
-                self.emit(BuilderEvent::Message(format!(
+                self.ctx.emit(BuilderEvent::Message(format!(
                     "building image {} with railpack {version} from {}",
                     spec.image, spec.work_directory
                 )))
                 .await;
                 let plan = format!("{}/railpack-plan.json", spec.work_directory);
-                self.executor
-                    .run_cancelled(
-                        "railpack",
-                        [
-                            "prepare",
-                            spec.work_directory.as_str(),
-                            "--plan-out",
-                            plan.as_str(),
-                        ],
-                        cancel,
-                    )
-                    .await?;
-                let _ = self.docker.images().build(&spec.work_directory)
+                let cli = RailpackCli::new(&self.ctx.executor);
+                let mut builder = cli
+                    .prepare(spec.work_directory.as_str())
+                    .plan_out(plan.as_str());
+                for (k, v) in &spec.build_args {
+                    builder = builder.env(k, v);
+                }
+                builder.run(cancel).await?;
+                let _ = self.ctx.docker.images().build(&spec.work_directory)
                     .tag(spec.image.clone())
                     .dockerfile(&plan)
                     .build_arg("BUILDKIT_SYNTAX", format!("ghcr.io/railwayapp/railpack-frontend:v{version}"))
@@ -124,7 +128,7 @@ impl ApplicationBuilder {
         
         validate_build_context(Some(&context_path))?;
         
-        let images = self.docker.images();
+        let images = self.ctx.docker.images();
         let mut builder = images.build(context_path.clone())
             .tag(spec.image.clone())
             .dockerfile(dockerfile_path.clone());
@@ -141,18 +145,18 @@ impl ApplicationBuilder {
 
         let secret_dir = format!("/tmp/rustploy-secrets-{}", spec.app_name);
         if !spec.build_secrets.is_empty() {
-            self.executor
+            self.ctx.executor
                 .run("mkdir", ["-p", secret_dir.as_str()])
                 .await?;
         }
         for (key, value) in &spec.build_secrets {
             let path = format!("{secret_dir}/{key}");
-            self.write_file_cancelled(&path, value.as_bytes(), cancel)
+            self.ctx.write_file_cancelled(&path, value.as_bytes(), cancel)
                 .await?;
             builder = builder.secret(format!("id={key},src={path}"));
         }
 
-        self.emit(BuilderEvent::Message(format!(
+        self.ctx.emit(BuilderEvent::Message(format!(
             "docker build image {} using dockerfile {} and context {}",
             spec.image,
             dockerfile_path,
@@ -168,7 +172,7 @@ impl ApplicationBuilder {
             .build()
             .await;
             
-        let _ = self.executor.run("rm", ["-rf", secret_dir.as_str()]).await;
+        let _ = self.ctx.executor.run("rm", ["-rf", secret_dir.as_str()]).await;
         
         result.map(|_| ()).map_err(|e| ExecError::CommandFailed {
             code: None,
@@ -192,21 +196,21 @@ impl ApplicationBuilder {
             },
             publish_directory
         );
-        self.write_file_cancelled(
+        self.ctx.write_file_cancelled(
             &format!("{}/Dockerfile.rustploy", spec.work_directory),
             dockerfile.as_bytes(),
             cancel,
         )
         .await?;
         if spa {
-            self.write_file_cancelled(
+            self.ctx.write_file_cancelled(
                 &format!("{}/nginx.conf", spec.work_directory),
                 SPA_NGINX.as_bytes(),
                 cancel,
             )
             .await?;
         }
-        self.docker.images().build(spec.work_directory.clone())
+        self.ctx.docker.images().build(spec.work_directory.clone())
             .tag(spec.image.clone())
             .dockerfile(format!("{}/Dockerfile.rustploy", spec.work_directory))
             .cancel_with(cancel.clone())
