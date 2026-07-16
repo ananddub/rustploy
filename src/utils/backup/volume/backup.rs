@@ -3,6 +3,7 @@ use crate::utils::docker::{DockerCli, DockerError};
 use crate::utils::docker::query::filter::{ContainerFilter, ContainerStatus};
 use crate::utils::exec::{CommandExecutor, ExecError, ExecResult, ExecOutput};
 use crate::utils::backup::database::destination::S3Destination;
+use crate::utils::rclone::{RcloneBuilder, RcloneCommand};
 use tokio_util::sync::CancellationToken;
 use crate::utils::docker::query::ServiceFilter;
 
@@ -129,8 +130,29 @@ impl<'a> VolumeBackupRunner<'a> {
         cancel: &CancellationToken,
     ) -> ExecResult<ExecOutput> {
         let vol = &self.backup.volume_name;
-        let rclone_args = self.destination.rclone_upload_args(object_key);
-        let rclone_cmd  = format!("rclone {}", rclone_args.join(" "));
+
+        let rclone_target = self.destination.to_rclone_target(object_key);
+
+        let mut builder = RcloneBuilder::new(RcloneCommand::Rcat)
+            .destination(rclone_target);
+
+        if let Some(ref extra) = self.destination.additional_flags {
+            for flag in extra.split_whitespace() {
+                builder = builder.arg(flag);
+            }
+        }
+
+        let (rclone_args, envs) = builder.build();
+        let env_string = envs.into_iter()
+            .map(|(k, v)| format!("{}={}", k, shell_single_quote(&v)))
+            .collect::<Vec<String>>()
+            .join(" ");
+
+        let rclone_cmd = if env_string.is_empty() {
+            format!("rclone {}", rclone_args.join(" "))
+        } else {
+            format!("{} rclone {}", env_string, rclone_args.join(" "))
+        };
 
         let pipeline = format!(
             "set -eo pipefail; docker run --rm -v {vol}:/volume_data ubuntu tar cf - -C /volume_data . | {rclone}",
@@ -149,8 +171,29 @@ impl<'a> VolumeBackupRunner<'a> {
         cancel: &CancellationToken,
     ) -> ExecResult<ExecOutput> {
         let vol = &self.backup.volume_name;
-        let rclone_args = self.destination.rclone_cat_args(object_key);
-        let rclone_cmd  = format!("rclone {}", rclone_args.join(" "));
+
+        let rclone_target = self.destination.to_rclone_target(object_key);
+
+        let mut builder = RcloneBuilder::new(RcloneCommand::Cat)
+            .source(rclone_target);
+
+        if let Some(ref extra) = self.destination.additional_flags {
+            for flag in extra.split_whitespace() {
+                builder = builder.arg(flag);
+            }
+        }
+
+        let (rclone_args, envs) = builder.build();
+        let env_string = envs.into_iter()
+            .map(|(k, v)| format!("{}={}", k, shell_single_quote(&v)))
+            .collect::<Vec<String>>()
+            .join(" ");
+
+        let rclone_cmd = if env_string.is_empty() {
+            format!("rclone {}", rclone_args.join(" "))
+        } else {
+            format!("{} rclone {}", env_string, rclone_args.join(" "))
+        };
 
         let pipeline = format!(
             "set -eo pipefail; {rclone} | docker run -i --rm -v {vol}:/volume_data ubuntu tar xf - -C /volume_data",
@@ -226,4 +269,8 @@ impl<'a> VolumeBackupRunner<'a> {
 
         result
     }
+}
+
+fn shell_single_quote(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "'\\''"))
 }

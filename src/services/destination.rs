@@ -1,0 +1,146 @@
+use std::sync::Arc;
+use auto_di::singleton;
+use crate::{
+    api::dto::destination::{CreateDestinationDto, PatchDestinationDto},
+    db::models::destinations::Destination,
+    repository::destinations::DestinationRepository,
+};
+
+pub struct DestinationService {
+    repo_dest: Arc<DestinationRepository>,
+}
+
+#[singleton]
+impl DestinationService {
+    fn new(repo_dest: Arc<DestinationRepository>) -> Self {
+        Self { repo_dest }
+    }
+
+    pub async fn get_by_id(&self, id: &str) -> sqlx::Result<Destination> {
+        let id_i64 = id.parse::<i64>().map_err(|_| sqlx::Error::RowNotFound)?;
+        self.repo_dest
+            .get_by_id(id_i64)
+            .await?
+            .ok_or(sqlx::Error::RowNotFound)
+    }
+
+    pub async fn list(&self) -> sqlx::Result<Vec<Destination>> {
+        self.repo_dest.get_all().await
+    }
+
+    pub async fn create(&self, input: CreateDestinationDto) -> sqlx::Result<Destination> {
+        let item = Destination {
+            id: None,
+            name: input.name,
+            provider: input.provider,
+            access_key: input.access_key,
+            secret_access_key: input.secret_access_key,
+            bucket: input.bucket,
+            region: input.region,
+            endpoint: input.endpoint,
+            additional_flags: input.additional_flags,
+            organization_id: input.organization_id,
+            created_at: 0,
+            updated_at: 0,
+        };
+        let new_id = self.repo_dest.create(&item).await?;
+        self.repo_dest.get_by_id(new_id).await?.ok_or(sqlx::Error::RowNotFound)
+    }
+
+    pub async fn patch(&self, id: &str, input: PatchDestinationDto) -> sqlx::Result<Destination> {
+        let mut current = self.get_by_id(id).await?;
+        let id_i64 = id.parse::<i64>().map_err(|_| sqlx::Error::RowNotFound)?;
+
+        if let Some(v) = input.name { current.name = v; }
+        if let Some(v) = input.provider { current.provider = v; }
+        if let Some(v) = input.access_key { current.access_key = v; }
+        if let Some(v) = input.secret_access_key { current.secret_access_key = v; }
+        if let Some(v) = input.bucket { current.bucket = v; }
+        if let Some(v) = input.region { current.region = v; }
+        if let Some(v) = input.endpoint { current.endpoint = v; }
+        if let Some(v) = input.additional_flags { current.additional_flags = Some(v); }
+
+        self.repo_dest.update(id_i64, &current).await?;
+        self.repo_dest.get_by_id(id_i64).await?.ok_or(sqlx::Error::RowNotFound)
+    }
+
+    pub async fn delete(&self, id: &str) -> sqlx::Result<()> {
+        let id_i64 = id.parse::<i64>().map_err(|_| sqlx::Error::RowNotFound)?;
+        // Check existence
+        self.repo_dest.get_by_id(id_i64).await?.ok_or(sqlx::Error::RowNotFound)?;
+        self.repo_dest.delete(id_i64).await
+    }
+
+    pub async fn test_connection(&self, id: &str) -> Result<(), String> {
+        let dest = self.get_by_id(id).await.map_err(|e| e.to_string())?;
+        self.test_connection_raw(
+            &dest.provider,
+            &dest.access_key,
+            &dest.secret_access_key,
+            &dest.bucket,
+            &dest.region,
+            &dest.endpoint,
+            dest.additional_flags.as_deref(),
+        ).await
+    }
+
+    pub async fn test_connection_raw(
+        &self,
+        provider: &str,
+        access_key: &str,
+        secret_access_key: &str,
+        bucket: &str,
+        region: &str,
+        endpoint: &str,
+        additional_flags: Option<&str>,
+    ) -> Result<(), String> {
+        let target = crate::utils::rclone::RcloneTarget::S3 {
+            provider: provider.to_string(),
+            access_key_id: access_key.to_string(),
+            secret_access_key: secret_access_key.to_string(),
+            bucket: bucket.to_string(),
+            region: region.to_string(),
+            endpoint: endpoint.to_string(),
+            path: "".to_string(),
+            force_path_style: true,
+            no_check_bucket: true,
+        };
+
+        let mut builder = crate::utils::rclone::RcloneBuilder::new(crate::utils::rclone::RcloneCommand::Lsf)
+            .source(target)
+            .timeout("10s")
+            .connect_timeout("5s")
+            .retries(1);
+
+        if let Some(flags) = additional_flags {
+            for flag in flags.split_whitespace() {
+                builder = builder.arg(flag);
+            }
+        }
+
+        let (args, envs) = builder.build();
+        let env_string = envs.into_iter()
+            .map(|(k, v)| format!("{}={}", k, shell_single_quote(&v)))
+            .collect::<Vec<String>>()
+            .join(" ");
+
+        let cmd = if env_string.is_empty() {
+            format!("rclone {}", args.join(" "))
+        } else {
+            format!("{} rclone {}", env_string, args.join(" "))
+        };
+
+        let executor = crate::utils::exec::CommandExecutor::Local(crate::utils::exec::LocalExecutor::new());
+        let out = executor.run("sh", &["-c", &cmd]).await.map_err(|e| e.to_string())?;
+
+        if !out.success() {
+            return Err(format!("Connection test failed: {}", out.stderr));
+        }
+
+        Ok(())
+    }
+}
+
+fn shell_single_quote(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "'\\''"))
+}

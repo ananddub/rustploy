@@ -23,7 +23,9 @@ impl<'a> HerokuCli<'a> {
         Self { executor }
     }
 
-    pub async fn exists(&self) -> bool {
+
+
+    pub async fn is_exists(&self) -> bool {
         self.executor
             .run("sh", &["-c", "command -v pack"])
             .await
@@ -31,18 +33,17 @@ impl<'a> HerokuCli<'a> {
             .unwrap_or(false)
     }
 
-    pub async fn is_exists(&self) -> bool {
-        self.exists().await
-    }
-
     pub async fn install(&self) -> ExecResult<ExecOutput> {
-        self.executor
-            .run("sh", &["-c", "curl https://cli-assets.heroku.com/install.sh | sh"])
-            .await
+        let script = r#"set -eu
+ARCH=$(uname -m)
+SUFFIX=""; case "$ARCH" in aarch64|arm64) SUFFIX="-arm64";; esac
+curl -fsSL "https://github.com/buildpacks/pack/releases/download/v0.39.1/pack-v0.39.1-linux${SUFFIX}.tgz" | tar -C /usr/local/bin --no-same-owner -xz pack
+"#;
+        self.executor.run("sh", &["-c", script]).await
     }
 
     pub async fn if_not_exist_install(&self) -> ExecResult<()> {
-        if !self.exists().await {
+        if !self.is_exists().await {
             self.install().await?;
         }
         Ok(())

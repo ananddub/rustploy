@@ -13,3 +13,6 @@ pub mod schedule;
 pub mod ssh_key;
 pub mod swarm;
 pub mod user;
+pub mod destination;
+pub mod certificate;
+pub mod registry;

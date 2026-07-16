@@ -14,3 +14,6 @@ pub mod server;
 pub mod ssh_key;
 pub mod swarm;
 pub mod backup;
+pub mod destination;
+pub mod certificate;
+pub mod registry;
