@@ -1,0 +1,325 @@
+use crate::utils::builder::shared::BuilderContext;
+use crate::utils::exec::{CommandExecutor, ExecResult, ExecError};
+use crate::utils::builder::spec::BuilderEvent;
+use crate::db::models::mounts::Mount;
+use crate::services::database::DatabaseKind;
+use serde::Serialize;
+use std::collections::BTreeMap;
+use std::sync::Arc;
+use tokio_util::sync::CancellationToken;
+use tokio::time::{Duration, Instant};
+use crate::utils::docker::query::filter::{TaskDesiredState, TaskFilter};
+
+#[derive(Serialize)]
+pub struct StackFile {
+    pub version: &'static str,
+    pub services: BTreeMap<String, StackService>,
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub networks: BTreeMap<String, ExternalNetwork>,
+}
+
+#[derive(Serialize)]
+pub struct StackService {
+    pub image: String,
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub environment: BTreeMap<String, String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub command: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub args: Vec<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub volumes: Vec<StackMount>,
+    pub networks: Vec<String>,
+    pub deploy: DeploySpec,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub healthcheck: Option<HealthSpec>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stop_grace_period: Option<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub ports: Vec<String>,
+}
+
+#[derive(Serialize, Clone)]
+pub struct HealthSpec {
+    pub test: Vec<String>,
+    pub interval: String,
+    pub timeout: String,
+    pub retries: u32,
+    pub start_period: String,
+}
+
+#[derive(Serialize)]
+pub struct DeploySpec {
+    pub replicas: u32,
+    pub resources: DeployResources,
+    pub restart_policy: RestartPolicy,
+    pub update_config: UpdateConfig,
+    pub rollback_config: UpdateConfig,
+    #[serde(skip_serializing_if = "Placement::is_empty")]
+    pub placement: Placement,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub labels: Vec<String>,
+}
+
+#[derive(Serialize)]
+pub struct DeployResources {
+    #[serde(skip_serializing_if = "Limits::is_empty")]
+    pub limits: Limits,
+    #[serde(skip_serializing_if = "Limits::is_empty")]
+    pub reservations: Limits,
+}
+
+#[derive(Serialize, Default)]
+pub struct Limits {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cpus: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub memory: Option<String>,
+}
+
+impl Limits {
+    pub fn is_empty(&self) -> bool {
+        self.cpus.is_none() && self.memory.is_none()
+    }
+}
+
+#[derive(Serialize)]
+pub struct RestartPolicy {
+    pub condition: &'static str,
+    pub delay: &'static str,
+    pub max_attempts: u8,
+    pub window: &'static str,
+}
+
+#[derive(Serialize)]
+pub struct UpdateConfig {
+    pub parallelism: u8,
+    pub delay: &'static str,
+    pub order: &'static str,
+    pub failure_action: &'static str,
+}
+
+#[derive(Serialize, Default)]
+pub struct Placement {
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub constraints: Vec<String>,
+}
+
+impl Placement {
+    pub fn is_empty(&self) -> bool {
+        self.constraints.is_empty()
+    }
+}
+
+#[derive(Serialize)]
+pub struct ExternalNetwork {
+    pub external: bool,
+    pub name: String,
+}
+
+#[derive(Serialize)]
+pub struct StackMount {
+    #[serde(rename = "type")]
+    pub kind: &'static str,
+    pub source: String,
+    pub target: String,
+    #[serde(skip_serializing_if = "is_false")]
+    pub read_only: bool,
+}
+
+fn is_false(value: &bool) -> bool {
+    !*value
+}
+
+#[derive(Clone, Debug)]
+pub struct DatabaseBuilder {
+    pub(super) ctx: BuilderContext,
+}
+
+impl DatabaseBuilder {
+    pub fn new(executor: CommandExecutor) -> Self {
+        Self {
+            ctx: BuilderContext::new(executor),
+        }
+    }
+
+    pub fn with_events(mut self, events: tokio::sync::mpsc::Sender<BuilderEvent>) -> Self {
+        self.ctx = self.ctx.with_events(events);
+        self
+    }
+
+    pub fn with_state(
+        mut self,
+        state: std::sync::Arc<crate::utils::builder::hash_state::ApplicationState>,
+        id: crate::utils::builder::custom_type::IdType,
+    ) -> Self {
+        self.ctx = self.ctx.with_state(state, id);
+        self
+    }
+
+    pub fn with_cgroup(mut self, cg: crate::utils::cgroup::Cgroup) -> Self {
+        self.ctx = self.ctx.with_cgroup(cg);
+        self
+    }
+
+    pub async fn deploy(
+        &self,
+        db_kind: DatabaseKind,
+        db_id: i64,
+        db_pool: Arc<sqlx::SqlitePool>,
+        cancel: &CancellationToken,
+    ) -> ExecResult<()> {
+        self.ctx.emit(BuilderEvent::Preparing).await;
+        self.ctx.cancelled(cancel)?;
+
+        // Fetch mounts for this database
+        let mounts = sqlx::query_as!(
+            Mount,
+            r#"SELECT id, mount_type, service_type, host_path, volume_name, file_path, content, mount_path,
+               postgres_id, mysql_id, mariadb_id, mongo_id, redis_id, libsql_id, compose_id, application_id,
+               created_at, updated_at
+               FROM mounts
+               WHERE postgres_id = ? OR mysql_id = ? OR mariadb_id = ? OR mongo_id = ? OR redis_id = ? OR libsql_id = ?"#,
+            db_id, db_id, db_id, db_id, db_id, db_id
+        )
+        .fetch_all(db_pool.as_ref())
+        .await
+        .map_err(|e| ExecError::CommandFailed {
+            code: None,
+            stderr: format!("Failed to fetch mounts: {}", e),
+        })?;
+
+        // 1. Build stack file based on database kind
+        let (app_name, docker_image, stack_file_content) = match db_kind {
+            DatabaseKind::Postgres => {
+                super::postgres::build_postgres_stack(db_id, db_pool.clone(), &mounts).await?
+            }
+            DatabaseKind::Mysql => {
+                super::mysql::build_mysql_stack(db_id, db_pool.clone(), &mounts).await?
+            }
+            DatabaseKind::Mariadb => {
+                super::mariadb::build_mariadb_stack(db_id, db_pool.clone(), &mounts).await?
+            }
+            DatabaseKind::Mongo => {
+                super::mongo::build_mongo_stack(db_id, db_pool.clone(), &mounts).await?
+            }
+            DatabaseKind::Redis => {
+                super::redis::build_redis_stack(db_id, db_pool.clone(), &mounts).await?
+            }
+            DatabaseKind::Libsql => {
+                super::libsql::build_libsql_stack(db_id, db_pool.clone(), &mounts).await?
+            }
+        };
+
+        self.ctx.emit(BuilderEvent::Building).await;
+        self.ctx.cancelled(cancel)?;
+
+        // Pull database docker image on host
+        self.ctx.docker.images().pull(&docker_image)
+            .cancel_with(cancel.clone())
+            .pull()
+            .await?;
+
+        self.ctx.emit(BuilderEvent::ImageReady).await;
+        self.ctx.cancelled(cancel)?;
+
+        // 2. Prepare workspace & write stack compose file
+        let db_dir = format!("/tmp/rustploy-db-{}", app_name);
+        self.ctx.executor
+            .run_cancelled("mkdir", ["-p", &db_dir], cancel)
+            .await?;
+
+        let stack_file_path = format!("{}/stack.yml", db_dir);
+        self.ctx.write_file_cancelled(&stack_file_path, stack_file_content.as_bytes(), cancel).await?;
+
+        // 3. Ensure Swarm and Network
+        super::super::swarm::ensure_swarm_manager(&self.ctx.executor, &self.ctx.docker, cancel).await?;
+        super::super::swarm::ensure_overlay_network(&self.ctx.docker, super::super::swarm::RUSTPLOY_NETWORK, cancel).await?;
+
+        self.ctx.emit(BuilderEvent::Deploying).await;
+        self.ctx.cancelled(cancel)?;
+
+        // Deploy Stack
+        let deploy_result = self.ctx.docker.stacks().deploy(app_name.clone())
+            .compose_file(&stack_file_path)
+            .cancel_with(cancel.clone())
+            .run()
+            .await;
+
+        if let Err(error) = deploy_result {
+            self.ctx.emit(BuilderEvent::Failed(error.to_string())).await;
+            return Err(error);
+        }
+
+        // Wait healthy
+        self.ctx.emit(BuilderEvent::HealthCheck).await;
+        let service_name = format!("{}_db", app_name);
+        self.wait_healthy(&service_name, cancel).await?;
+
+        self.ctx.emit(BuilderEvent::Deployed).await;
+        Ok(())
+    }
+
+    pub async fn stop(
+        &self,
+        app_name: &str,
+        cancel: &CancellationToken,
+    ) -> ExecResult<()> {
+        let _ = self.ctx.docker.stacks().remove(app_name)
+            .cancel_with(cancel.clone())
+            .run()
+            .await;
+        Ok(())
+    }
+
+    async fn wait_healthy(
+        &self,
+        service_name: &str,
+        cancel: &CancellationToken,
+    ) -> ExecResult<()> {
+        let deadline = Instant::now() + self.ctx.health_timeout;
+        loop {
+            self.ctx.cancelled(cancel)?;
+            let health_result = self.ctx.docker
+                .services()
+                .ps(service_name)
+                .filter(TaskFilter::DesiredState(TaskDesiredState::Running))
+                .run_json()
+                .await;
+            let rows = match health_result {
+                Ok(rows) => rows,
+                Err(error)
+                    if Instant::now() < deadline
+                        && crate::utils::docker::error::is_transient_docker_error(
+                            &error.to_string(),
+                        ) =>
+                {
+                    tokio::time::sleep(Duration::from_secs(2)).await;
+                    continue;
+                }
+                Err(error) => return Err(error),
+            };
+            if rows.iter().any(|row| {
+                row.current_state.starts_with("Running")
+            }) {
+                return Ok(());
+            }
+            if let Some(error) = rows
+                .iter()
+                .map(|row| row.error.as_str())
+                .find(|e| !e.is_empty())
+            {
+                return Err(ExecError::CommandFailed {
+                    code: None,
+                    stderr: error.into(),
+                });
+            }
+            if Instant::now() >= deadline {
+                return Err(ExecError::Timeout {
+                    seconds: self.ctx.health_timeout.as_secs(),
+                });
+            }
+            tokio::time::sleep(Duration::from_secs(2)).await;
+        }
+    }
+}

@@ -6,6 +6,7 @@ use crate::{
     services::{
         application::ApplicationOperation,
         compose::ComposeOperation,
+        database::DatabaseOperation,
     },
     utils::builder::{
         custom_type::{DeployState, IdType},
@@ -21,6 +22,8 @@ pub async fn process(
     deployment_id: i64,
     application_id: Option<i64>,
     compose_id: Option<i64>,
+    database_id: Option<i64>,
+    database_kind: Option<String>,
     operation: String,
 ) {
 
@@ -29,20 +32,26 @@ pub async fn process(
         operation = %operation,
         application_id,
         compose_id,
+        database_id,
+        database_kind,
         "builder queue: job started"
     );
 
-    let result = match (application_id, compose_id) {
-        (Some(app_id), None) => {
+    let result = match (application_id, compose_id, database_id, database_kind.as_deref()) {
+        (Some(app_id), None, None, None) => {
             let op = parse_application_operation(&operation);
             BuilderQueue::execute_operation_app(db.clone(), app_id, deployment_id, op).await
         }
-        (None, Some(cmp_id)) => {
+        (None, Some(cmp_id), None, None) => {
             let op = parse_compose_operation(&operation);
             BuilderQueue::execute_operation_compose(db.clone(), cmp_id, deployment_id, op).await
         }
+        (None, None, Some(db_id), Some(db_kind)) => {
+            let op = parse_database_operation(&operation);
+            BuilderQueue::execute_operation_db(db.clone(), db_id, db_kind.to_string(), deployment_id, op).await
+        }
         _ => Err(crate::utils::builder::errors::BuilderError::Execution(format!(
-            "deployment {deployment_id} must have exactly one of application_id or compose_id"
+            "deployment {deployment_id} must have exactly one of application_id, compose_id, or database_id/kind"
         ))),
     };
 
@@ -96,6 +105,30 @@ pub async fn process(
             tracing::error!(deployment_id, cmp_id, error = %e, "builder queue: could not persist compose status");
         }
         application_state.remove_state(IdType::ComposeId(cmp_id));
+    }
+
+    if let (Some(db_id), Some(db_kind)) = (database_id, database_kind.as_deref()) {
+        let table_name = match db_kind {
+            "postgres" => "postgres_dbs",
+            "mysql" => "mysql_dbs",
+            "mariadb" => "mariadb_dbs",
+            "mongo" => "mongo_dbs",
+            "redis" => "redis_dbs",
+            "libsql" => "libsql_dbs",
+            _ => "",
+        };
+        if !table_name.is_empty() {
+            let query_str = format!("UPDATE {} SET app_status = ? WHERE id = ?", table_name);
+            if let Err(e) = sqlx::query(sqlx::AssertSqlSafe(&*query_str))
+                .bind(target_status)
+                .bind(db_id)
+                .execute(db.as_ref())
+                .await
+            {
+                tracing::error!(deployment_id, db_id, db_kind, error = %e, "builder queue: could not persist database status");
+            }
+        }
+        application_state.remove_state(IdType::DatabaseId(db_id));
     }
 
     tracing::info!(
@@ -160,5 +193,15 @@ fn parse_compose_operation(value: &str) -> ComposeOperation {
         "start"    => ComposeOperation::Start,
         "stop"     => ComposeOperation::Stop,
         _          => ComposeOperation::Deploy,
+    }
+}
+
+fn parse_database_operation(value: &str) -> DatabaseOperation {
+    match value {
+        "redeploy" => DatabaseOperation::Redeploy,
+        "reload"   => DatabaseOperation::Reload,
+        "start"    => DatabaseOperation::Start,
+        "stop"     => DatabaseOperation::Stop,
+        _          => DatabaseOperation::Deploy,
     }
 }

@@ -23,6 +23,7 @@ pub struct DeploymentListFilter {
     pub state: Option<String>,
     pub application_id: Option<i64>,
     pub compose_id: Option<i64>,
+    pub database_id: Option<i64>,
     pub server_id: Option<i64>,
     pub limit: i64,
     pub offset: i64,
@@ -43,7 +44,7 @@ impl DeploymentService {
             Deployment,
             r#"SELECT id AS "id?", title, description, status, state, log_path, pid,
                error_message, operation, is_preview_deployment, started_at, last_state_at, finished_at,
-               application_id, compose_id, server_id, created_at
+               application_id, compose_id, server_id, created_at, database_id, database_kind
                FROM deployments WHERE id = ?"#,
             id,
         )
@@ -61,12 +62,13 @@ impl DeploymentService {
             Deployment,
             r#"SELECT id AS "id?", title, description, status, state, log_path, pid,
                error_message, operation, is_preview_deployment, started_at, last_state_at, finished_at,
-               application_id, compose_id, server_id, created_at
+               application_id, compose_id, server_id, created_at, database_id, database_kind
                FROM deployments
                WHERE (? IS NULL OR status = ?)
                  AND (? IS NULL OR state = ?)
                  AND (? IS NULL OR application_id = ?)
                  AND (? IS NULL OR compose_id = ?)
+                 AND (? IS NULL OR database_id = ?)
                  AND (? IS NULL OR server_id = ?)
                ORDER BY COALESCE(started_at, created_at) DESC, id DESC
                LIMIT ? OFFSET ?"#,
@@ -78,6 +80,8 @@ impl DeploymentService {
             filter.application_id,
             filter.compose_id,
             filter.compose_id,
+            filter.database_id,
+            filter.database_id,
             filter.server_id,
             filter.server_id,
             limit,
@@ -98,9 +102,9 @@ impl DeploymentService {
     }
 
     pub async fn cancel(&self, deployment_id: i64) -> sqlx::Result<CancelDeploymentResult> {
-        let (application_id, compose_id, status) =
-            sqlx::query_as::<_, (Option<i64>, Option<i64>, String)>(
-                "SELECT application_id, compose_id, status FROM deployments WHERE id = ?",
+        let (application_id, compose_id, database_id, status) =
+            sqlx::query_as::<_, (Option<i64>, Option<i64>, Option<i64>, String)>(
+                "SELECT application_id, compose_id, database_id, status FROM deployments WHERE id = ?",
             )
             .bind(deployment_id)
             .fetch_one(self.db.as_ref())
@@ -123,6 +127,7 @@ impl DeploymentService {
         let Some(target_id) = application_id
             .map(IdType::AppId)
             .or_else(|| compose_id.map(IdType::ComposeId))
+            .or_else(|| database_id.map(IdType::DatabaseId))
         else {
             return Ok(CancelDeploymentResult::NotCancellable);
         };

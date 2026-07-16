@@ -49,6 +49,7 @@ impl DeploymentController {
                 state: query.state,
                 application_id: query.application_id,
                 compose_id: query.compose_id,
+                database_id: query.database_id,
                 server_id: query.server_id,
                 limit: query.limit.unwrap_or(50),
                 offset: query.offset.unwrap_or(0),
@@ -113,6 +114,15 @@ impl DeploymentController {
         Path(id): Path<i64>,
     ) -> Result<DeploymentSse, ApiError> {
         self.events(IdType::ComposeId(id)).await
+    }
+
+    #[get("/database/{id}/events")]
+    async fn database_events(
+        &self,
+        _claims: crate::utils::jwt::claim::Claims,
+        Path(id): Path<i64>,
+    ) -> Result<DeploymentSse, ApiError> {
+        self.events(IdType::DatabaseId(id)).await
     }
 
     #[get("/application/{id}/stats")]

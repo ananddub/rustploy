@@ -5,7 +5,7 @@
 use serde::{Deserialize, Serialize};
 use sqlx_gen::SqlxGen;
 
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::FromRow, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::FromRow, SqlxGen)]
 #[sqlx_gen(kind = "table", schema = "main", table = "mysql_dbs")]
 pub struct MysqlDb {
     #[sqlx_gen(primary_key, sql_type = "mysql_dbs_id_enum")]

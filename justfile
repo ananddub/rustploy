@@ -115,9 +115,7 @@ db-gen:
 
     echo ">> Fixing import paths in generated repositories ..."
     sed -i 's/crate::models::/crate::db::models::/g' src/db/repository/*.rs
-
-    echo ">> Generating typed query methods from db/queries/*.sql ..."
-    just query-gen
+    sed -i 's/query_as::<\([^>]*\)>(\&sql)/query_as::<\1>(sqlx::AssertSqlSafe(\&*sql))/g' src/db/repository/*.rs
 
     echo ">> Done!"
 

@@ -1,8 +1,10 @@
 use std::{str::FromStr, sync::Arc};
 
-use auto_di::singleton;
-use sqlx::SqlitePool;
+use auto_di::{singleton, resolve};
+use sqlx::{SqlitePool, Row};
 use uuid::Uuid;
+
+use crate::utils::builder::queue::BuilderQueue;
 
 use crate::api::dto::database::{CreateDatabaseDto, PatchDatabaseDto};
 
@@ -100,10 +102,13 @@ impl DatabaseOperation {
         }
     }
 
-    fn target_status(self) -> &'static str {
+    pub fn title(self) -> &'static str {
         match self {
-            Self::Stop => "IDLE",
-            _ => "RUNNING",
+            Self::Deploy => "Deploying Database",
+            Self::Redeploy => "Redeploying Database",
+            Self::Reload => "Reloading Database",
+            Self::Start => "Starting Database",
+            Self::Stop => "Stopping Database",
         }
     }
 }
@@ -142,13 +147,7 @@ macro_rules! patch_common {
     };
 }
 
-macro_rules! update_status {
-    ($self:ident, $sql:literal, $id:ident, $operation:ident) => {
-        sqlx::query!($sql, $operation.target_status(), $id)
-            .execute($self.db.as_ref())
-            .await
-    };
-}
+
 
 #[singleton]
 impl DatabaseService {
@@ -431,56 +430,106 @@ impl DatabaseService {
         id: i64,
         operation: DatabaseOperation,
     ) -> sqlx::Result<DatabaseOperationResult> {
-        match kind {
+        let mut tx = self.db.begin().await?;
+
+        let running_deployment = sqlx::query_scalar::<_, i64>(
+            "SELECT EXISTS(SELECT 1 FROM deployments WHERE database_id = ? AND status IN ('QUEUED', 'RUNNING'))",
+        )
+        .bind(id)
+        .fetch_one(&mut *tx)
+        .await?
+            != 0;
+        if running_deployment {
+            return Err(sqlx::Error::Protocol(
+                "database deployment already queued or running; cancel it first".into(),
+            ));
+        }
+
+        resolve::<BuilderQueue>()
+            .await
+            .map_err(|e| sqlx::Error::Protocol(e.to_string()))?
+            .ensure_capacity()
+            .await?;
+
+        let kind_str = kind.as_str();
+        let table_name = match kind {
+            DatabaseKind::Postgres => "postgres_dbs",
+            DatabaseKind::Mysql => "mysql_dbs",
+            DatabaseKind::Mariadb => "mariadb_dbs",
+            DatabaseKind::Mongo => "mongo_dbs",
+            DatabaseKind::Redis => "redis_dbs",
+            DatabaseKind::Libsql => "libsql_dbs",
+        };
+
+        let (server_id, name) = match kind {
             DatabaseKind::Postgres => {
-                update_status!(
-                    self,
-                    "UPDATE postgres_dbs SET app_status = ? WHERE id = ?",
-                    id,
-                    operation
-                )
+                let r = sqlx::query!("SELECT server_id, name FROM postgres_dbs WHERE id = ?", id).fetch_one(&mut *tx).await?;
+                (r.server_id, r.name)
             }
             DatabaseKind::Mysql => {
-                update_status!(
-                    self,
-                    "UPDATE mysql_dbs SET app_status = ? WHERE id = ?",
-                    id,
-                    operation
-                )
+                let r = sqlx::query!("SELECT server_id, name FROM mysql_dbs WHERE id = ?", id).fetch_one(&mut *tx).await?;
+                (r.server_id, r.name)
             }
             DatabaseKind::Mariadb => {
-                update_status!(
-                    self,
-                    "UPDATE mariadb_dbs SET app_status = ? WHERE id = ?",
-                    id,
-                    operation
-                )
+                let r = sqlx::query!("SELECT server_id, name FROM mariadb_dbs WHERE id = ?", id).fetch_one(&mut *tx).await?;
+                (r.server_id, r.name)
             }
             DatabaseKind::Mongo => {
-                update_status!(
-                    self,
-                    "UPDATE mongo_dbs SET app_status = ? WHERE id = ?",
-                    id,
-                    operation
-                )
+                let r = sqlx::query!("SELECT server_id, name FROM mongo_dbs WHERE id = ?", id).fetch_one(&mut *tx).await?;
+                (r.server_id, r.name)
             }
             DatabaseKind::Redis => {
-                update_status!(
-                    self,
-                    "UPDATE redis_dbs SET app_status = ? WHERE id = ?",
-                    id,
-                    operation
-                )
+                let r = sqlx::query!("SELECT server_id, name FROM redis_dbs WHERE id = ?", id).fetch_one(&mut *tx).await?;
+                (r.server_id, r.name)
             }
             DatabaseKind::Libsql => {
-                update_status!(
-                    self,
-                    "UPDATE libsql_dbs SET app_status = ? WHERE id = ?",
-                    id,
-                    operation
-                )
+                let r = sqlx::query!("SELECT server_id, name FROM libsql_dbs WHERE id = ?", id).fetch_one(&mut *tx).await?;
+                (r.server_id, r.name)
             }
-        }?;
+        };
+
+        let update_status_query = format!("UPDATE {} SET app_status = ? WHERE id = ?", table_name);
+        sqlx::query(sqlx::AssertSqlSafe(&*update_status_query))
+            .bind("RUNNING")
+            .bind(id)
+            .execute(&mut *tx)
+            .await?;
+
+        let log_path = format!("pending-db-{}", id);
+        let deployment = sqlx::query(
+            r#"INSERT INTO deployments (title, description, status, state, log_path, operation, database_id, database_kind, server_id, last_state_at)
+               VALUES (?, ?, 'QUEUED', 'QUEUE', ?, ?, ?, ?, ?, strftime('%s', 'now'))
+               RETURNING id"#,
+        )
+        .bind(operation.title())
+        .bind(Some(format!("{} requested for database {}", operation.as_str(), name)))
+        .bind(log_path)
+        .bind(operation.as_str())
+        .bind(id)
+        .bind(kind_str)
+        .bind(server_id)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        let deployment_id: i64 = deployment.get("id");
+        let log_path = crate::utils::paths::rustploy_paths().deployment_log_file(deployment_id);
+
+        sqlx::query("UPDATE deployments SET log_path = ? WHERE id = ?")
+            .bind(&log_path)
+            .bind(deployment_id)
+            .execute(&mut *tx)
+            .await?;
+
+        tx.commit().await?;
+
+        if let Ok(mut log) = crate::utils::builder::queue::deployment_log::DeploymentLog::open(deployment_id).await {
+            let _ = log.write_line(&format!("[QUEUED] database deployment queued for {}", operation.as_str())).await;
+        }
+
+        resolve::<BuilderQueue>()
+            .await
+            .map_err(|e| sqlx::Error::Protocol(e.to_string()))?
+            .notify();
 
         Ok(DatabaseOperationResult {
             database: self.get_by_id(kind, id).await?,

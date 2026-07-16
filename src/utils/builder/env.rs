@@ -108,6 +108,39 @@ pub async fn generate_env_compose(
     Some(convert_env_to_map(&compose_env))
 }
 
+pub async fn generate_env_db(
+    env_id: i64,
+    db_env_var: &str,
+) -> Option<HashMap<String, String>> {
+    let q = resolve::<SqlitePool>().await.unwrap();
+    let db_env = sqlx::query!(r#"select * from environments where id =?"#, env_id)
+        .fetch_one(q.as_ref())
+        .await
+        .ok()?;
+    let db_project_env = sqlx::query!("select * from projects where id = ?", db_env.project_id)
+        .fetch_one(q.as_ref())
+        .await
+        .ok()?;
+    let map: HashMap<String, String> = convert_env_to_map(&db_env.env_var);
+
+    let pro_env = fix_env(
+        context! {
+            enviroment => map,
+            ENVIROMENT => map
+        },
+        &db_project_env.env_var,
+    );
+
+    let pro_map: HashMap<String, String> = convert_env_to_map(&pro_env);
+
+    let resolved_db_env = fix_env(
+        env_project_map(map, pro_map),
+        db_env_var,
+    );
+
+    Some(convert_env_to_map(&resolved_db_env))
+}
+
 fn convert_env_to_map(text: &str) -> HashMap<String, String> {
     text.lines()
         .filter_map(|line| {

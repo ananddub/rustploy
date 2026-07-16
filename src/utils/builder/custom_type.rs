@@ -35,6 +35,7 @@ pub struct DeploySubscription {
 pub enum IdType {
     AppId(i64),
     ComposeId(i64),
+    DatabaseId(i64),
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum DeployState {

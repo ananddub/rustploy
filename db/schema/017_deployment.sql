@@ -18,6 +18,8 @@ CREATE TABLE deployments (
 	-- Foreign keys
 	application_id INTEGER REFERENCES applications(id) ON DELETE CASCADE,
 	compose_id INTEGER REFERENCES compose_projects(id) ON DELETE CASCADE,
+	database_id INTEGER,
+	database_kind TEXT,
 	server_id INTEGER REFERENCES servers(id) ON DELETE CASCADE,
 	created_at INTEGER DEFAULT (strftime('%s', 'now')) NOT NULL,
 	CONSTRAINT deployment_status_check CHECK (status IN ('QUEUED', 'RUNNING', 'DONE', 'ERROR', 'CANCELLED'))

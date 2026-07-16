@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use sqlx_gen::SqlxGen;
 
 ///Enum: main.applications_id_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(kind = "enum", schema = "main", name = "applications_id_enum")]
 pub enum ApplicationsIdEnum {
     #[sqlx(rename = "IDLE")]
@@ -22,7 +22,7 @@ pub enum ApplicationsIdEnum {
     Error,
 }
 ///Enum: main.applications_source_type_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(kind = "enum", schema = "main", name = "applications_source_type_enum")]
 pub enum ApplicationsSourceTypeEnum {
     #[sqlx(rename = "DOCKER")]
@@ -47,7 +47,7 @@ pub enum ApplicationsSourceTypeEnum {
     Drop,
 }
 ///Enum: main.applications_build_type_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(kind = "enum", schema = "main", name = "applications_build_type_enum")]
 pub enum ApplicationsBuildTypeEnum {
     #[sqlx(rename = "DOCKERFILE")]
@@ -69,7 +69,7 @@ pub enum ApplicationsBuildTypeEnum {
     Railpack,
 }
 ///Enum: main.applications_app_status_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(kind = "enum", schema = "main", name = "applications_app_status_enum")]
 pub enum ApplicationsAppStatusEnum {
     #[sqlx(rename = "IDLE")]
@@ -85,7 +85,7 @@ pub enum ApplicationsAppStatusEnum {
     Error,
 }
 ///Enum: main.applications_trigger_type_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(
     kind = "enum",
     schema = "main",
@@ -99,7 +99,7 @@ pub enum ApplicationsTriggerTypeEnum {
     Tag,
 }
 ///Enum: main.applications_dockerfile_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(kind = "enum", schema = "main", name = "applications_dockerfile_enum")]
 pub enum ApplicationsDockerfileEnum {
     #[sqlx(rename = "DOCKERFILE")]
@@ -121,7 +121,7 @@ pub enum ApplicationsDockerfileEnum {
     Railpack,
 }
 ///Enum: main.applications_preview_certificate_type_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(
     kind = "enum",
     schema = "main",
@@ -138,7 +138,7 @@ pub enum ApplicationsPreviewCertificateTypeEnum {
     Custom,
 }
 ///Enum: main.backups_backup_type_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(kind = "enum", schema = "main", name = "backups_backup_type_enum")]
 pub enum BackupsBackupTypeEnum {
     #[sqlx(rename = "DATABASE")]
@@ -148,7 +148,7 @@ pub enum BackupsBackupTypeEnum {
     Compose,
 }
 ///Enum: main.backups_database_type_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(kind = "enum", schema = "main", name = "backups_database_type_enum")]
 pub enum BackupsDatabaseTypeEnum {
     #[sqlx(rename = "POSTGRES")]
@@ -170,7 +170,7 @@ pub enum BackupsDatabaseTypeEnum {
     Libsql,
 }
 ///Enum: main.compose_projects_id_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(kind = "enum", schema = "main", name = "compose_projects_id_enum")]
 pub enum ComposeProjectsIdEnum {
     #[sqlx(rename = "IDLE")]
@@ -186,7 +186,7 @@ pub enum ComposeProjectsIdEnum {
     Error,
 }
 ///Enum: main.compose_projects_source_type_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(
     kind = "enum",
     schema = "main",
@@ -212,7 +212,7 @@ pub enum ComposeProjectsSourceTypeEnum {
     Raw,
 }
 ///Enum: main.compose_projects_compose_type_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(
     kind = "enum",
     schema = "main",
@@ -226,7 +226,7 @@ pub enum ComposeProjectsComposeTypeEnum {
     Stack,
 }
 ///Enum: main.compose_projects_compose_status_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(
     kind = "enum",
     schema = "main",
@@ -246,7 +246,7 @@ pub enum ComposeProjectsComposeStatusEnum {
     Error,
 }
 ///Enum: main.compose_projects_trigger_type_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(
     kind = "enum",
     schema = "main",
@@ -260,7 +260,7 @@ pub enum ComposeProjectsTriggerTypeEnum {
     Tag,
 }
 ///Enum: main.deployments_status_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(kind = "enum", schema = "main", name = "deployments_status_enum")]
 pub enum DeploymentsStatusEnum {
     #[sqlx(rename = "QUEUED")]
@@ -279,7 +279,7 @@ pub enum DeploymentsStatusEnum {
     Cancelled,
 }
 ///Enum: main.destinations_id_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(kind = "enum", schema = "main", name = "destinations_id_enum")]
 pub enum DestinationsIdEnum {
     S3,
@@ -295,7 +295,7 @@ pub enum DestinationsIdEnum {
     DoSpaces,
 }
 ///Enum: main.destinations_provider_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(kind = "enum", schema = "main", name = "destinations_provider_enum")]
 pub enum DestinationsProviderEnum {
     S3,
@@ -311,7 +311,7 @@ pub enum DestinationsProviderEnum {
     DoSpaces,
 }
 ///Enum: main.domains_domain_type_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(kind = "enum", schema = "main", name = "domains_domain_type_enum")]
 pub enum DomainsDomainTypeEnum {
     #[sqlx(rename = "APPLICATION")]
@@ -324,7 +324,7 @@ pub enum DomainsDomainTypeEnum {
     Preview,
 }
 ///Enum: main.domains_certificate_type_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(kind = "enum", schema = "main", name = "domains_certificate_type_enum")]
 pub enum DomainsCertificateTypeEnum {
     #[sqlx(rename = "LETSENCRYPT")]
@@ -337,7 +337,7 @@ pub enum DomainsCertificateTypeEnum {
     Custom,
 }
 ///Enum: main.git_providers_id_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(kind = "enum", schema = "main", name = "git_providers_id_enum")]
 pub enum GitProvidersIdEnum {
     #[sqlx(rename = "GITHUB")]
@@ -353,7 +353,7 @@ pub enum GitProvidersIdEnum {
     Bitbucket,
 }
 ///Enum: main.git_providers_provider_type_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(
     kind = "enum",
     schema = "main",
@@ -373,7 +373,7 @@ pub enum GitProvidersProviderTypeEnum {
     Bitbucket,
 }
 ///Enum: main.jwt_tokens_role_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(kind = "enum", schema = "main", name = "jwt_tokens_role_enum")]
 pub enum JwtTokensRoleEnum {
     #[sqlx(rename = "OWNER")]
@@ -386,7 +386,7 @@ pub enum JwtTokensRoleEnum {
     Member,
 }
 ///Enum: main.libsql_dbs_id_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(kind = "enum", schema = "main", name = "libsql_dbs_id_enum")]
 pub enum LibsqlDbsIdEnum {
     #[sqlx(rename = "IDLE")]
@@ -402,7 +402,7 @@ pub enum LibsqlDbsIdEnum {
     Error,
 }
 ///Enum: main.libsql_dbs_sqld_node_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(kind = "enum", schema = "main", name = "libsql_dbs_sqld_node_enum")]
 pub enum LibsqlDbsSqldNodeEnum {
     #[sqlx(rename = "PRIMARY")]
@@ -412,7 +412,7 @@ pub enum LibsqlDbsSqldNodeEnum {
     Replica,
 }
 ///Enum: main.libsql_dbs_app_status_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(kind = "enum", schema = "main", name = "libsql_dbs_app_status_enum")]
 pub enum LibsqlDbsAppStatusEnum {
     #[sqlx(rename = "IDLE")]
@@ -428,7 +428,7 @@ pub enum LibsqlDbsAppStatusEnum {
     Error,
 }
 ///Enum: main.mariadb_dbs_id_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(kind = "enum", schema = "main", name = "mariadb_dbs_id_enum")]
 pub enum MariadbDbsIdEnum {
     #[sqlx(rename = "IDLE")]
@@ -444,7 +444,7 @@ pub enum MariadbDbsIdEnum {
     Error,
 }
 ///Enum: main.mariadb_dbs_app_status_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(kind = "enum", schema = "main", name = "mariadb_dbs_app_status_enum")]
 pub enum MariadbDbsAppStatusEnum {
     #[sqlx(rename = "IDLE")]
@@ -460,7 +460,7 @@ pub enum MariadbDbsAppStatusEnum {
     Error,
 }
 ///Enum: main.mongo_dbs_id_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(kind = "enum", schema = "main", name = "mongo_dbs_id_enum")]
 pub enum MongoDbsIdEnum {
     #[sqlx(rename = "IDLE")]
@@ -476,7 +476,7 @@ pub enum MongoDbsIdEnum {
     Error,
 }
 ///Enum: main.mongo_dbs_app_status_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(kind = "enum", schema = "main", name = "mongo_dbs_app_status_enum")]
 pub enum MongoDbsAppStatusEnum {
     #[sqlx(rename = "IDLE")]
@@ -492,7 +492,7 @@ pub enum MongoDbsAppStatusEnum {
     Error,
 }
 ///Enum: main.mounts_mount_type_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(kind = "enum", schema = "main", name = "mounts_mount_type_enum")]
 pub enum MountsMountTypeEnum {
     #[sqlx(rename = "BIND")]
@@ -505,7 +505,7 @@ pub enum MountsMountTypeEnum {
     File,
 }
 ///Enum: main.mounts_service_type_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(kind = "enum", schema = "main", name = "mounts_service_type_enum")]
 pub enum MountsServiceTypeEnum {
     #[sqlx(rename = "APPLICATION")]
@@ -533,7 +533,7 @@ pub enum MountsServiceTypeEnum {
     Libsql,
 }
 ///Enum: main.mysql_dbs_id_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(kind = "enum", schema = "main", name = "mysql_dbs_id_enum")]
 pub enum MysqlDbsIdEnum {
     #[sqlx(rename = "IDLE")]
@@ -549,7 +549,7 @@ pub enum MysqlDbsIdEnum {
     Error,
 }
 ///Enum: main.mysql_dbs_app_status_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(kind = "enum", schema = "main", name = "mysql_dbs_app_status_enum")]
 pub enum MysqlDbsAppStatusEnum {
     #[sqlx(rename = "IDLE")]
@@ -565,7 +565,7 @@ pub enum MysqlDbsAppStatusEnum {
     Error,
 }
 ///Enum: main.notifications_notification_type_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(
     kind = "enum",
     schema = "main",
@@ -609,7 +609,7 @@ pub enum NotificationsNotificationTypeEnum {
     Teams,
 }
 ///Enum: main.organization_invites_role_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(
     kind = "enum",
     schema = "main",
@@ -623,7 +623,7 @@ pub enum OrganizationInvitesRoleEnum {
     Member,
 }
 ///Enum: main.organization_invites_status_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(
     kind = "enum",
     schema = "main",
@@ -640,7 +640,7 @@ pub enum OrganizationInvitesStatusEnum {
     Rejected,
 }
 ///Enum: main.organization_members_role_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(
     kind = "enum",
     schema = "main",
@@ -654,7 +654,7 @@ pub enum OrganizationMembersRoleEnum {
     Member,
 }
 ///Enum: main.patches_patch_type_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(kind = "enum", schema = "main", name = "patches_patch_type_enum")]
 pub enum PatchesPatchTypeEnum {
     #[sqlx(rename = "CREATE")]
@@ -667,7 +667,7 @@ pub enum PatchesPatchTypeEnum {
     Delete,
 }
 ///Enum: main.ports_protocol_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(kind = "enum", schema = "main", name = "ports_protocol_enum")]
 pub enum PortsProtocolEnum {
     #[sqlx(rename = "TCP")]
@@ -677,7 +677,7 @@ pub enum PortsProtocolEnum {
     Udp,
 }
 ///Enum: main.ports_publish_mode_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(kind = "enum", schema = "main", name = "ports_publish_mode_enum")]
 pub enum PortsPublishModeEnum {
     #[sqlx(rename = "INGRESS")]
@@ -687,7 +687,7 @@ pub enum PortsPublishModeEnum {
     Host,
 }
 ///Enum: main.postgres_dbs_id_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(kind = "enum", schema = "main", name = "postgres_dbs_id_enum")]
 pub enum PostgresDbsIdEnum {
     #[sqlx(rename = "IDLE")]
@@ -703,7 +703,7 @@ pub enum PostgresDbsIdEnum {
     Error,
 }
 ///Enum: main.postgres_dbs_app_status_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(kind = "enum", schema = "main", name = "postgres_dbs_app_status_enum")]
 pub enum PostgresDbsAppStatusEnum {
     #[sqlx(rename = "IDLE")]
@@ -719,7 +719,7 @@ pub enum PostgresDbsAppStatusEnum {
     Error,
 }
 ///Enum: main.redis_dbs_id_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(kind = "enum", schema = "main", name = "redis_dbs_id_enum")]
 pub enum RedisDbsIdEnum {
     #[sqlx(rename = "IDLE")]
@@ -735,7 +735,7 @@ pub enum RedisDbsIdEnum {
     Error,
 }
 ///Enum: main.redis_dbs_app_status_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(kind = "enum", schema = "main", name = "redis_dbs_app_status_enum")]
 pub enum RedisDbsAppStatusEnum {
     #[sqlx(rename = "IDLE")]
@@ -751,7 +751,7 @@ pub enum RedisDbsAppStatusEnum {
     Error,
 }
 ///Enum: main.registries_registry_type_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(kind = "enum", schema = "main", name = "registries_registry_type_enum")]
 pub enum RegistriesRegistryTypeEnum {
     #[sqlx(rename = "CLOUD")]
@@ -761,7 +761,7 @@ pub enum RegistriesRegistryTypeEnum {
     SelfHosted,
 }
 ///Enum: main.schedules_shell_type_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(kind = "enum", schema = "main", name = "schedules_shell_type_enum")]
 pub enum SchedulesShellTypeEnum {
     #[sqlx(rename = "BASH")]
@@ -771,7 +771,7 @@ pub enum SchedulesShellTypeEnum {
     Sh,
 }
 ///Enum: main.schedules_schedule_type_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(kind = "enum", schema = "main", name = "schedules_schedule_type_enum")]
 pub enum SchedulesScheduleTypeEnum {
     #[sqlx(rename = "APPLICATION")]
@@ -787,7 +787,7 @@ pub enum SchedulesScheduleTypeEnum {
     DokpanelServer,
 }
 ///Enum: main.schedules_schedule_action_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(
     kind = "enum",
     schema = "main",
@@ -816,7 +816,7 @@ pub enum SchedulesScheduleActionEnum {
     Stop,
 }
 ///Enum: main.servers_server_status_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(kind = "enum", schema = "main", name = "servers_server_status_enum")]
 pub enum ServersServerStatusEnum {
     #[sqlx(rename = "ACTIVE")]
@@ -826,7 +826,7 @@ pub enum ServersServerStatusEnum {
     Inactive,
 }
 ///Enum: main.servers_server_type_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(kind = "enum", schema = "main", name = "servers_server_type_enum")]
 pub enum ServersServerTypeEnum {
     #[sqlx(rename = "DEPLOY")]
@@ -836,7 +836,7 @@ pub enum ServersServerTypeEnum {
     Build,
 }
 ///Enum: main.settings_certificate_type_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(
     kind = "enum",
     schema = "main",
@@ -853,7 +853,7 @@ pub enum SettingsCertificateTypeEnum {
     Custom,
 }
 ///Enum: main.users_role_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(kind = "enum", schema = "main", name = "users_role_enum")]
 pub enum UsersRoleEnum {
     #[sqlx(rename = "OWNER")]
@@ -866,7 +866,7 @@ pub enum UsersRoleEnum {
     Member,
 }
 ///Enum: main.volume_backups_service_type_enum
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::Type, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, SqlxGen)]
 #[sqlx_gen(
     kind = "enum",
     schema = "main",

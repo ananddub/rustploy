@@ -5,7 +5,7 @@
 use serde::{Deserialize, Serialize};
 use sqlx_gen::SqlxGen;
 
-#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::FromRow, SqlxGen)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::FromRow, SqlxGen)]
 #[sqlx_gen(kind = "table", schema = "main", table = "deployments")]
 pub struct Deployment {
     #[sqlx_gen(primary_key, sql_type = "INTEGER")]
@@ -42,4 +42,8 @@ pub struct Deployment {
     pub server_id: Option<i64>,
     #[sqlx_gen(sql_type = "INTEGER", column_default = "strftime('%s', 'now')")]
     pub created_at: i64,
+    #[sqlx_gen(sql_type = "INTEGER")]
+    pub database_id: Option<i64>,
+    #[sqlx_gen(sql_type = "TEXT")]
+    pub database_kind: Option<String>,
 }

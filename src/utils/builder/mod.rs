@@ -11,3 +11,4 @@ pub mod queue;
 pub mod shared;
 pub mod spec;
 pub mod swarm;
+pub mod database;

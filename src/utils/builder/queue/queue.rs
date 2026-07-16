@@ -212,6 +212,18 @@ impl BuilderQueue {
         {
             tracing::error!(error = %e, "builder queue: could not recover stale compose statuses");
         }
+
+        for table in &["postgres_dbs", "mysql_dbs", "mariadb_dbs", "mongo_dbs", "redis_dbs", "libsql_dbs"] {
+            let query_str = format!(
+                "UPDATE {} SET app_status = 'ERROR' WHERE app_status = 'RUNNING' AND id IN (
+                    SELECT database_id FROM deployments WHERE state = 'RECOVERED_AFTER_RESTART' AND database_id IS NOT NULL
+                )",
+                table
+            );
+            if let Err(e) = sqlx::query(sqlx::AssertSqlSafe(&*query_str)).execute(self.db.as_ref()).await {
+                tracing::error!(table, error = %e, "builder queue: could not recover stale database status");
+            }
+        }
     }
 
     async fn cleanup_stale_remote_jobs(&self) {
@@ -351,7 +363,7 @@ impl BuilderQueue {
                        started_at    = COALESCE(started_at, strftime('%s', 'now')),
                        last_state_at = strftime('%s', 'now')
                    WHERE id = ? AND status = 'QUEUED'
-                   RETURNING id, application_id, compose_id, operation"#,
+                   RETURNING id, application_id, compose_id, database_id, database_kind, operation"#,
             )
             .bind(deployment_id)
             .fetch_optional(self.db.as_ref())
@@ -363,6 +375,8 @@ impl BuilderQueue {
                     let dep_id: i64 = row.get("id");
                     let application_id: Option<i64> = row.get("application_id");
                     let compose_id: Option<i64> = row.get("compose_id");
+                    let database_id: Option<i64> = row.get("database_id");
+                    let database_kind: Option<String> = row.get("database_kind");
                     let operation: String = row
                         .get::<Option<String>, _>("operation")
                         .unwrap_or_else(|| "deploy".into());
@@ -378,6 +392,8 @@ impl BuilderQueue {
                             dep_id,
                             application_id,
                             compose_id,
+                            database_id,
+                            database_kind,
                             operation,
                         )
                         .await;

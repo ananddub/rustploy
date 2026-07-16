@@ -9,6 +9,7 @@ pub struct DeploymentListQuery {
     pub state: Option<String>,
     pub application_id: Option<i64>,
     pub compose_id: Option<i64>,
+    pub database_id: Option<i64>,
     pub server_id: Option<i64>,
     pub limit: Option<i64>,
     pub offset: Option<i64>,
@@ -30,6 +31,8 @@ pub struct DeploymentResponseDto {
     pub finished_at: Option<i64>,
     pub application_id: Option<i64>,
     pub compose_id: Option<i64>,
+    pub database_id: Option<i64>,
+    pub database_kind: Option<String>,
     pub server_id: Option<i64>,
     pub created_at: i64,
 }
@@ -51,6 +54,8 @@ impl From<Deployment> for DeploymentResponseDto {
             finished_at: value.finished_at,
             application_id: value.application_id,
             compose_id: value.compose_id,
+            database_id: value.database_id,
+            database_kind: value.database_kind,
             server_id: value.server_id,
             created_at: value.created_at,
         }
@@ -71,6 +76,7 @@ impl From<ActiveDeploySnapshot> for ActiveDeploymentDto {
         let (kind, id) = match value.id {
             IdType::AppId(id) => ("application", id),
             IdType::ComposeId(id) => ("compose", id),
+            IdType::DatabaseId(id) => ("database", id),
         };
 
         Self {
