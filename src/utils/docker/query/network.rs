@@ -70,7 +70,11 @@ impl<'a> NetworkCreate<'a> {
     }
 
     /// Set the network driver (default: `bridge`; use `overlay` for Swarm).
-    pub fn driver(mut self, v: impl Into<String>) -> Self { self.driver = Some(v.into()); self }
+    pub fn driver(mut self, v: impl Into<super::super::types::NetworkDriver>) -> Self {
+        let d: super::super::types::NetworkDriver = v.into();
+        self.driver = Some(d.as_str().to_string());
+        self
+    }
     pub fn subnet(mut self, v: impl Into<String>) -> Self { self.subnet = Some(v.into()); self }
     pub fn gateway(mut self, v: impl Into<String>) -> Self { self.gateway = Some(v.into()); self }
 
@@ -87,7 +91,11 @@ impl<'a> NetworkCreate<'a> {
     /// Restrict external access (`--internal`).
     pub fn internal(mut self) -> Self { self.internal = true; self }
     pub fn ipv6(mut self) -> Self { self.ipv6 = true; self }
-    pub fn scope(mut self, v: impl Into<String>) -> Self { self.scope = Some(v.into()); self }
+    pub fn scope(mut self, v: impl Into<crate::utils::docker::NetworkScope>) -> Self {
+        let s: crate::utils::docker::NetworkScope = v.into();
+        self.scope = Some(s.to_string());
+        self
+    }
     pub fn arg(mut self, v: impl Into<String>) -> Self { self.extra.push(v.into()); self }
 
     fn build_args(&self) -> Vec<String> {

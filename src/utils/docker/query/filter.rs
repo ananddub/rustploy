@@ -1,4 +1,5 @@
 use std::fmt;
+use crate::utils::docker::{NetworkDriver, VolumeDriver, NetworkScope, NetworkType};
 
 // ── Container ────────────────────────────────────────────────────────────────
 
@@ -200,27 +201,11 @@ impl fmt::Display for ServiceFilter {
 
 // ── Network ──────────────────────────────────────────────────────────────────
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum NetworkScope { Local, Swarm, Global }
 
-impl fmt::Display for NetworkScope {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self { Self::Local => "local", Self::Swarm => "swarm", Self::Global => "global" })
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum NetworkType { Custom, Builtin }
-
-impl fmt::Display for NetworkType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self { Self::Custom => "custom", Self::Builtin => "builtin" })
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NetworkFilter {
-    Driver(String),
+    Driver(NetworkDriver),
     Id(String),
     Label(String, String),
     LabelKey(String),
@@ -231,7 +216,7 @@ pub enum NetworkFilter {
 }
 
 impl NetworkFilter {
-    pub fn driver(v: impl Into<String>) -> Self { Self::Driver(v.into()) }
+    pub fn driver(v: impl Into<NetworkDriver>) -> Self { Self::Driver(v.into()) }
     pub fn id(v: impl Into<String>) -> Self { Self::Id(v.into()) }
     pub fn label(k: impl Into<String>, v: impl Into<String>) -> Self { Self::Label(k.into(), v.into()) }
     pub fn label_key(k: impl Into<String>) -> Self { Self::LabelKey(k.into()) }
@@ -242,7 +227,7 @@ impl NetworkFilter {
 impl fmt::Display for NetworkFilter {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Driver(v) => write!(f, "driver={v}"),
+            Self::Driver(v) => write!(f, "driver={}", v.as_str()),
             Self::Id(v) => write!(f, "id={v}"),
             Self::Label(k, v) => write!(f, "label={k}={v}"),
             Self::LabelKey(k) => write!(f, "label={k}"),
@@ -258,7 +243,7 @@ impl fmt::Display for NetworkFilter {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum VolumeFilter {
-    Driver(String),
+    Driver(VolumeDriver),
     Label(String, String),
     LabelKey(String),
     Name(String),
@@ -266,7 +251,7 @@ pub enum VolumeFilter {
 }
 
 impl VolumeFilter {
-    pub fn driver(v: impl Into<String>) -> Self { Self::Driver(v.into()) }
+    pub fn driver(v: impl Into<VolumeDriver>) -> Self { Self::Driver(v.into()) }
     pub fn label(k: impl Into<String>, v: impl Into<String>) -> Self { Self::Label(k.into(), v.into()) }
     pub fn label_key(k: impl Into<String>) -> Self { Self::LabelKey(k.into()) }
     pub fn name(v: impl Into<String>) -> Self { Self::Name(v.into()) }
@@ -275,7 +260,7 @@ impl VolumeFilter {
 impl fmt::Display for VolumeFilter {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Driver(v) => write!(f, "driver={v}"),
+            Self::Driver(v) => write!(f, "driver={}", v.as_str()),
             Self::Label(k, v) => write!(f, "label={k}={v}"),
             Self::LabelKey(k) => write!(f, "label={k}"),
             Self::Name(v) => write!(f, "name={v}"),

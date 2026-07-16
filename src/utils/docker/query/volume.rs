@@ -60,7 +60,11 @@ impl<'a> VolumeCreate<'a> {
         }
     }
 
-    pub fn driver(mut self, v: impl Into<String>) -> Self { self.driver = Some(v.into()); self }
+    pub fn driver(mut self, v: impl Into<super::super::types::VolumeDriver>) -> Self {
+        let d: super::super::types::VolumeDriver = v.into();
+        self.driver = Some(d.as_str().to_string());
+        self
+    }
     pub fn label(mut self, k: impl Into<String>, v: impl Into<String>) -> Self {
         self.labels.push((k.into(), v.into())); self
     }

@@ -74,7 +74,11 @@ impl<'a> BuildBuilder<'a> {
     pub fn pull(mut self)                             -> Self { self.args.flag("--pull"); self }
     pub fn platform(mut self, p: Platform)            -> Self { self.args.pair("--platform", p.to_string()); self }
     pub fn label(mut self, k: impl AsRef<str>, v: impl AsRef<str>) -> Self { self.args.label(k, v); self }
-    pub fn progress(mut self, v: impl Into<String>)   -> Self { self.args.pair("--progress", v.into()); self }
+    pub fn progress(mut self, v: impl Into<crate::utils::docker::BuildProgress>)   -> Self {
+        let p: crate::utils::docker::BuildProgress = v.into();
+        self.args.pair("--progress", p.as_str());
+        self
+    }
     pub fn arg(mut self, v: impl Into<String>)        -> Self { self.args.push(v.into()); self }
 
     pub fn print(&self) -> String {

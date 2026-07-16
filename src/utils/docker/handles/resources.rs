@@ -43,7 +43,11 @@ impl<'a> NetworkCreate<'a> {
     fn new(cli: &'a DockerCli, name: impl Into<String>) -> Self {
         Self { cli, name: name.into(), args: ArgBuilder::default() }
     }
-    pub fn driver(mut self, v: impl Into<String>)  -> Self { self.args.pair("--driver", v.into()); self }
+    pub fn driver(mut self, v: impl Into<crate::utils::docker::NetworkDriver>)  -> Self {
+        let d: crate::utils::docker::NetworkDriver = v.into();
+        self.args.pair("--driver", d.as_str().to_string());
+        self
+    }
     pub fn subnet(mut self, v: impl Into<String>)  -> Self { self.args.pair("--subnet", v.into()); self }
     pub fn gateway(mut self, v: impl Into<String>) -> Self { self.args.pair("--gateway", v.into()); self }
     pub fn label(mut self, k: impl AsRef<str>, v: impl AsRef<str>) -> Self { self.args.label(k, v); self }
@@ -53,7 +57,11 @@ impl<'a> NetworkCreate<'a> {
     pub fn attachable(mut self) -> Self { self.args.flag("--attachable"); self }
     pub fn internal(mut self)   -> Self { self.args.flag("--internal"); self }
     pub fn ipv6(mut self)       -> Self { self.args.flag("--ipv6"); self }
-    pub fn scope(mut self, v: impl Into<String>) -> Self { self.args.pair("--scope", v.into()); self }
+    pub fn scope(mut self, v: impl Into<crate::utils::docker::NetworkScope>) -> Self {
+        let s: crate::utils::docker::NetworkScope = v.into();
+        self.args.pair("--scope", s.to_string());
+        self
+    }
     pub fn print(&self) -> String {
         let mut a = ArgBuilder::cmd(&["network", "create"]);
         a.push_all(self.args.clone().build());
@@ -120,7 +128,11 @@ impl<'a> VolumeCreate<'a> {
     fn new(cli: &'a DockerCli, name: impl Into<String>) -> Self {
         Self { cli, name: name.into(), args: ArgBuilder::default() }
     }
-    pub fn driver(mut self, v: impl Into<String>) -> Self { self.args.pair("--driver", v.into()); self }
+    pub fn driver(mut self, v: impl Into<crate::utils::docker::VolumeDriver>) -> Self {
+        let d: crate::utils::docker::VolumeDriver = v.into();
+        self.args.pair("--driver", d.as_str().to_string());
+        self
+    }
     pub fn label(mut self, k: impl AsRef<str>, v: impl AsRef<str>) -> Self { self.args.label(k, v); self }
     pub fn opt(mut self, k: impl AsRef<str>, v: impl AsRef<str>) -> Self {
         self.args.pair("--opt", format!("{}={}", k.as_ref(), v.as_ref())); self

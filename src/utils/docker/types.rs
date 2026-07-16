@@ -1,4 +1,5 @@
 use serde::Deserialize;
+use std::fmt;
 
 macro_rules! docker_row {
     ($name:ident { $($field:ident : $rename:literal),* $(,)? }) => {
@@ -212,4 +213,200 @@ pub struct SwarmClusterInfo {
     pub data_path_port: u16,
     #[serde(default)]
     pub subnet_size: u8,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NetworkDriver {
+    Bridge,
+    Overlay,
+    Macvlan,
+    Ipvlan,
+    Host,
+    None,
+    Custom(String),
+}
+
+impl NetworkDriver {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Bridge => "bridge",
+            Self::Overlay => "overlay",
+            Self::Macvlan => "macvlan",
+            Self::Ipvlan => "ipvlan",
+            Self::Host => "host",
+            Self::None => "none",
+            Self::Custom(s) => s.as_str(),
+        }
+    }
+}
+
+impl From<String> for NetworkDriver {
+    fn from(s: String) -> Self {
+        match s.as_str() {
+            "bridge" => Self::Bridge,
+            "overlay" => Self::Overlay,
+            "macvlan" => Self::Macvlan,
+            "ipvlan" => Self::Ipvlan,
+            "host" => Self::Host,
+            "none" => Self::None,
+            _ => Self::Custom(s),
+        }
+    }
+}
+
+impl<'a> From<&'a str> for NetworkDriver {
+    fn from(s: &'a str) -> Self {
+        match s {
+            "bridge" => Self::Bridge,
+            "overlay" => Self::Overlay,
+            "macvlan" => Self::Macvlan,
+            "ipvlan" => Self::Ipvlan,
+            "host" => Self::Host,
+            "none" => Self::None,
+            _ => Self::Custom(s.to_string()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum VolumeDriver {
+    Local,
+    Custom(String),
+}
+
+impl VolumeDriver {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Local => "local",
+            Self::Custom(s) => s.as_str(),
+        }
+    }
+}
+
+impl From<String> for VolumeDriver {
+    fn from(s: String) -> Self {
+        match s.as_str() {
+            "local" => Self::Local,
+            _ => Self::Custom(s),
+        }
+    }
+}
+
+impl<'a> From<&'a str> for VolumeDriver {
+    fn from(s: &'a str) -> Self {
+        match s {
+            "local" => Self::Local,
+            _ => Self::Custom(s.to_string()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuildProgress {
+    Auto,
+    Plain,
+    Tty,
+}
+
+impl BuildProgress {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Auto => "auto",
+            Self::Plain => "plain",
+            Self::Tty => "tty",
+        }
+    }
+}
+
+impl From<String> for BuildProgress {
+    fn from(s: String) -> Self {
+        match s.to_lowercase().as_str() {
+            "plain" => Self::Plain,
+            "tty" => Self::Tty,
+            _ => Self::Auto,
+        }
+    }
+}
+
+impl<'a> From<&'a str> for BuildProgress {
+    fn from(s: &'a str) -> Self {
+        match s.to_lowercase().as_str() {
+            "plain" => Self::Plain,
+            "tty" => Self::Tty,
+            _ => Self::Auto,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NetworkScope { Local, Swarm, Global }
+
+impl fmt::Display for NetworkScope {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self { Self::Local => "local", Self::Swarm => "swarm", Self::Global => "global" })
+    }
+}
+
+impl From<String> for NetworkScope {
+    fn from(s: String) -> Self {
+        match s.to_lowercase().as_str() {
+            "local" => Self::Local,
+            "swarm" => Self::Swarm,
+            "global" => Self::Global,
+            _ => Self::Local,
+        }
+    }
+}
+
+impl<'a> From<&'a str> for NetworkScope {
+    fn from(s: &'a str) -> Self {
+        match s.to_lowercase().as_str() {
+            "local" => Self::Local,
+            "swarm" => Self::Swarm,
+            "global" => Self::Global,
+            _ => Self::Local,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NetworkType { Custom, Builtin }
+
+impl fmt::Display for NetworkType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self { Self::Custom => "custom", Self::Builtin => "builtin" })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RmiMode {
+    All,
+    Local,
+}
+
+impl RmiMode {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::All => "all",
+            Self::Local => "local",
+        }
+    }
+}
+
+impl From<String> for RmiMode {
+    fn from(s: String) -> Self {
+        match s.to_lowercase().as_str() {
+            "all" => Self::All,
+            _ => Self::Local,
+        }
+    }
+}
+
+impl<'a> From<&'a str> for RmiMode {
+    fn from(s: &'a str) -> Self {
+        match s.to_lowercase().as_str() {
+            "all" => Self::All,
+            _ => Self::Local,
+        }
+    }
 }

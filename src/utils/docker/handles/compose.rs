@@ -71,7 +71,11 @@ impl<'a> DownBuilder<'a> {
     }
     pub fn volumes(mut self)                        -> Self { self.args.flag("--volumes"); self }
     pub fn remove_orphans(mut self)                 -> Self { self.args.flag("--remove-orphans"); self }
-    pub fn rmi(mut self, kind: impl Into<String>)   -> Self { self.args.pair("--rmi", kind.into()); self }
+    pub fn rmi(mut self, kind: impl Into<crate::utils::docker::RmiMode>)   -> Self {
+        let k: crate::utils::docker::RmiMode = kind.into();
+        self.args.pair("--rmi", k.as_str());
+        self
+    }
     pub fn timeout(mut self, t: u32)                -> Self { self.args.pair("--timeout", t.to_string()); self }
     pub fn print(&self)  -> String { self.args.preview() }
     pub async fn run(self) -> DockerResult<DockerOutput> {
@@ -168,7 +172,11 @@ impl<'a> ComposeBuildBuilder<'a> {
         self.args.pair("--build-arg", format!("{}={}", k.as_ref(), v.as_ref())); self
     }
     pub fn ssh(mut self, s: impl Into<String>)     -> Self { self.args.pair("--ssh", s.into()); self }
-    pub fn progress(mut self, p: impl Into<String>)-> Self { self.args.pair("--progress", p.into()); self }
+    pub fn progress(mut self, p: impl Into<crate::utils::docker::BuildProgress>)-> Self {
+        let progress: crate::utils::docker::BuildProgress = p.into();
+        self.args.pair("--progress", progress.as_str());
+        self
+    }
     
     pub async fn run(self) -> DockerResult<DockerOutput> {
         self.cli.execute(&self.args).await

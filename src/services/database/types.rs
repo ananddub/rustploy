@@ -1,0 +1,112 @@
+use std::str::FromStr;
+
+#[derive(Debug, Clone, Copy)]
+pub enum DatabaseKind {
+    Postgres,
+    Mysql,
+    Mariadb,
+    Mongo,
+    Redis,
+    Libsql,
+}
+
+impl DatabaseKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Postgres => "postgres",
+            Self::Mysql => "mysql",
+            Self::Mariadb => "mariadb",
+            Self::Mongo => "mongo",
+            Self::Redis => "redis",
+            Self::Libsql => "libsql",
+        }
+    }
+
+    pub fn default_image(self) -> &'static str {
+        match self {
+            Self::Postgres => "postgres:18",
+            Self::Mysql => "mysql:9",
+            Self::Mariadb => "mariadb:13",
+            Self::Mongo => "mongo:8",
+            Self::Redis => "redis:8",
+            Self::Libsql => "ghcr.io/tursodatabase/libsql-server:latest",
+        }
+    }
+}
+
+impl FromStr for DatabaseKind {
+    type Err = ();
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value.to_ascii_lowercase().as_str() {
+            "postgres" | "postgresql" => Ok(Self::Postgres),
+            "mysql" => Ok(Self::Mysql),
+            "mariadb" => Ok(Self::Mariadb),
+            "mongo" | "mongodb" => Ok(Self::Mongo),
+            "redis" => Ok(Self::Redis),
+            "libsql" => Ok(Self::Libsql),
+            _ => Err(()),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct DatabaseRecord {
+    pub kind: String,
+    pub id: i64,
+    pub name: String,
+    pub app_name: String,
+    pub description: Option<String>,
+    pub docker_image: String,
+    pub database_name: Option<String>,
+    pub database_user: Option<String>,
+    pub external_port: Option<i64>,
+    pub env_var: Option<String>,
+    pub memory_reservation: Option<String>,
+    pub memory_limit: Option<String>,
+    pub cpu_reservation: Option<String>,
+    pub cpu_limit: Option<String>,
+    pub replicas: i64,
+    pub app_status: String,
+    pub environment_id: i64,
+    pub server_id: Option<i64>,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum DatabaseOperation {
+    Deploy,
+    Redeploy,
+    Reload,
+    Start,
+    Stop,
+}
+
+impl DatabaseOperation {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Deploy => "deploy",
+            Self::Redeploy => "redeploy",
+            Self::Reload => "reload",
+            Self::Start => "start",
+            Self::Stop => "stop",
+        }
+    }
+
+    pub fn title(self) -> &'static str {
+        match self {
+            Self::Deploy => "Deploying Database",
+            Self::Redeploy => "Redeploying Database",
+            Self::Reload => "Reloading Database",
+            Self::Start => "Starting Database",
+            Self::Stop => "Stopping Database",
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct DatabaseOperationResult {
+    pub database: DatabaseRecord,
+    pub operation: DatabaseOperation,
+}

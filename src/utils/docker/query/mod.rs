@@ -11,7 +11,7 @@ pub use container::{ContainerCreate, ContainerQuery, Protocol, RestartPolicy};
 pub use filter::{
     ContainerFilter, ContainerStatus, HealthStatus,
     ImageFilter,
-    NetworkFilter, NetworkScope, NetworkType,
+    NetworkFilter,
     ServiceFilter, ServiceMode,
     VolumeFilter,
 };
