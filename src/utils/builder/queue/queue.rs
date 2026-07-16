@@ -306,14 +306,10 @@ impl BuilderQueue {
                     let database_kind: Option<String> = claim.database_kind;
                     let operation: String = claim.operation.unwrap_or_else(|| "deploy".into());
 
-                    let db = Arc::clone(&self.db);
-                    let state = Arc::clone(&self.application_state);
                     let q = Arc::clone(self);
 
                     tokio::spawn(async move {
-                        super::common::process(
-                            db,
-                            state,
+                        q.process(
                             dep_id,
                             application_id,
                             compose_id,

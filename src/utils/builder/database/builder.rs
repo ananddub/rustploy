@@ -5,7 +5,6 @@ use crate::repository::MountRepository;
 use crate::services::database::DatabaseKind;
 use serde::Serialize;
 use std::collections::BTreeMap;
-use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 use tokio::time::{Duration, Instant};
 use crate::utils::docker::query::filter::{TaskDesiredState, TaskFilter};

@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use auto_di::singleton;
-use sqlx::SqlitePool;
 use uuid::Uuid;
 
 use crate::{

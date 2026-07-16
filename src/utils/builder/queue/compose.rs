@@ -1,7 +1,4 @@
-use std::sync::Arc;
-
 use auto_di::resolve;
-use sqlx::SqlitePool;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
@@ -24,7 +21,7 @@ use crate::{
 
 impl BuilderQueue {
     pub(crate) async fn execute_operation_compose(
-        db: Arc<SqlitePool>,
+        &self,
         compose_id: i64,
         deployment_id: i64,
         operation: ComposeOperation,
@@ -63,7 +60,7 @@ impl BuilderQueue {
                     .await
                     .map_err(|e| BuilderError::Execution(format!("could not persist remote compose pid file: {e}")))?;
                 CommandExecutor::Remote(
-                    remote_executor(db.as_ref(), sid)
+                    remote_executor(self.db.as_ref(), sid)
                         .await
                         .map_err(|e| BuilderError::Execution(e.to_string()))?
                         .with_job_pid_file(pid_file),
@@ -73,7 +70,7 @@ impl BuilderQueue {
         };
 
         let (events_tx, events_rx) = mpsc::channel(64);
-        tokio::spawn(super::deployment_log::record_builder_events(db.clone(), deployment_id, events_rx, "compose"));
+        tokio::spawn(super::deployment_log::record_builder_events(deployment_id, events_rx, "compose"));
 
         let builder = ComposeBuilder::new(executor)
             .with_state(state, compose_key)

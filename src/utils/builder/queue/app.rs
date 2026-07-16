@@ -1,7 +1,4 @@
-use std::sync::Arc;
-
 use auto_di::resolve;
-use sqlx::SqlitePool;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
@@ -25,72 +22,13 @@ use crate::{
     },
 };
 
-fn parse_memory_limit(s: &str) -> Option<MemoryLimit> {
-    let s = s.trim().to_lowercase();
-    if s == "max" {
-        return Some(MemoryLimit::Max);
-    }
-    let num_str = s.chars().take_while(|c| c.is_ascii_digit()).collect::<String>();
-    let suffix = s.chars().skip_while(|c| c.is_ascii_digit()).collect::<String>();
-    let val: u64 = num_str.parse().ok()?;
-    
-    match suffix.trim() {
-        "k" | "kb" => Some(MemoryLimit::KB(val)),
-        "m" | "mb" => Some(MemoryLimit::MB(val)),
-        "g" | "gb" => Some(MemoryLimit::GB(val)),
-        "b" | "" => Some(MemoryLimit::B(val)),
-        _ => None,
-    }
-}
+use super::resource::{parse_memory_limit, parse_cpu_limit, get_total_memory_kb, get_cpu_cores};
 
-fn parse_cpu_limit(s: &str) -> Option<CpuLimit> {
-    let s = s.trim().to_lowercase();
-    if s == "max" {
-        return Some(CpuLimit::Max);
-    }
-    if let Ok(cores) = s.parse::<f32>() {
-        return Some(CpuLimit::Cores(cores));
-    }
-    None
-}
 
-async fn get_total_memory_kb(executor: &CommandExecutor) -> Option<u64> {
-    if let Ok(res) = executor.run("cat", &["/proc/meminfo"]).await {
-        for line in res.stdout.lines() {
-            if line.starts_with("MemTotal:") {
-                let parts: Vec<&str> = line.split_whitespace().collect();
-                if parts.len() >= 2 {
-                    return parts[1].parse::<u64>().ok();
-                }
-            }
-        }
-    }
-    None
-}
-
-async fn get_cpu_cores(executor: &CommandExecutor) -> Option<f32> {
-    if let Ok(res) = executor.run("nproc", &[] as &[&str]).await {
-        if let Ok(cores) = res.stdout.trim().parse::<f32>() {
-            return Some(cores);
-        }
-    }
-    if let Ok(res) = executor.run("cat", &["/proc/cpuinfo"]).await {
-        let mut count = 0;
-        for line in res.stdout.lines() {
-            if line.starts_with("processor") {
-                count += 1;
-            }
-        }
-        if count > 0 {
-            return Some(count as f32);
-        }
-    }
-    None
-}
 
 impl BuilderQueue {
     pub(crate) async fn execute_operation_app(
-        db: Arc<SqlitePool>,
+        &self,
         application_id: i64,
         deployment_id: i64,
         _operation: ApplicationOperation,
@@ -133,7 +71,7 @@ impl BuilderQueue {
                     .await
                     .map_err(|e| BuilderError::Execution(format!("could not persist remote deployment pid file: {e}")))?;
                 CommandExecutor::Remote(
-                    remote_executor(db.as_ref(), sid)
+                    remote_executor(self.db.as_ref(), sid)
                         .await
                         .map_err(|e| BuilderError::Execution(e.to_string()))?
                         .with_job_pid_file(pid_file),
@@ -207,7 +145,7 @@ impl BuilderQueue {
         }
 
         let (events_tx, events_rx) = mpsc::channel(6);
-        tokio::spawn(super::deployment_log::record_builder_events(db.clone(), deployment_id, events_rx, "app"));
+        tokio::spawn(super::deployment_log::record_builder_events(deployment_id, events_rx, "app"));
 
         let events_tx_clone = events_tx.clone();
         let cgroup_clone = cgroup.clone();

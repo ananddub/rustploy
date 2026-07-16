@@ -1,7 +1,3 @@
-use std::sync::Arc;
-
-use sqlx::SqlitePool;
-
 use auto_di::resolve;
 
 use crate::{
@@ -12,97 +8,97 @@ use crate::{
     },
     utils::builder::{
         custom_type::{DeployState, IdType},
-        hash_state::ApplicationState,
         queue::queue::BuilderQueue,
         spec::BuilderEvent,
     },
 };
 
-pub async fn process(
-    db: Arc<SqlitePool>,
-    application_state: Arc<ApplicationState>,
-    deployment_id: i64,
-    application_id: Option<i64>,
-    compose_id: Option<i64>,
-    database_id: Option<i64>,
-    database_kind: Option<String>,
-    operation: String,
-) {
-    tracing::info!(
-        deployment_id,
-        ?application_id,
-        ?compose_id,
-        ?database_id,
-        ?database_kind,
-        %operation,
-        "builder queue: starting job"
-    );
+impl BuilderQueue {
+    pub(super) async fn process(
+        &self,
+        deployment_id: i64,
+        application_id: Option<i64>,
+        compose_id: Option<i64>,
+        database_id: Option<i64>,
+        database_kind: Option<String>,
+        operation: String,
+    ) {
+        tracing::info!(
+            deployment_id,
+            ?application_id,
+            ?compose_id,
+            ?database_id,
+            ?database_kind,
+            %operation,
+            "builder queue: starting job"
+        );
 
-    let result = match (application_id, compose_id, database_id, database_kind.as_deref()) {
-        (Some(app_id), None, None, None) => {
-            let op = parse_application_operation(&operation);
-            BuilderQueue::execute_operation_app(db.clone(), app_id, deployment_id, op).await
-        }
-        (None, Some(cmp_id), None, None) => {
-            let op = parse_compose_operation(&operation);
-            BuilderQueue::execute_operation_compose(db.clone(), cmp_id, deployment_id, op).await
-        }
-        (None, None, Some(db_id), Some(db_kind)) => {
-            let op = parse_database_operation(&operation);
-            BuilderQueue::execute_operation_db(db.clone(), db_id, db_kind.to_string(), deployment_id, op).await
-        }
-        _ => Err(crate::utils::builder::errors::BuilderError::Execution(format!(
-            "deployment {deployment_id} must have exactly one of application_id, compose_id, or database_id/kind"
-        ))),
-    };
+        let result = match (application_id, compose_id, database_id, database_kind.as_deref()) {
+            (Some(app_id), None, None, None) => {
+                let op = parse_application_operation(&operation);
+                self.execute_operation_app(app_id, deployment_id, op).await
+            }
+            (None, Some(cmp_id), None, None) => {
+                let op = parse_compose_operation(&operation);
+                self.execute_operation_compose(cmp_id, deployment_id, op).await
+            }
+            (None, None, Some(db_id), Some(db_kind)) => {
+                let op = parse_database_operation(&operation);
+                self.execute_operation_db(db_id, db_kind.to_string(), deployment_id, op).await
+            }
+            _ => Err(crate::utils::builder::errors::BuilderError::Execution(format!(
+                "deployment {deployment_id} must have exactly one of application_id, compose_id, or database_id/kind"
+            ))),
+        };
 
-    let final_status = match &result {
-        Ok(()) => "DONE",
-        Err(e) if is_cancelled_error(&e.to_string()) => "CANCELLED",
-        Err(_) => "ERROR",
-    };
-    let error_message = result.err().map(|e| e.to_string());
-    
-    let repo = match resolve::<crate::repository::DeploymentRepository>().await {
-        Ok(r) => r,
-        Err(e) => {
-            tracing::error!(error = %e, "builder queue: could not resolve DeploymentRepository");
-            return;
-        }
-    };
+        let final_status = match &result {
+            Ok(()) => "DONE",
+            Err(e) if is_cancelled_error(&e.to_string()) => "CANCELLED",
+            Err(_) => "ERROR",
+        };
+        let error_message = result.err().map(|e| e.to_string());
+        
+        let repo = match resolve::<crate::repository::DeploymentRepository>().await {
+            Ok(r) => r,
+            Err(e) => {
+                tracing::error!(error = %e, "builder queue: could not resolve DeploymentRepository");
+                return;
+            }
+        };
 
-    if let Err(e) = repo.update_final_status(deployment_id, final_status, error_message.as_deref()).await {
-        tracing::error!(deployment_id, error = %e, "builder queue: could not persist final deployment status");
+        if let Err(e) = repo.update_final_status(deployment_id, final_status, error_message.as_deref()).await {
+            tracing::error!(deployment_id, error = %e, "builder queue: could not persist final deployment status");
+        }
+
+        let target_status = if final_status == "DONE" { "DONE" } else { "ERROR" };
+        
+        if let Some(app_id) = application_id {
+            if let Err(e) = repo.set_application_status(app_id, target_status).await {
+                tracing::error!(deployment_id, app_id, error = %e, "builder queue: could not persist application status");
+            }
+            self.application_state.remove_state(IdType::AppId(app_id));
+        }
+
+        if let Some(cmp_id) = compose_id {
+            if let Err(e) = repo.set_compose_status(cmp_id, target_status).await {
+                tracing::error!(deployment_id, cmp_id, error = %e, "builder queue: could not persist compose status");
+            }
+            self.application_state.remove_state(IdType::ComposeId(cmp_id));
+        }
+
+        if let (Some(db_id), Some(db_kind)) = (database_id, database_kind.as_deref()) {
+            if let Err(e) = repo.set_database_status(db_id, db_kind, target_status).await {
+                tracing::error!(deployment_id, db_id, db_kind, error = %e, "builder queue: could not persist database status");
+            }
+            self.application_state.remove_state(IdType::DatabaseId(db_id));
+        }
+
+        tracing::info!(
+            deployment_id,
+            status = final_status,
+            "builder queue: job finished"
+        );
     }
-
-    let target_status = if final_status == "DONE" { "DONE" } else { "ERROR" };
-    
-    if let Some(app_id) = application_id {
-        if let Err(e) = repo.set_application_status(app_id, target_status).await {
-            tracing::error!(deployment_id, app_id, error = %e, "builder queue: could not persist application status");
-        }
-        application_state.remove_state(IdType::AppId(app_id));
-    }
-
-    if let Some(cmp_id) = compose_id {
-        if let Err(e) = repo.set_compose_status(cmp_id, target_status).await {
-            tracing::error!(deployment_id, cmp_id, error = %e, "builder queue: could not persist compose status");
-        }
-        application_state.remove_state(IdType::ComposeId(cmp_id));
-    }
-
-    if let (Some(db_id), Some(db_kind)) = (database_id, database_kind.as_deref()) {
-        if let Err(e) = repo.set_database_status(db_id, db_kind, target_status).await {
-            tracing::error!(deployment_id, db_id, db_kind, error = %e, "builder queue: could not persist database status");
-        }
-        application_state.remove_state(IdType::DatabaseId(db_id));
-    }
-
-    tracing::info!(
-        deployment_id,
-        status = final_status,
-        "builder queue: job finished"
-    );
 }
 
 pub fn builder_event_state(event: &BuilderEvent) -> &'static str {
@@ -121,7 +117,6 @@ pub fn builder_event_state(event: &BuilderEvent) -> &'static str {
         BuilderEvent::RecoverAfterRestart => "RECOVER_AFTER_RESTART",
     }
 }
-
 
 pub fn builder_event_state_opt(event: &BuilderEvent) -> Option<DeployState> {
     match event {

@@ -74,7 +74,6 @@ impl DeploymentLog {
 }
 
 pub async fn record_builder_events(
-    _db: std::sync::Arc<sqlx::SqlitePool>,
     deployment_id: i64,
     mut events: tokio::sync::mpsc::Receiver<BuilderEvent>,
     log_context: &'static str,

@@ -1,4 +1,5 @@
 use crate::db::models::compose_projects::ComposeProject;
+use crate::utils::builder::compose::adapter::mapper::ComposeRow;
 use sqlx::SqlitePool;
 use std::sync::Arc;
 use auto_di::singleton;
@@ -424,5 +425,34 @@ impl ComposeProjectRepository {
         .execute(self.pool.as_ref())
         .await?;
         Ok(())
+    }
+
+    pub async fn get_spec_row(&self, compose_id: i64) -> Result<ComposeRow, sqlx::Error> {
+        sqlx::query_as::<_, ComposeRow>(
+            r#"SELECT
+               c.app_name, c.source_type, c.compose_type, c.compose_file, c.env_var,
+               c.repository, c.owner, c.branch, c.gitlab_repository, c.gitlab_owner,
+               c.gitlab_branch, c.gitea_repository, c.gitea_branch, c.bitbucket_repository,
+               c.bitbucket_owner, c.bitbucket_branch, c.custom_git_url, c.custom_git_branch,
+               c.custom_git_ssh_key_id, c.enable_submodules, c.compose_path, e.env_var AS environment_env,
+               p.env_var AS project_env,
+               ghp.github_private_key AS github_token,
+               glp.access_token AS gitlab_token,
+               bbp.api_token AS bitbucket_token,
+               gtp.access_token AS gitea_token,
+               sk.private_key AS ssh_private_key
+               FROM compose_projects c
+               JOIN environments e ON e.id = c.environment_id
+               JOIN projects p ON p.id = e.project_id
+               LEFT JOIN github_providers ghp ON ghp.id = c.github_provider_id
+               LEFT JOIN gitlab_providers glp ON glp.id = c.gitlab_provider_id
+               LEFT JOIN bitbucket_providers bbp ON bbp.id = c.bitbucket_provider_id
+               LEFT JOIN gitea_providers gtp ON gtp.id = c.gitea_provider_id
+               LEFT JOIN ssh_keys sk ON sk.id = c.custom_git_ssh_key_id
+               WHERE c.id = ?"#,
+        )
+        .bind(compose_id)
+        .fetch_one(self.pool.as_ref())
+        .await
     }
 }

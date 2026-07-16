@@ -125,6 +125,32 @@ impl DomainRepository {
         .await
     }
 
+    pub async fn list_by_application_raw(&self, application_id: i64) -> Result<Vec<Domain>, sqlx::Error> {
+        sqlx::query_as!(
+            Domain,
+            r#"SELECT id AS "id?: i64", host AS "host: String", https AS "https: i64", port AS "port?: i64", path AS "path?: String", internal_path AS "internal_path?: String", custom_entrypoint AS "custom_entrypoint?: String", service_name AS "service_name?: String", custom_cert_resolver AS "custom_cert_resolver?: String", strip_path AS "strip_path: i64", middlewares AS "middlewares: String", domain_type AS "domain_type: String", certificate_type AS "certificate_type: String", application_id AS "application_id?: i64", compose_id AS "compose_id?: i64", created_at AS "created_at: i64", updated_at AS "updated_at: i64"
+               FROM domains
+               WHERE application_id = ?
+               ORDER BY id"#,
+            application_id
+        )
+        .fetch_all(self.pool.as_ref())
+        .await
+    }
+
+    pub async fn list_by_compose_raw(&self, compose_id: i64) -> Result<Vec<Domain>, sqlx::Error> {
+        sqlx::query_as!(
+            Domain,
+            r#"SELECT id AS "id?: i64", host AS "host: String", https AS "https: i64", port AS "port?: i64", path AS "path?: String", internal_path AS "internal_path?: String", custom_entrypoint AS "custom_entrypoint?: String", service_name AS "service_name?: String", custom_cert_resolver AS "custom_cert_resolver?: String", strip_path AS "strip_path: i64", middlewares AS "middlewares: String", domain_type AS "domain_type: String", certificate_type AS "certificate_type: String", application_id AS "application_id?: i64", compose_id AS "compose_id?: i64", created_at AS "created_at: i64", updated_at AS "updated_at: i64"
+               FROM domains
+               WHERE compose_id = ?
+               ORDER BY id"#,
+            compose_id
+        )
+        .fetch_all(self.pool.as_ref())
+        .await
+    }
+
     pub async fn create_and_return(
         &self,
         host: String,
