@@ -15,25 +15,25 @@ impl DeploymentService {
     ) -> sqlx::Result<tokio::sync::mpsc::Receiver<String>> {
         let deployment = self.get_by_id(deployment_id).await?;
         let log_path_str = deployment.log_path.clone();
-        
+
         let (sender, receiver) = mpsc::channel(100);
-        let db = self.db.clone();
-        
+        let repo_deploy = self.repo_deploy.clone();
+
         tokio::spawn(async move {
             let log_path = std::path::Path::new(&log_path_str);
-            
+
             for _ in 0..10 {
                 if log_path.exists() {
                     break;
                 }
                 tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
             }
-            
+
             if !log_path.exists() {
                 let _ = sender.send(format!("Log file not found: {}", log_path_str)).await;
                 return;
             }
-            
+
             let mut file = match tokio::fs::File::open(log_path).await {
                 Ok(f) => f,
                 Err(e) => {
@@ -41,10 +41,10 @@ impl DeploymentService {
                     return;
                 }
             };
-            
+
             let mut pos = 0u64;
             let mut buffer = Vec::new();
-            
+
             if let Ok(meta) = file.metadata().await {
                 let len = meta.len();
                 if len > 0 {
@@ -57,7 +57,7 @@ impl DeploymentService {
                     }
                 }
             }
-            
+
             let (event_tx, mut event_rx) = mpsc::channel(10);
             let watcher = {
                 use notify::{Watcher, RecommendedWatcher, RecursiveMode};
@@ -68,7 +68,7 @@ impl DeploymentService {
                         }
                     }
                 }, notify::Config::default());
-                
+
                 match watcher_res {
                     Ok(mut w) => {
                         if w.watch(log_path, RecursiveMode::NonRecursive).is_err() {
@@ -80,16 +80,15 @@ impl DeploymentService {
                     Err(_) => None,
                 }
             };
-            
+
             loop {
-                let status = sqlx::query_scalar::<_, String>("SELECT status FROM deployments WHERE id = ?")
-                    .bind(deployment_id)
-                    .fetch_one(db.as_ref())
+                let status = repo_deploy.get_status(deployment_id)
                     .await
+                    .unwrap_or_default()
                     .unwrap_or_default();
-                
+
                 let is_finished = status != "RUNNING" && status != "QUEUED";
-                
+
                 if let Ok(meta) = tokio::fs::metadata(log_path).await {
                     let len = meta.len();
                     if len > pos {
@@ -103,18 +102,18 @@ impl DeploymentService {
                         }
                     }
                 }
-                
+
                 if is_finished {
                     break;
                 }
-                
+
                 if watcher.is_some() {
                     let _ = tokio::time::timeout(tokio::time::Duration::from_secs(2), event_rx.recv()).await;
                 } else {
                     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
                 }
             }
-            
+
             if let Ok(meta) = tokio::fs::metadata(log_path).await {
                 let len = meta.len();
                 if len > pos {
@@ -127,16 +126,16 @@ impl DeploymentService {
                     }
                 }
             }
-            
+
             if !buffer.is_empty() {
                 if let Ok(line) = String::from_utf8(buffer) {
                     let _ = sender.send(line).await;
                 }
             }
-            
+
             drop(watcher);
         });
-        
+
         Ok(receiver)
     }
 
@@ -144,12 +143,9 @@ impl DeploymentService {
         &self,
         application_id: i64,
     ) -> sqlx::Result<tokio::sync::mpsc::Receiver<String>> {
-        let deployment_id = sqlx::query_scalar::<_, i64>(
-            "SELECT id FROM deployments WHERE application_id = ? ORDER BY id DESC LIMIT 1"
-        )
-        .bind(application_id)
-        .fetch_one(self.db.as_ref())
-        .await?;
+        let deployment_id = self.repo_deploy.get_latest_application_deployment_id(application_id)
+            .await?
+            .ok_or(sqlx::Error::RowNotFound)?;
 
         self.stream_deployment_log(deployment_id).await
     }
@@ -158,12 +154,9 @@ impl DeploymentService {
         &self,
         compose_id: i64,
     ) -> sqlx::Result<tokio::sync::mpsc::Receiver<String>> {
-        let deployment_id = sqlx::query_scalar::<_, i64>(
-            "SELECT id FROM deployments WHERE compose_id = ? ORDER BY id DESC LIMIT 1"
-        )
-        .bind(compose_id)
-        .fetch_one(self.db.as_ref())
-        .await?;
+        let deployment_id = self.repo_deploy.get_latest_compose_deployment_id(compose_id)
+            .await?
+            .ok_or(sqlx::Error::RowNotFound)?;
 
         self.stream_deployment_log(deployment_id).await
     }
@@ -176,7 +169,7 @@ async fn send_lines(buffer: &mut Vec<u8>, sender: &tokio::sync::mpsc::Sender<Str
             last_newline = Some(i);
         }
     }
-    
+
     if let Some(idx) = last_newline {
         let lines_part = buffer[..idx].to_vec();
         *buffer = buffer[idx + 1..].to_vec();

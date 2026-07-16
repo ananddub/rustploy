@@ -1,6 +1,4 @@
 use crate::db::models::organization_members::OrganizationMember;
-use crate::db::models::types::*;
-use chrono::NaiveDateTime;
 use sqlx::SqlitePool;
 use std::sync::Arc;
 use auto_di::singleton;
@@ -69,6 +67,24 @@ impl OrganizationMemberRepository {
             id
         )
         .execute(self.pool.as_ref())
+        .await?;
+        Ok(())
+    }
+
+    pub async fn add_member_in_transaction(
+        &self,
+        tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+        role: &str,
+        user_id: i64,
+        organization_id: i64,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query!(
+            "INSERT INTO organization_members (role, user_id, organization_id) VALUES (?, ?, ?)",
+            role,
+            user_id,
+            organization_id
+        )
+        .execute(&mut **tx)
         .await?;
         Ok(())
     }

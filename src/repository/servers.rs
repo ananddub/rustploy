@@ -1,6 +1,4 @@
 use crate::db::models::servers::Server;
-use crate::db::models::types::*;
-use chrono::NaiveDateTime;
 use sqlx::SqlitePool;
 use std::sync::Arc;
 use auto_di::singleton;
@@ -107,5 +105,108 @@ impl ServerRepository {
         .await?;
 
         Ok(res.map(|r| (r.ip_address, r.port, r.username, r.private_key, r.public_key)))
+    }
+
+    pub async fn list_ordered(&self) -> Result<Vec<Server>, sqlx::Error> {
+        sqlx::query_as!(
+            Server,
+            r#"SELECT id AS "id?: i64", name AS "name: String", description AS "description?: String", ip_address AS "ip_address: String", port AS "port: i64", username AS "username: String", app_name AS "app_name: String", server_status AS "server_status: String", server_type AS "server_type: String", enable_docker_cleanup AS "enable_docker_cleanup: i64", log_cleanup_cron AS "log_cleanup_cron?: String", command AS "command: String", metrics_config AS "metrics_config: String", ssh_key_id AS "ssh_key_id?: i64", created_at AS "created_at: i64", updated_at AS "updated_at: i64", build_memory_limit AS "build_memory_limit?: String", build_cpu_limit AS "build_cpu_limit?: String"
+               FROM servers ORDER BY created_at DESC, id DESC"#
+        )
+        .fetch_all(self.pool.as_ref())
+        .await
+    }
+
+    pub async fn create_and_return(
+        &self,
+        name: String,
+        description: Option<String>,
+        ip_address: String,
+        port: i64,
+        username: String,
+        app_name: String,
+        server_type: String,
+        ssh_key_id: Option<i64>,
+        build_memory_limit: Option<String>,
+        build_cpu_limit: Option<String>,
+    ) -> Result<Server, sqlx::Error> {
+        sqlx::query_as!(
+            Server,
+            r#"INSERT INTO servers
+               (name, description, ip_address, port, username, app_name, server_type, ssh_key_id, build_memory_limit, build_cpu_limit)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               RETURNING id AS "id?: i64", name AS "name: String", description AS "description?: String", ip_address AS "ip_address: String", port AS "port: i64", username AS "username: String", app_name AS "app_name: String", server_status AS "server_status: String", server_type AS "server_type: String", enable_docker_cleanup AS "enable_docker_cleanup: i64", log_cleanup_cron AS "log_cleanup_cron?: String", command AS "command: String", metrics_config AS "metrics_config: String", ssh_key_id AS "ssh_key_id?: i64", created_at AS "created_at: i64", updated_at AS "updated_at: i64", build_memory_limit AS "build_memory_limit?: String", build_cpu_limit AS "build_cpu_limit?: String""#,
+            name,
+            description,
+            ip_address,
+            port,
+            username,
+            app_name,
+            server_type,
+            ssh_key_id,
+            build_memory_limit,
+            build_cpu_limit
+        )
+        .fetch_one(self.pool.as_ref())
+        .await
+    }
+
+    pub async fn update_and_return(
+        &self,
+        id: i64,
+        name: String,
+        description: Option<String>,
+        ip_address: String,
+        port: i64,
+        username: String,
+        server_status: String,
+        server_type: String,
+        enable_docker_cleanup: i64,
+        log_cleanup_cron: Option<String>,
+        command: String,
+        metrics_config: String,
+        ssh_key_id: Option<i64>,
+        build_memory_limit: Option<String>,
+        build_cpu_limit: Option<String>,
+    ) -> Result<Server, sqlx::Error> {
+        sqlx::query_as!(
+            Server,
+            r#"UPDATE servers SET
+               name = ?, description = ?, ip_address = ?, port = ?, username = ?,
+               server_status = ?, server_type = ?, enable_docker_cleanup = ?,
+               log_cleanup_cron = ?, command = ?, metrics_config = ?, ssh_key_id = ?,
+               build_memory_limit = ?, build_cpu_limit = ?
+               WHERE id = ?
+               RETURNING id AS "id?: i64", name AS "name: String", description AS "description?: String", ip_address AS "ip_address: String", port AS "port: i64", username AS "username: String", app_name AS "app_name: String", server_status AS "server_status: String", server_type AS "server_type: String", enable_docker_cleanup AS "enable_docker_cleanup: i64", log_cleanup_cron AS "log_cleanup_cron?: String", command AS "command: String", metrics_config AS "metrics_config: String", ssh_key_id AS "ssh_key_id?: i64", created_at AS "created_at: i64", updated_at AS "updated_at: i64", build_memory_limit AS "build_memory_limit?: String", build_cpu_limit AS "build_cpu_limit?: String""#,
+            name,
+            description,
+            ip_address,
+            port,
+            username,
+            server_status,
+            server_type,
+            enable_docker_cleanup,
+            log_cleanup_cron,
+            command,
+            metrics_config,
+            ssh_key_id,
+            build_memory_limit,
+            build_cpu_limit,
+            id
+        )
+        .fetch_one(self.pool.as_ref())
+        .await
+    }
+
+    pub async fn set_status(&self, id: i64, status: &str) -> Result<Server, sqlx::Error> {
+        sqlx::query_as!(
+            Server,
+            r#"UPDATE servers SET server_status = ? WHERE id = ?
+               RETURNING id AS "id?: i64", name AS "name: String", description AS "description?: String", ip_address AS "ip_address: String", port AS "port: i64", username AS "username: String", app_name AS "app_name: String", server_status AS "server_status: String", server_type AS "server_type: String", enable_docker_cleanup AS "enable_docker_cleanup: i64", log_cleanup_cron AS "log_cleanup_cron?: String", command AS "command: String", metrics_config AS "metrics_config: String", ssh_key_id AS "ssh_key_id?: i64", created_at AS "created_at: i64", updated_at AS "updated_at: i64", build_memory_limit AS "build_memory_limit?: String", build_cpu_limit AS "build_cpu_limit?: String""#,
+            status,
+            id
+        )
+        .fetch_one(self.pool.as_ref())
+        .await
     }
 }

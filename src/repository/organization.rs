@@ -1,6 +1,4 @@
 use crate::db::models::organization::Organization;
-use crate::db::models::types::*;
-use chrono::NaiveDateTime;
 use sqlx::SqlitePool;
 use std::sync::Arc;
 use auto_di::singleton;
@@ -73,5 +71,57 @@ impl OrganizationRepository {
         .execute(self.pool.as_ref())
         .await?;
         Ok(())
+    }
+
+    pub async fn list_by_owner(&self, owner_id: i64) -> Result<Vec<Organization>, sqlx::Error> {
+        sqlx::query_as!(
+            Organization,
+            r#"SELECT id AS "id?", name, logo, slug, owner_id, created_at, updated_at
+               FROM organization WHERE owner_id = ? ORDER BY created_at DESC, id DESC"#,
+            owner_id
+        )
+        .fetch_all(self.pool.as_ref())
+        .await
+    }
+
+    pub async fn create_in_transaction(
+        &self,
+        tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+        name: String,
+        logo: Option<String>,
+        slug: String,
+        owner_id: i64,
+    ) -> Result<Organization, sqlx::Error> {
+        sqlx::query_as!(
+            Organization,
+            r#"INSERT INTO organization (name, logo, slug, owner_id) VALUES (?, ?, ?, ?)
+               RETURNING id AS "id?", name, logo, slug, owner_id, created_at, updated_at"#,
+            name,
+            logo,
+            slug,
+            owner_id
+        )
+        .fetch_one(&mut **tx)
+        .await
+    }
+
+    pub async fn update_and_return(
+        &self,
+        id: i64,
+        name: String,
+        logo: Option<String>,
+        slug: String,
+    ) -> Result<Organization, sqlx::Error> {
+        sqlx::query_as!(
+            Organization,
+            r#"UPDATE organization SET name = ?, logo = ?, slug = ? WHERE id = ?
+               RETURNING id AS "id?", name, logo, slug, owner_id, created_at, updated_at"#,
+            name,
+            logo,
+            slug,
+            id
+        )
+        .fetch_one(self.pool.as_ref())
+        .await
     }
 }

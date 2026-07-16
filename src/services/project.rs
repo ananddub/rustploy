@@ -6,59 +6,59 @@ use sqlx::SqlitePool;
 use crate::{
     api::dto::project::{CreateProjectDto, PatchProjectDto},
     db::models::projects::Project,
+    repository::{ProjectRepository, EnvironmentRepository},
 };
 
 pub struct ProjectService {
     db: Arc<SqlitePool>,
+    repo_project: Arc<ProjectRepository>,
+    repo_env: Arc<EnvironmentRepository>,
 }
+
 #[singleton]
 impl ProjectService {
-    fn new(db: Arc<SqlitePool>) -> Self {
-        Self { db }
+    fn new(
+        db: Arc<SqlitePool>,
+        repo_project: Arc<ProjectRepository>,
+        repo_env: Arc<EnvironmentRepository>,
+    ) -> Self {
+        Self {
+            db,
+            repo_project,
+            repo_env,
+        }
     }
 
     pub async fn get_by_id(&self, id: i64) -> sqlx::Result<Project> {
-        sqlx::query_as!(
-            Project,
-            r#"SELECT id AS "id?", name, description, env_var, organization_id, created_at, updated_at
-               FROM projects WHERE id = ?"#,
-            id
-        )
-            .fetch_one(self.db.as_ref())
-            .await
+        self.repo_project
+            .get_by_id(id)
+            .await?
+            .ok_or(sqlx::Error::RowNotFound)
     }
 
     pub async fn list_by_organization(&self, organization_id: i64) -> sqlx::Result<Vec<Project>> {
-        sqlx::query_as!(
-            Project,
-            r#"SELECT id AS "id?", name, description, env_var, organization_id, created_at, updated_at
-               FROM projects WHERE organization_id = ? ORDER BY created_at DESC, id DESC"#,
-            organization_id
-        )
-        .fetch_all(self.db.as_ref())
-        .await
+        self.repo_project.list_by_organization(organization_id).await
     }
 
     pub async fn create(&self, input: CreateProjectDto) -> sqlx::Result<Project> {
         let mut tx = self.db.begin().await?;
-        let project = sqlx::query_as!(
-            Project,
-            r#"INSERT INTO projects (name, description, env_var, organization_id) VALUES (?, ?, ?, ?)
-               RETURNING id AS "id?", name, description, env_var, organization_id, created_at, updated_at"#,
+        let project = self.repo_project.create_in_transaction(
+            &mut tx,
             input.name,
             input.description,
             input.env_var,
             input.organization_id
-        )
-        .fetch_one(&mut *tx)
-        .await?;
+        ).await?;
 
-        sqlx::query!(
-            "INSERT INTO environments (name, description, env_var, is_default, project_id) VALUES ('production', 'Production environment', '', 1, ?)",
-            project.id
-        )
-        .execute(&mut *tx)
-        .await?;
+        let project_id = project.id.ok_or_else(|| sqlx::Error::Protocol("missing project id".into()))?;
+        self.repo_env.create_in_transaction(
+            &mut tx,
+            "production".to_string(),
+            Some("Production environment".to_string()),
+            "".to_string(),
+            1, // is_default
+            project_id
+        ).await?;
 
         tx.commit().await?;
         Ok(project)
@@ -70,25 +70,12 @@ impl ProjectService {
         let description = input.description.or(current.description);
         let env_var = input.env_var.unwrap_or(current.env_var);
 
-        sqlx::query_as!(
-            Project,
-            r#"UPDATE projects SET name = ?, description = ?, env_var = ? WHERE id = ?
-               RETURNING id AS "id?", name, description, env_var, organization_id, created_at, updated_at"#,
-            name,
-            description,
-            env_var,
-            id
-        )
-        .fetch_one(self.db.as_ref())
-        .await
+        self.repo_project.update_and_return(id, name, description, env_var).await
     }
 
     pub async fn delete(&self, id: i64) -> sqlx::Result<()> {
         self.get_by_id(id).await?;
-        sqlx::query!("DELETE FROM projects WHERE id = ?", id)
-            .execute(self.db.as_ref())
-            .await?;
-        Ok(())
+        self.repo_project.delete(id).await
     }
 }
 
@@ -119,7 +106,13 @@ mod tests {
             .execute(&pool)
             .await
             .unwrap();
-        let service = ProjectService { db: Arc::new(pool) };
+        
+        let db = Arc::new(pool);
+        let service = ProjectService {
+            db: db.clone(),
+            repo_project: Arc::new(ProjectRepository::new(db.clone())),
+            repo_env: Arc::new(EnvironmentRepository::new(db.clone())),
+        };
 
         let project = service
             .create(CreateProjectDto {

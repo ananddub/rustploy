@@ -1,6 +1,4 @@
 use crate::db::models::gitea_providers::GiteaProvider;
-use crate::db::models::types::*;
-use chrono::NaiveDateTime;
 use sqlx::SqlitePool;
 use std::sync::Arc;
 use auto_di::singleton;

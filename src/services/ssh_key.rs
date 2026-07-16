@@ -6,52 +6,38 @@ use sqlx::SqlitePool;
 use crate::{
     api::dto::ssh_key::{CreateSshKeyDto, PatchSshKeyDto},
     db::models::ssh_keys::SshKey,
+    repository::SshKeyRepository,
 };
 
 pub struct SshKeyService {
     db: Arc<SqlitePool>,
+    repo_ssh: Arc<SshKeyRepository>,
 }
 
 #[singleton]
 impl SshKeyService {
-    fn new(db: Arc<SqlitePool>) -> Self {
-        Self { db }
+    fn new(db: Arc<SqlitePool>, repo_ssh: Arc<SshKeyRepository>) -> Self {
+        Self { db, repo_ssh }
     }
 
     pub async fn get_by_id(&self, id: i64) -> sqlx::Result<SshKey> {
-        sqlx::query_as!(
-            SshKey,
-            r#"SELECT id AS "id?", name, description, private_key, public_key, last_used_at, created_at, updated_at
-               FROM ssh_keys WHERE id = ?"#,
-            id
-        )
-        .fetch_one(self.db.as_ref())
-        .await
+        self.repo_ssh
+            .get_by_id(id)
+            .await?
+            .ok_or(sqlx::Error::RowNotFound)
     }
 
     pub async fn list(&self) -> sqlx::Result<Vec<SshKey>> {
-        sqlx::query_as!(
-            SshKey,
-            r#"SELECT id AS "id?", name, description, private_key, public_key, last_used_at, created_at, updated_at
-               FROM ssh_keys ORDER BY created_at DESC, id DESC"#
-        )
-        .fetch_all(self.db.as_ref())
-        .await
+        self.repo_ssh.list_ordered().await
     }
 
     pub async fn create(&self, input: CreateSshKeyDto) -> sqlx::Result<SshKey> {
-        sqlx::query_as!(
-            SshKey,
-            r#"INSERT INTO ssh_keys (name, description, private_key, public_key)
-               VALUES (?, ?, ?, ?)
-               RETURNING id AS "id?", name, description, private_key, public_key, last_used_at, created_at, updated_at"#,
+        self.repo_ssh.create_and_return(
             input.name,
             input.description,
             input.private_key,
             input.public_key
-        )
-        .fetch_one(self.db.as_ref())
-        .await
+        ).await
     }
 
     pub async fn patch(&self, id: i64, input: PatchSshKeyDto) -> sqlx::Result<SshKey> {
@@ -61,38 +47,15 @@ impl SshKeyService {
         let private_key = input.private_key.unwrap_or(current.private_key);
         let public_key = input.public_key.unwrap_or(current.public_key);
 
-        sqlx::query_as!(
-            SshKey,
-            r#"UPDATE ssh_keys SET name = ?, description = ?, private_key = ?, public_key = ?
-               WHERE id = ?
-               RETURNING id AS "id?", name, description, private_key, public_key, last_used_at, created_at, updated_at"#,
-            name,
-            description,
-            private_key,
-            public_key,
-            id
-        )
-        .fetch_one(self.db.as_ref())
-        .await
+        self.repo_ssh.update_and_return(id, name, description, private_key, public_key).await
     }
 
     pub async fn mark_used(&self, id: i64) -> sqlx::Result<SshKey> {
-        sqlx::query_as!(
-            SshKey,
-            r#"UPDATE ssh_keys SET last_used_at = strftime('%s', 'now')
-               WHERE id = ?
-               RETURNING id AS "id?", name, description, private_key, public_key, last_used_at, created_at, updated_at"#,
-            id
-        )
-        .fetch_one(self.db.as_ref())
-        .await
+        self.repo_ssh.touch_and_return(id).await
     }
 
     pub async fn delete(&self, id: i64) -> sqlx::Result<()> {
         self.get_by_id(id).await?;
-        sqlx::query!("DELETE FROM ssh_keys WHERE id = ?", id)
-            .execute(self.db.as_ref())
-            .await?;
-        Ok(())
+        self.repo_ssh.delete(id).await
     }
 }

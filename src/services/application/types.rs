@@ -77,3 +77,42 @@ pub struct ApplicationOperationResult {
     pub deployment_id: Option<i64>,
     pub operation: ApplicationOperation,
 }
+
+impl From<crate::db::models::applications::Application> for ApplicationRecord {
+    fn from(app: crate::db::models::applications::Application) -> Self {
+        Self {
+            id: app.id.as_deref().and_then(|s| s.parse::<i64>().ok()).unwrap_or(0),
+            name: app.name,
+            app_name: app.app_name,
+            description: app.description,
+            source_type: app.source_type,
+            build_type: app.build_type,
+            app_status: app.app_status,
+            trigger_type: app.trigger_type,
+            environment_id: app.environment_id,
+            server_id: app.server_id,
+            build_server_id: app.build_server_id,
+            registry_id: app.registry_id,
+            env_var: app.env_var,
+            icon: app.icon,
+            repository: app.repository,
+            owner: app.owner,
+            branch: app.branch,
+            gitlab_repository: app.gitlab_repository,
+            gitlab_owner: app.gitlab_owner,
+            gitlab_branch: app.gitlab_branch,
+            gitea_repository: app.gitea_repository,
+            gitea_owner: app.gitea_owner,
+            gitea_branch: app.gitea_branch,
+            bitbucket_repository: app.bitbucket_repository,
+            bitbucket_owner: app.bitbucket_owner,
+            bitbucket_branch: app.bitbucket_branch,
+            docker_image: app.docker_image,
+            registry_url: app.registry_url,
+            custom_git_url: app.custom_git_url,
+            custom_git_branch: app.custom_git_branch,
+            created_at: app.created_at,
+            updated_at: app.updated_at,
+        }
+    }
+}

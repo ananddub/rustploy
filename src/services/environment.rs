@@ -1,74 +1,54 @@
 use std::sync::Arc;
 
 use auto_di::singleton;
-use sqlx::{Sqlite, SqlitePool, Transaction};
+use sqlx::SqlitePool;
 
 use crate::{
     api::dto::environment::{CreateEnvironmentDto, PatchEnvironmentDto},
     db::models::environments::Environment,
+    repository::EnvironmentRepository,
 };
 
 pub struct EnvironmentService {
     db: Arc<SqlitePool>,
+    repo_env: Arc<EnvironmentRepository>,
 }
 
 #[singleton]
 impl EnvironmentService {
-    fn new(db: Arc<SqlitePool>) -> Self {
-        Self { db }
+    fn new(db: Arc<SqlitePool>, repo_env: Arc<EnvironmentRepository>) -> Self {
+        Self { db, repo_env }
     }
 
     pub async fn get_by_id(&self, id: i64) -> sqlx::Result<Environment> {
-        sqlx::query_as!(
-            Environment,
-            r#"SELECT id AS "id?", name, description, env_var, is_default, project_id, created_at, updated_at
-               FROM environments WHERE id = ?"#,
-            id
-        )
-            .fetch_one(self.db.as_ref())
-            .await
+        self.repo_env
+            .get_by_id(id)
+            .await?
+            .ok_or(sqlx::Error::RowNotFound)
     }
 
     pub async fn list_by_project(&self, project_id: i64) -> sqlx::Result<Vec<Environment>> {
-        sqlx::query_as!(
-            Environment,
-            r#"SELECT id AS "id?", name, description, env_var, is_default, project_id, created_at, updated_at
-               FROM environments WHERE project_id = ?
-               ORDER BY is_default DESC, created_at ASC, id ASC"#,
-            project_id
-        )
-        .fetch_all(self.db.as_ref())
-        .await
+        self.repo_env.list_by_project(project_id).await
     }
 
     pub async fn create(&self, input: CreateEnvironmentDto) -> sqlx::Result<Environment> {
         let mut tx = self.db.begin().await?;
-        let count = sqlx::query_scalar!(
-            "SELECT COUNT(*) FROM environments WHERE project_id = ?",
-            input.project_id
-        )
-        .fetch_one(&mut *tx)
-        .await?;
+        let count = self.repo_env.count_by_project(&mut tx, input.project_id).await?;
         let make_default = input.is_default || count == 0;
 
         if make_default {
-            Self::clear_default(&mut tx, input.project_id).await?;
+            self.repo_env.clear_default(&mut tx, input.project_id).await?;
         }
 
         let is_default = i64::from(make_default);
-        let environment = sqlx::query_as!(
-            Environment,
-            r#"INSERT INTO environments (name, description, env_var, is_default, project_id)
-               VALUES (?, ?, ?, ?, ?)
-               RETURNING id AS "id?", name, description, env_var, is_default, project_id, created_at, updated_at"#,
+        let environment = self.repo_env.create_in_transaction(
+            &mut tx,
             input.name,
             input.description,
             input.env_var,
             is_default,
             input.project_id
-        )
-        .fetch_one(&mut *tx)
-        .await?;
+        ).await?;
 
         tx.commit().await?;
         Ok(environment)
@@ -76,10 +56,10 @@ impl EnvironmentService {
 
     pub async fn update(&self, id: i64, input: PatchEnvironmentDto) -> sqlx::Result<Environment> {
         let mut tx = self.db.begin().await?;
-        let current = Self::get_in_transaction(&mut tx, id).await?;
+        let current = self.repo_env.get_in_transaction(&mut tx, id).await?;
 
         if input.is_default == Some(true) {
-            Self::clear_default(&mut tx, current.project_id).await?;
+            self.repo_env.clear_default(&mut tx, current.project_id).await?;
         }
 
         let name = input.name.unwrap_or(current.name);
@@ -95,19 +75,14 @@ impl EnvironmentService {
             None => current.is_default,
         };
 
-        let environment = sqlx::query_as!(
-            Environment,
-            r#"UPDATE environments SET name = ?, description = ?, env_var = ?, is_default = ?
-               WHERE id = ?
-               RETURNING id AS "id?", name, description, env_var, is_default, project_id, created_at, updated_at"#,
+        let environment = self.repo_env.update_in_transaction(
+            &mut tx,
+            id,
             name,
             description,
             env_var,
-            is_default,
-            id
-        )
-        .fetch_one(&mut *tx)
-        .await?;
+            is_default
+        ).await?;
 
         tx.commit().await?;
         Ok(environment)
@@ -115,61 +90,30 @@ impl EnvironmentService {
 
     pub async fn set_default(&self, id: i64) -> sqlx::Result<Environment> {
         let mut tx = self.db.begin().await?;
-        let current = Self::get_in_transaction(&mut tx, id).await?;
-        Self::clear_default(&mut tx, current.project_id).await?;
-        let environment = sqlx::query_as!(
-            Environment,
-            r#"UPDATE environments SET is_default = 1 WHERE id = ?
-               RETURNING id AS "id?", name, description, env_var, is_default, project_id, created_at, updated_at"#,
-            id
-        )
-        .fetch_one(&mut *tx)
-        .await?;
+        let current = self.repo_env.get_in_transaction(&mut tx, id).await?;
+        self.repo_env.clear_default(&mut tx, current.project_id).await?;
+        let environment = self.repo_env.update_in_transaction(
+            &mut tx,
+            id,
+            current.name,
+            current.description,
+            current.env_var,
+            1
+        ).await?;
         tx.commit().await?;
         Ok(environment)
     }
 
     pub async fn delete(&self, id: i64) -> sqlx::Result<()> {
         let mut tx = self.db.begin().await?;
-        let current = Self::get_in_transaction(&mut tx, id).await?;
-        sqlx::query!("DELETE FROM environments WHERE id = ?", id)
-            .execute(&mut *tx)
-            .await?;
+        let current = self.repo_env.get_in_transaction(&mut tx, id).await?;
+        self.repo_env.delete_in_transaction(&mut tx, id).await?;
 
         if current.is_default != 0 {
-            sqlx::query!(
-                "UPDATE environments SET is_default = 1 WHERE id = (SELECT id FROM environments WHERE project_id = ? ORDER BY created_at ASC, id ASC LIMIT 1)",
-                current.project_id
-            )
-            .execute(&mut *tx)
-            .await?;
+            self.repo_env.promote_oldest_to_default(&mut tx, current.project_id).await?;
         }
 
         tx.commit().await?;
-        Ok(())
-    }
-
-    async fn get_in_transaction(
-        tx: &mut Transaction<'_, Sqlite>,
-        id: i64,
-    ) -> sqlx::Result<Environment> {
-        sqlx::query_as!(
-            Environment,
-            r#"SELECT id AS "id?", name, description, env_var, is_default, project_id, created_at, updated_at
-               FROM environments WHERE id = ?"#,
-            id
-        )
-            .fetch_one(&mut **tx)
-            .await
-    }
-
-    async fn clear_default(tx: &mut Transaction<'_, Sqlite>, project_id: i64) -> sqlx::Result<()> {
-        sqlx::query!(
-            "UPDATE environments SET is_default = 0 WHERE project_id = ? AND is_default = 1",
-            project_id
-        )
-        .execute(&mut **tx)
-        .await?;
         Ok(())
     }
 }
@@ -204,7 +148,12 @@ mod tests {
             .execute(&pool)
             .await
             .unwrap();
-        EnvironmentService { db: Arc::new(pool) }
+        
+        let db = Arc::new(pool);
+        EnvironmentService {
+            db: db.clone(),
+            repo_env: Arc::new(EnvironmentRepository::new(db.clone())),
+        }
     }
 
     fn create_input(name: &str, is_default: bool) -> CreateEnvironmentDto {

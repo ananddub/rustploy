@@ -1,5 +1,4 @@
 use auto_di::resolve;
-use sqlx::Row;
 
 use crate::services::application::auto_excuter::app_new_cmd;
 use crate::utils::builder::queue::BuilderQueue;
@@ -9,7 +8,6 @@ use crate::utils::docker::query::filter::ServiceFilter;
 
 use super::{
     ApplicationOperation, ApplicationOperationResult, ApplicationRecord, ApplicationService,
-    // runtime::{execute_operation, is_cancelled_error},
 };
 
 impl ApplicationService {
@@ -18,15 +16,7 @@ impl ApplicationService {
         id: i64,
         operation: ApplicationOperation,
     ) -> sqlx::Result<ApplicationOperationResult> {
-        let mut tx = self.db.begin().await?;
-
-        let running_deployment = sqlx::query_scalar::<_, i64>(
-            "SELECT EXISTS(SELECT 1 FROM deployments WHERE application_id = ? AND status IN ('QUEUED', 'RUNNING'))",
-        )
-        .bind(id)
-        .fetch_one(&mut *tx)
-        .await?
-            != 0;
+        let running_deployment = self.repo_deploy.has_running_deployment(id).await?;
         if running_deployment {
             return Err(sqlx::Error::Protocol(
                 "application deployment already queued or running; cancel it first".into(),
@@ -39,46 +29,22 @@ impl ApplicationService {
             .ensure_capacity()
             .await?;
 
-        let app = sqlx::query_as!(
-            ApplicationRecord,
-            r#"UPDATE applications SET app_status = ? WHERE id = ?
-               RETURNING id AS "id!: i64", name, app_name, description, source_type, build_type, app_status, trigger_type,
-               environment_id, server_id, build_server_id, registry_id, env_var, icon,
-               repository, owner, branch, gitlab_repository, gitlab_owner, gitlab_branch,
-               gitea_repository, gitea_owner, gitea_branch, bitbucket_repository, bitbucket_owner,
-               bitbucket_branch, docker_image, registry_url, custom_git_url, custom_git_branch,
-               created_at, updated_at"#,
-            operation.target_status(),
-            id
-        )
-        .fetch_one(&mut *tx)
-        .await?;
+        let app_model = self.repo_app.update_status(id, operation.target_status()).await?;
+        let app = ApplicationRecord::from(app_model);
 
         let log_path = format!("pending-app-{}", id);
-        let deployment = sqlx::query(
-            r#"INSERT INTO deployments (title, description, status, state, log_path, operation, application_id, server_id, last_state_at)
-               VALUES (?, ?, 'QUEUED', 'QUEUE', ?, ?, ?, ?, strftime('%s', 'now'))
-               RETURNING id"#,
+        let deployment_id = self.repo_deploy.create_queued_deployment(
+            operation.title().to_string(),
+            Some(format!("{} requested for {}", operation.as_str(), app.name)),
+            log_path,
+            operation.as_str().to_string(),
+            id,
+            app.server_id,
         )
-        .bind(operation.title())
-        .bind(Some(format!("{} requested for {}", operation.as_str(), app.name)))
-        .bind(log_path)
-        .bind(operation.as_str())
-        .bind(id)
-        .bind(app.server_id)
-        .fetch_one(&mut *tx)
         .await?;
 
-        let deployment_id: i64 = deployment.get("id");
         let log_path = crate::utils::paths::rustploy_paths().deployment_log_file(deployment_id);
-
-        sqlx::query("UPDATE deployments SET log_path = ? WHERE id = ?")
-            .bind(&log_path)
-            .bind(deployment_id)
-            .execute(&mut *tx)
-            .await?;
-
-        tx.commit().await?;
+        self.repo_deploy.update_log_path(deployment_id, &log_path).await?;
 
         if let Ok(mut log) = crate::utils::builder::queue::deployment_log::DeploymentLog::open(deployment_id).await {
             let _ = log.write_line(&format!("[QUEUED] deployment queued for {}", operation.as_str())).await;
@@ -104,20 +70,11 @@ impl ApplicationService {
             .map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
 
         if queue.cancel_queued_application(id).await? {
-            sqlx::query("UPDATE applications SET app_status = 'IDLE' WHERE id = ?")
-                .bind(id)
-                .execute(self.db.as_ref())
-                .await?;
+            self.repo_app.update_status(id, "IDLE").await?;
             return Ok(true);
         }
 
-        let has_running_deployment = sqlx::query_scalar::<_, i64>(
-            "SELECT EXISTS(SELECT 1 FROM deployments WHERE application_id = ? AND status = 'RUNNING')",
-        )
-        .bind(id)
-        .fetch_one(self.db.as_ref())
-        .await?
-            != 0;
+        let has_running_deployment = self.repo_deploy.has_running_status_deployment(id).await?;
 
         if !has_running_deployment {
             let cmd = app_new_cmd(self.db.clone(), id)
@@ -157,13 +114,7 @@ impl ApplicationService {
             return Ok(false);
         }
 
-        sqlx::query(
-            "UPDATE deployments SET state = 'CANCEL_REQUESTED', last_state_at = strftime('%s', 'now') WHERE application_id = ? AND status = 'RUNNING'",
-        )
-        .bind(id)
-        .execute(self.db.as_ref())
-        .await?;
+        self.repo_deploy.request_cancel_deployment(id).await?;
         Ok(true)
     }
-
 }

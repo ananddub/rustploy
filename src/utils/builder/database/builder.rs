@@ -1,7 +1,7 @@
 use crate::utils::builder::shared::BuilderContext;
 use crate::utils::exec::{CommandExecutor, ExecResult, ExecError};
 use crate::utils::builder::spec::BuilderEvent;
-use crate::db::models::mounts::Mount;
+use crate::repository::MountRepository;
 use crate::services::database::DatabaseKind;
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -173,21 +173,13 @@ impl DatabaseBuilder {
         self.ctx.cancelled(cancel)?;
 
         // Fetch mounts for this database
-        let mounts = sqlx::query_as!(
-            Mount,
-            r#"SELECT id, mount_type, service_type, host_path, volume_name, file_path, content, mount_path,
-               postgres_id, mysql_id, mariadb_id, mongo_id, redis_id, libsql_id, compose_id, application_id,
-               created_at, updated_at
-               FROM mounts
-               WHERE postgres_id = ? OR mysql_id = ? OR mariadb_id = ? OR mongo_id = ? OR redis_id = ? OR libsql_id = ?"#,
-            db_id, db_id, db_id, db_id, db_id, db_id
-        )
-        .fetch_all(db_pool.as_ref())
-        .await
-        .map_err(|e| ExecError::CommandFailed {
-            code: None,
-            stderr: format!("Failed to fetch mounts: {}", e),
-        })?;
+        let mounts = MountRepository::new(db_pool.clone())
+            .fetch_for_database(db_id)
+            .await
+            .map_err(|e| ExecError::CommandFailed {
+                code: None,
+                stderr: format!("Failed to fetch mounts: {}", e),
+            })?;
 
         // 1. Build stack file based on database kind
         let (app_name, docker_image, stack_file_content) = match db_kind {

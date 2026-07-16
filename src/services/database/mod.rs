@@ -1,10 +1,3 @@
-pub mod postgres;
-pub mod mysql;
-pub mod mariadb;
-pub mod mongo;
-pub mod redis;
-pub mod libsql;
-
 pub mod types;
 pub mod queries;
 pub mod crud;
@@ -16,13 +9,43 @@ use std::sync::Arc;
 use auto_di::singleton;
 use sqlx::SqlitePool;
 
+use crate::repository::{
+    PostgresRepository, MysqlRepository, MariadbRepository, MongoRepository,
+    RedisRepository, LibsqlRepository, DeploymentRepository,
+};
+
 pub struct DatabaseService {
     pub(super) db: Arc<SqlitePool>,
+    pub(super) repo_postgres: Arc<PostgresRepository>,
+    pub(super) repo_mysql: Arc<MysqlRepository>,
+    pub(super) repo_mariadb: Arc<MariadbRepository>,
+    pub(super) repo_mongo: Arc<MongoRepository>,
+    pub(super) repo_redis: Arc<RedisRepository>,
+    pub(super) repo_libsql: Arc<LibsqlRepository>,
+    pub(super) repo_deploy: Arc<DeploymentRepository>,
 }
 
 #[singleton]
 impl DatabaseService {
-    fn new(db: Arc<SqlitePool>) -> Self {
-        Self { db }
+    fn new(
+        db: Arc<SqlitePool>,
+        repo_postgres: Arc<PostgresRepository>,
+        repo_mysql: Arc<MysqlRepository>,
+        repo_mariadb: Arc<MariadbRepository>,
+        repo_mongo: Arc<MongoRepository>,
+        repo_redis: Arc<RedisRepository>,
+        repo_libsql: Arc<LibsqlRepository>,
+        repo_deploy: Arc<DeploymentRepository>,
+    ) -> Self {
+        Self {
+            db,
+            repo_postgres,
+            repo_mysql,
+            repo_mariadb,
+            repo_mongo,
+            repo_redis,
+            repo_libsql,
+            repo_deploy,
+        }
     }
 }

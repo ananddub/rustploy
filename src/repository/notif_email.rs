@@ -1,6 +1,4 @@
 use crate::db::models::notif_email::NotifEmail;
-use crate::db::models::types::*;
-use chrono::NaiveDateTime;
 use sqlx::SqlitePool;
 use std::sync::Arc;
 use auto_di::singleton;

@@ -1,6 +1,4 @@
 use crate::db::models::groups::Group;
-use crate::db::models::types::*;
-use chrono::NaiveDateTime;
 use sqlx::SqlitePool;
 use std::sync::Arc;
 use auto_di::singleton;
@@ -67,5 +65,15 @@ impl GroupRepository {
         .execute(self.pool.as_ref())
         .await?;
         Ok(())
+    }
+
+    pub async fn create_owner_group_if_not_exists(&self, tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>) -> Result<i64, sqlx::Error> {
+        sqlx::query!("INSERT OR IGNORE INTO groups (name) VALUES ('owner')")
+            .execute(&mut **tx)
+            .await?;
+        let id = sqlx::query_scalar!("SELECT id FROM groups WHERE name = 'owner'")
+            .fetch_one(&mut **tx)
+            .await?;
+        Ok(id)
     }
 }

@@ -6,38 +6,38 @@ use sqlx::SqlitePool;
 use crate::{
     api::dto::organization::{CreateOrganizationDto, PatchOrganizationDto},
     db::models::organization::Organization,
+    repository::{OrganizationRepository, OrganizationMemberRepository},
 };
 
 pub struct OrganizationService {
     db: Arc<SqlitePool>,
+    repo_org: Arc<OrganizationRepository>,
+    repo_member: Arc<OrganizationMemberRepository>,
 }
 
 #[singleton]
 impl OrganizationService {
-    fn new(db: Arc<SqlitePool>) -> Self {
-        Self { db }
+    fn new(
+        db: Arc<SqlitePool>,
+        repo_org: Arc<OrganizationRepository>,
+        repo_member: Arc<OrganizationMemberRepository>,
+    ) -> Self {
+        Self {
+            db,
+            repo_org,
+            repo_member,
+        }
     }
 
     pub async fn get_by_id(&self, id: i64) -> sqlx::Result<Organization> {
-        sqlx::query_as!(
-            Organization,
-            r#"SELECT id AS "id?", name, logo, slug, owner_id, created_at, updated_at
-               FROM organization WHERE id = ?"#,
-            id
-        )
-        .fetch_one(self.db.as_ref())
-        .await
+        self.repo_org
+            .get_by_id(id)
+            .await?
+            .ok_or(sqlx::Error::RowNotFound)
     }
 
     pub async fn list_by_owner(&self, owner_id: i64) -> sqlx::Result<Vec<Organization>> {
-        sqlx::query_as!(
-            Organization,
-            r#"SELECT id AS "id?", name, logo, slug, owner_id, created_at, updated_at
-               FROM organization WHERE owner_id = ? ORDER BY created_at DESC, id DESC"#,
-            owner_id
-        )
-        .fetch_all(self.db.as_ref())
-        .await
+        self.repo_org.list_by_owner(owner_id).await
     }
 
     pub async fn create(
@@ -53,25 +53,16 @@ impl OrganizationService {
         }
 
         let mut tx = self.db.begin().await?;
-        let organization = sqlx::query_as!(
-            Organization,
-            r#"INSERT INTO organization (name, logo, slug, owner_id) VALUES (?, ?, ?, ?)
-               RETURNING id AS "id?", name, logo, slug, owner_id, created_at, updated_at"#,
+        let organization = self.repo_org.create_in_transaction(
+            &mut tx,
             input.name,
             input.logo,
             slug,
             owner_id
-        )
-        .fetch_one(&mut *tx)
-        .await?;
+        ).await?;
 
-        sqlx::query!(
-            "INSERT INTO organization_members (role, user_id, organization_id) VALUES ('ADMIN', ?, ?)",
-            owner_id,
-            organization.id
-        )
-        .execute(&mut *tx)
-        .await?;
+        let org_id = organization.id.ok_or_else(|| sqlx::Error::Protocol("missing organization id".into()))?;
+        self.repo_member.add_member_in_transaction(&mut tx, "ADMIN", owner_id, org_id).await?;
 
         tx.commit().await?;
         Ok(organization)
@@ -91,25 +82,12 @@ impl OrganizationService {
             ));
         }
 
-        sqlx::query_as!(
-            Organization,
-            r#"UPDATE organization SET name = ?, logo = ?, slug = ? WHERE id = ?
-               RETURNING id AS "id?", name, logo, slug, owner_id, created_at, updated_at"#,
-            name,
-            logo,
-            slug,
-            id
-        )
-        .fetch_one(self.db.as_ref())
-        .await
+        self.repo_org.update_and_return(id, name, logo, slug).await
     }
 
     pub async fn delete(&self, id: i64) -> sqlx::Result<()> {
         self.get_by_id(id).await?;
-        sqlx::query!("DELETE FROM organization WHERE id = ?", id)
-            .execute(self.db.as_ref())
-            .await?;
-        Ok(())
+        self.repo_org.delete(id).await
     }
 }
 
@@ -161,7 +139,13 @@ mod tests {
             .execute(&pool)
             .await
             .unwrap();
-        let service = OrganizationService { db: Arc::new(pool) };
+        
+        let db = Arc::new(pool);
+        let service = OrganizationService {
+            db: db.clone(),
+            repo_org: Arc::new(OrganizationRepository::new(db.clone())),
+            repo_member: Arc::new(OrganizationMemberRepository::new(db.clone())),
+        };
 
         let organization = service
             .create(

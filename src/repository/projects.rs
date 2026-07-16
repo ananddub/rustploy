@@ -1,6 +1,4 @@
 use crate::db::models::projects::Project;
-use crate::db::models::types::*;
-use chrono::NaiveDateTime;
 use sqlx::SqlitePool;
 use std::sync::Arc;
 use auto_di::singleton;
@@ -73,5 +71,57 @@ impl ProjectRepository {
         .execute(self.pool.as_ref())
         .await?;
         Ok(())
+    }
+
+    pub async fn list_by_organization(&self, organization_id: i64) -> Result<Vec<Project>, sqlx::Error> {
+        sqlx::query_as!(
+            Project,
+            r#"SELECT id AS "id?", name, description, env_var, organization_id, created_at, updated_at
+               FROM projects WHERE organization_id = ? ORDER BY created_at DESC, id DESC"#,
+            organization_id
+        )
+        .fetch_all(self.pool.as_ref())
+        .await
+    }
+
+    pub async fn create_in_transaction(
+        &self,
+        tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+        name: String,
+        description: Option<String>,
+        env_var: String,
+        organization_id: i64,
+    ) -> Result<Project, sqlx::Error> {
+        sqlx::query_as!(
+            Project,
+            r#"INSERT INTO projects (name, description, env_var, organization_id) VALUES (?, ?, ?, ?)
+               RETURNING id AS "id?", name, description, env_var, organization_id, created_at, updated_at"#,
+            name,
+            description,
+            env_var,
+            organization_id
+        )
+        .fetch_one(&mut **tx)
+        .await
+    }
+
+    pub async fn update_and_return(
+        &self,
+        id: i64,
+        name: String,
+        description: Option<String>,
+        env_var: String,
+    ) -> Result<Project, sqlx::Error> {
+        sqlx::query_as!(
+            Project,
+            r#"UPDATE projects SET name = ?, description = ?, env_var = ? WHERE id = ?
+               RETURNING id AS "id?", name, description, env_var, organization_id, created_at, updated_at"#,
+            name,
+            description,
+            env_var,
+            id
+        )
+        .fetch_one(self.pool.as_ref())
+        .await
     }
 }

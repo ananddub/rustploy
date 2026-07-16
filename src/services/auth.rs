@@ -15,6 +15,7 @@ use crate::{
         error::TokenError,
         service::{JwtService, TokenPair},
     },
+    repository::{UserRepository, JwtTokenRepository, GroupRepository},
 };
 
 #[derive(Debug)]
@@ -53,45 +54,45 @@ impl From<TokenError> for AuthError {
 pub struct AuthService {
     db: Arc<SqlitePool>,
     jwt: Arc<JwtService>,
+    repo_user: Arc<UserRepository>,
+    repo_token: Arc<JwtTokenRepository>,
+    repo_group: Arc<GroupRepository>,
 }
 
 #[singleton]
 impl AuthService {
-    fn new(db: Arc<SqlitePool>, jwt: Arc<JwtService>) -> Self {
-        Self { db, jwt }
+    fn new(
+        db: Arc<SqlitePool>,
+        jwt: Arc<JwtService>,
+        repo_user: Arc<UserRepository>,
+        repo_token: Arc<JwtTokenRepository>,
+        repo_group: Arc<GroupRepository>,
+    ) -> Self {
+        Self {
+            db,
+            jwt,
+            repo_user,
+            repo_token,
+            repo_group,
+        }
     }
 
     pub async fn signup(&self, input: SignupDto) -> Result<AuthResponseDto, AuthError> {
         let password = hash_password(input.password).await?;
         let mut tx = self.db.begin().await?;
 
-        sqlx::query!("INSERT OR IGNORE INTO groups (name) VALUES ('owner')")
-            .execute(&mut *tx)
-            .await?;
-        let group_id = sqlx::query_scalar!("SELECT id FROM groups WHERE name = 'owner'")
-            .fetch_one(&mut *tx)
-            .await?;
+        let group_id = self.repo_group.create_owner_group_if_not_exists(&mut tx).await?;
 
         let avatar = input.avatar.unwrap_or_default();
-        let user = sqlx::query_as!(
-            User,
-            r#"INSERT INTO users (
-                    email, first_name, last_name, avatar, role,
-                    password, is_registered, group_id, added_by
-               ) VALUES (?, ?, ?, ?, 'OWNER', ?, 1, ?, NULL)
-               RETURNING id AS "id?", email, last_name, first_name, avatar, role,
-                         about_me, password, is_email_verify, email_verify_at,
-                         two_factor_enable, is_registered, added_by, group_id,
-                         created_at, updated_at"#,
+        let user = self.repo_user.create_owner_and_return(
+            &mut tx,
             input.email,
             input.first_name,
             input.last_name,
             avatar,
             password,
             group_id
-        )
-        .fetch_one(&mut *tx)
-        .await?;
+        ).await?;
 
         let subject = subject_from_user(&user)?;
         let tokens = self.jwt.generate_token_pair(&subject)?;
@@ -106,15 +107,10 @@ impl AuthService {
 
     pub async fn login(&self, input: LoginDto) -> Result<AuthResponseDto, AuthError> {
         let user = self
-            .get_user_by_email(&input.email)
-            .await
-            .map_err(|error| {
-                if matches!(error, sqlx::Error::RowNotFound) {
-                    AuthError::InvalidCredentials
-                } else {
-                    AuthError::Database(error)
-                }
-            })?;
+            .repo_user
+            .get_by_email(&input.email)
+            .await?
+            .ok_or(AuthError::InvalidCredentials)?;
 
         verify_password(input.password, user.password.clone()).await?;
         let subject = subject_from_user(&user)?;
@@ -133,12 +129,8 @@ impl AuthService {
         let subject = subject_from_user(&user)?;
         let tokens = self.jwt.generate_token_pair(&subject)?;
         let mut tx = self.db.begin().await?;
-        sqlx::query!(
-            "UPDATE jwt_tokens SET is_blacklist = 1, blacklist_at = strftime('%s', 'now') WHERE jti = ?",
-            old_claims.jti
-        )
-        .execute(&mut *tx)
-        .await?;
+        
+        self.repo_token.blacklist_by_jti(&mut tx, &old_claims.jti).await?;
         self.store_token_pair(&mut tx, &tokens).await?;
         tx.commit().await?;
 
@@ -155,12 +147,7 @@ impl AuthService {
     }
 
     pub async fn logout_all(&self, user_id: i64) -> Result<(), AuthError> {
-        sqlx::query!(
-            "UPDATE jwt_tokens SET is_blacklist = 1, blacklist_at = strftime('%s', 'now') WHERE user_id = ? AND is_blacklist = 0",
-            user_id
-        )
-        .execute(self.db.as_ref())
-        .await?;
+        self.repo_token.blacklist_all_by_user(user_id).await?;
         Ok(())
     }
 
@@ -182,58 +169,30 @@ impl AuthService {
         for claims in [access, refresh] {
             let role = claims.user.role.as_deref().unwrap_or("MEMBER");
             let expired_at = claims.exp as i64;
-            sqlx::query!(
-                "INSERT INTO jwt_tokens (jti, role, user_id, expired_at) VALUES (?, ?, ?, ?)",
+            self.repo_token.insert_token(
+                tx,
                 claims.jti,
-                role,
+                role.to_string(),
                 claims.user.user_id,
                 expired_at
-            )
-            .execute(&mut **tx)
-            .await?;
+            ).await?;
         }
         Ok(())
     }
 
     async fn ensure_token_active(&self, jti: &str) -> Result<(), AuthError> {
-        let active = sqlx::query_scalar!(
-            "SELECT EXISTS(SELECT 1 FROM jwt_tokens WHERE jti = ? AND is_blacklist = 0 AND expired_at > strftime('%s', 'now'))",
-            jti
-        )
-        .fetch_one(self.db.as_ref())
-        .await?;
-        if active != 1 {
+        let active = self.repo_token.is_token_active(jti).await?;
+        if !active {
             return Err(AuthError::InvalidToken);
         }
         Ok(())
     }
 
-    async fn get_user_by_email(&self, email: &str) -> sqlx::Result<User> {
-        sqlx::query_as!(
-            User,
-            r#"SELECT id AS "id?", email, last_name, first_name, avatar, role,
-                      about_me, password, is_email_verify, email_verify_at,
-                      two_factor_enable, is_registered, added_by, group_id,
-                      created_at, updated_at
-               FROM users WHERE email = ?"#,
-            email
-        )
-        .fetch_one(self.db.as_ref())
-        .await
-    }
-
     async fn get_user_by_id(&self, id: i64) -> sqlx::Result<User> {
-        sqlx::query_as!(
-            User,
-            r#"SELECT id AS "id?", email, last_name, first_name, avatar, role,
-                      about_me, password, is_email_verify, email_verify_at,
-                      two_factor_enable, is_registered, added_by, group_id,
-                      created_at, updated_at
-               FROM users WHERE id = ?"#,
-            id
-        )
-        .fetch_one(self.db.as_ref())
-        .await
+        self.repo_user
+            .get_by_id(id)
+            .await?
+            .ok_or(sqlx::Error::RowNotFound)
     }
 }
 
@@ -258,6 +217,7 @@ async fn hash_password(password: String) -> Result<String, AuthError> {
     })
     .await
     .map_err(|_| AuthError::Internal)?
+    .map_err(|_| AuthError::Internal)
 }
 
 async fn verify_password(password: String, encoded: String) -> Result<(), AuthError> {
@@ -291,9 +251,14 @@ mod tests {
         sqlx::query("CREATE TABLE groups (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')), updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))) STRICT").execute(&pool).await.unwrap();
         sqlx::query("CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT UNIQUE, last_name TEXT, first_name TEXT, avatar TEXT NOT NULL, role TEXT DEFAULT 'OWNER', about_me TEXT, password TEXT NOT NULL, is_email_verify INTEGER DEFAULT 0, email_verify_at INTEGER, two_factor_enable INTEGER DEFAULT 0, is_registered INTEGER NOT NULL DEFAULT 0, added_by INTEGER REFERENCES users(id), group_id INTEGER NOT NULL REFERENCES groups(id), created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')), updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))) STRICT").execute(&pool).await.unwrap();
         sqlx::query("CREATE TABLE jwt_tokens (id INTEGER PRIMARY KEY AUTOINCREMENT, jti TEXT NOT NULL, role TEXT NOT NULL, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, is_blacklist INTEGER DEFAULT 0, blacklist_at INTEGER, expired_at INTEGER, created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')), updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))) STRICT").execute(&pool).await.unwrap();
+        
+        let db = Arc::new(pool);
         AuthService {
-            db: Arc::new(pool),
+            db: db.clone(),
             jwt: Arc::new(JwtService::new(Arc::new(JwtConfig::default()))),
+            repo_user: Arc::new(UserRepository::new(db.clone())),
+            repo_token: Arc::new(JwtTokenRepository::new(db.clone())),
+            repo_group: Arc::new(GroupRepository::new(db.clone())),
         }
     }
 

@@ -1,6 +1,4 @@
 use crate::db::models::domains::Domain;
-use crate::db::models::types::*;
-use chrono::NaiveDateTime;
 use sqlx::SqlitePool;
 use std::sync::Arc;
 use auto_di::singleton;
@@ -93,5 +91,142 @@ impl DomainRepository {
         .execute(self.pool.as_ref())
         .await?;
         Ok(())
+    }
+
+    pub async fn list_by_application(&self, application_id: i64) -> Result<Vec<crate::services::domain::DomainRecord>, sqlx::Error> {
+        sqlx::query_as!(
+            crate::services::domain::DomainRecord,
+            r#"SELECT id AS "id!: i64", host, https, port, path, internal_path,
+               custom_entrypoint, service_name, custom_cert_resolver, strip_path,
+               middlewares, domain_type, certificate_type, application_id, compose_id,
+               created_at, updated_at
+               FROM domains
+               WHERE application_id = ?
+               ORDER BY created_at DESC, id DESC"#,
+            application_id
+        )
+        .fetch_all(self.pool.as_ref())
+        .await
+    }
+
+    pub async fn list_by_compose(&self, compose_id: i64) -> Result<Vec<crate::services::domain::DomainRecord>, sqlx::Error> {
+        sqlx::query_as!(
+            crate::services::domain::DomainRecord,
+            r#"SELECT id AS "id!: i64", host, https, port, path, internal_path,
+               custom_entrypoint, service_name, custom_cert_resolver, strip_path,
+               middlewares, domain_type, certificate_type, application_id, compose_id,
+               created_at, updated_at
+               FROM domains
+               WHERE compose_id = ?
+               ORDER BY created_at DESC, id DESC"#,
+            compose_id
+        )
+        .fetch_all(self.pool.as_ref())
+        .await
+    }
+
+    pub async fn create_and_return(
+        &self,
+        host: String,
+        https: i64,
+        port: Option<i64>,
+        path: Option<String>,
+        internal_path: Option<String>,
+        custom_entrypoint: Option<String>,
+        service_name: Option<String>,
+        custom_cert_resolver: Option<String>,
+        strip_path: i64,
+        middlewares: String,
+        domain_type: String,
+        certificate_type: String,
+        application_id: Option<i64>,
+        compose_id: Option<i64>,
+    ) -> Result<crate::services::domain::DomainRecord, sqlx::Error> {
+        sqlx::query_as!(
+            crate::services::domain::DomainRecord,
+            r#"INSERT INTO domains
+               (host, https, port, path, internal_path, custom_entrypoint, service_name,
+                custom_cert_resolver, strip_path, middlewares, domain_type, certificate_type,
+                application_id, compose_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               RETURNING id AS "id!: i64", host, https, port, path, internal_path,
+               custom_entrypoint, service_name, custom_cert_resolver, strip_path,
+               middlewares, domain_type, certificate_type, application_id, compose_id,
+               created_at, updated_at"#,
+            host,
+            https,
+            port,
+            path,
+            internal_path,
+            custom_entrypoint,
+            service_name,
+            custom_cert_resolver,
+            strip_path,
+            middlewares,
+            domain_type,
+            certificate_type,
+            application_id,
+            compose_id
+        )
+        .fetch_one(self.pool.as_ref())
+        .await
+    }
+
+    pub async fn update_and_return(
+        &self,
+        id: i64,
+        host: String,
+        https: i64,
+        port: Option<i64>,
+        path: Option<String>,
+        internal_path: Option<String>,
+        custom_entrypoint: Option<String>,
+        service_name: Option<String>,
+        custom_cert_resolver: Option<String>,
+        strip_path: i64,
+        middlewares: String,
+        certificate_type: String,
+    ) -> Result<crate::services::domain::DomainRecord, sqlx::Error> {
+        sqlx::query_as!(
+            crate::services::domain::DomainRecord,
+            r#"UPDATE domains SET
+               host = ?, https = ?, port = ?, path = ?, internal_path = ?,
+               custom_entrypoint = ?, service_name = ?, custom_cert_resolver = ?,
+               strip_path = ?, middlewares = ?, certificate_type = ?
+               WHERE id = ?
+               RETURNING id AS "id!: i64", host, https, port, path, internal_path,
+               custom_entrypoint, service_name, custom_cert_resolver, strip_path,
+               middlewares, domain_type, certificate_type, application_id, compose_id,
+               created_at, updated_at"#,
+            host,
+            https,
+            port,
+            path,
+            internal_path,
+            custom_entrypoint,
+            service_name,
+            custom_cert_resolver,
+            strip_path,
+            middlewares,
+            certificate_type,
+            id
+        )
+        .fetch_one(self.pool.as_ref())
+        .await
+    }
+
+    pub async fn get_record_by_id(&self, id: i64) -> Result<Option<crate::services::domain::DomainRecord>, sqlx::Error> {
+        sqlx::query_as!(
+            crate::services::domain::DomainRecord,
+            r#"SELECT id AS "id!: i64", host, https, port, path, internal_path,
+               custom_entrypoint, service_name, custom_cert_resolver, strip_path,
+               middlewares, domain_type, certificate_type, application_id, compose_id,
+               created_at, updated_at
+               FROM domains
+               WHERE id = ?"#,
+            id
+        )
+        .fetch_optional(self.pool.as_ref())
+        .await
     }
 }

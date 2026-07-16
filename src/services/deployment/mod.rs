@@ -5,6 +5,7 @@ use sqlx::SqlitePool;
 
 use crate::db::models::deployments::Deployment;
 use crate::utils::builder::custom_type::IdType;
+use crate::repository::{DeploymentRepository, ApplicationRepository, ComposeProjectRepository};
 
 pub mod docker;
 pub mod log;
@@ -31,25 +32,32 @@ pub struct DeploymentListFilter {
 
 pub struct DeploymentService {
     db: Arc<SqlitePool>,
+    pub(super) repo_deploy: Arc<DeploymentRepository>,
+    pub(super) repo_app: Arc<ApplicationRepository>,
+    pub(super) repo_compose: Arc<ComposeProjectRepository>,
 }
 
 #[singleton]
 impl DeploymentService {
-    fn new(db: Arc<SqlitePool>) -> Self {
-        Self { db }
+    fn new(
+        db: Arc<SqlitePool>,
+        repo_deploy: Arc<DeploymentRepository>,
+        repo_app: Arc<ApplicationRepository>,
+        repo_compose: Arc<ComposeProjectRepository>,
+    ) -> Self {
+        Self {
+            db,
+            repo_deploy,
+            repo_app,
+            repo_compose,
+        }
     }
 
     pub async fn get_by_id(&self, id: i64) -> sqlx::Result<Deployment> {
-        sqlx::query_as!(
-            Deployment,
-            r#"SELECT id AS "id?", title, description, status, state, log_path, pid,
-               error_message, operation, is_preview_deployment, started_at, last_state_at, finished_at,
-               application_id, compose_id, server_id, created_at, database_id, database_kind
-               FROM deployments WHERE id = ?"#,
-            id,
-        )
-        .fetch_one(self.db.as_ref())
-        .await
+        self.repo_deploy
+            .get_by_id(id)
+            .await?
+            .ok_or(sqlx::Error::RowNotFound)
     }
 
     pub async fn list(&self, filter: DeploymentListFilter) -> sqlx::Result<Vec<Deployment>> {
@@ -58,37 +66,18 @@ impl DeploymentService {
         let limit = filter.limit.clamp(1, 200);
         let offset = filter.offset.max(0);
 
-        sqlx::query_as!(
-            Deployment,
-            r#"SELECT id AS "id?", title, description, status, state, log_path, pid,
-               error_message, operation, is_preview_deployment, started_at, last_state_at, finished_at,
-               application_id, compose_id, server_id, created_at, database_id, database_kind
-               FROM deployments
-               WHERE (? IS NULL OR status = ?)
-                 AND (? IS NULL OR state = ?)
-                 AND (? IS NULL OR application_id = ?)
-                 AND (? IS NULL OR compose_id = ?)
-                 AND (? IS NULL OR database_id = ?)
-                 AND (? IS NULL OR server_id = ?)
-               ORDER BY COALESCE(started_at, created_at) DESC, id DESC
-               LIMIT ? OFFSET ?"#,
-            status,
-            status,
-            state,
-            state,
-            filter.application_id,
-            filter.application_id,
-            filter.compose_id,
-            filter.compose_id,
-            filter.database_id,
-            filter.database_id,
-            filter.server_id,
-            filter.server_id,
-            limit,
-            offset,
-        )
-        .fetch_all(self.db.as_ref())
-        .await
+        self.repo_deploy
+            .list_filtered(
+                status,
+                state,
+                filter.application_id,
+                filter.compose_id,
+                filter.database_id,
+                filter.server_id,
+                limit,
+                offset,
+            )
+            .await
     }
 
     pub async fn list_running(&self, limit: i64, offset: i64) -> sqlx::Result<Vec<Deployment>> {
@@ -102,21 +91,14 @@ impl DeploymentService {
     }
 
     pub async fn cancel(&self, deployment_id: i64) -> sqlx::Result<CancelDeploymentResult> {
-        let (application_id, compose_id, database_id, status) =
-            sqlx::query_as::<_, (Option<i64>, Option<i64>, Option<i64>, String)>(
-                "SELECT application_id, compose_id, database_id, status FROM deployments WHERE id = ?",
-            )
-            .bind(deployment_id)
-            .fetch_one(self.db.as_ref())
-            .await?;
+        let (application_id, compose_id, database_id, status) = self
+            .repo_deploy
+            .get_cancel_info(deployment_id)
+            .await?
+            .ok_or(sqlx::Error::RowNotFound)?;
 
         if status == "QUEUED" {
-            sqlx::query(
-                "UPDATE deployments SET status = 'CANCELLED', state = 'CANCELLED', finished_at = strftime('%s', 'now'), last_state_at = strftime('%s', 'now') WHERE id = ? AND status = 'QUEUED'",
-            )
-            .bind(deployment_id)
-            .execute(self.db.as_ref())
-            .await?;
+            self.repo_deploy.cancel_queued_deployment(deployment_id).await?;
             return Ok(CancelDeploymentResult::CancelRequested);
         }
 
@@ -139,12 +121,7 @@ impl DeploymentService {
             return Ok(CancelDeploymentResult::NotActiveInThisProcess);
         }
 
-        sqlx::query(
-            "UPDATE deployments SET state = 'CANCEL_REQUESTED', last_state_at = strftime('%s', 'now') WHERE id = ? AND status = 'RUNNING'",
-        )
-        .bind(deployment_id)
-        .execute(self.db.as_ref())
-        .await?;
+        self.repo_deploy.set_cancel_requested(deployment_id).await?;
 
         Ok(CancelDeploymentResult::CancelRequested)
     }

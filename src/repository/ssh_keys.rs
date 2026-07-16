@@ -1,6 +1,4 @@
 use crate::db::models::ssh_keys::SshKey;
-use crate::db::models::types::*;
-use chrono::NaiveDateTime;
 use sqlx::SqlitePool;
 use std::sync::Arc;
 use auto_di::singleton;
@@ -75,5 +73,81 @@ impl SshKeyRepository {
         .execute(self.pool.as_ref())
         .await?;
         Ok(())
+    }
+
+    pub async fn touch_ssh_key(&self, id: i64) -> Result<(), sqlx::Error> {
+        sqlx::query!(
+            "UPDATE ssh_keys SET last_used_at = strftime('%s', 'now') WHERE id = ?",
+            id
+        )
+        .execute(self.pool.as_ref())
+        .await?;
+        Ok(())
+    }
+
+    pub async fn list_ordered(&self) -> Result<Vec<SshKey>, sqlx::Error> {
+        sqlx::query_as!(
+            SshKey,
+            r#"SELECT id AS "id?", name, description, private_key, public_key, last_used_at, created_at, updated_at
+               FROM ssh_keys ORDER BY created_at DESC, id DESC"#
+        )
+        .fetch_all(self.pool.as_ref())
+        .await
+    }
+
+    pub async fn create_and_return(
+        &self,
+        name: String,
+        description: Option<String>,
+        private_key: String,
+        public_key: String,
+    ) -> Result<SshKey, sqlx::Error> {
+        sqlx::query_as!(
+            SshKey,
+            r#"INSERT INTO ssh_keys (name, description, private_key, public_key)
+               VALUES (?, ?, ?, ?)
+               RETURNING id AS "id?", name, description, private_key, public_key, last_used_at, created_at, updated_at"#,
+            name,
+            description,
+            private_key,
+            public_key
+        )
+        .fetch_one(self.pool.as_ref())
+        .await
+    }
+
+    pub async fn update_and_return(
+        &self,
+        id: i64,
+        name: String,
+        description: Option<String>,
+        private_key: String,
+        public_key: String,
+    ) -> Result<SshKey, sqlx::Error> {
+        sqlx::query_as!(
+            SshKey,
+            r#"UPDATE ssh_keys SET name = ?, description = ?, private_key = ?, public_key = ?
+               WHERE id = ?
+               RETURNING id AS "id?", name, description, private_key, public_key, last_used_at, created_at, updated_at"#,
+            name,
+            description,
+            private_key,
+            public_key,
+            id
+        )
+        .fetch_one(self.pool.as_ref())
+        .await
+    }
+
+    pub async fn touch_and_return(&self, id: i64) -> Result<SshKey, sqlx::Error> {
+        sqlx::query_as!(
+            SshKey,
+            r#"UPDATE ssh_keys SET last_used_at = strftime('%s', 'now')
+               WHERE id = ?
+               RETURNING id AS "id?", name, description, private_key, public_key, last_used_at, created_at, updated_at"#,
+            id
+        )
+        .fetch_one(self.pool.as_ref())
+        .await
     }
 }

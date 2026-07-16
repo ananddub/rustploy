@@ -1,6 +1,4 @@
 use crate::db::models::jwt_tokens::JwtToken;
-use crate::db::models::types::*;
-use chrono::NaiveDateTime;
 use sqlx::SqlitePool;
 use std::sync::Arc;
 use auto_di::singleton;
@@ -77,5 +75,55 @@ impl JwtTokenRepository {
         .execute(self.pool.as_ref())
         .await?;
         Ok(())
+    }
+
+    pub async fn blacklist_by_jti(&self, tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>, jti: &str) -> Result<(), sqlx::Error> {
+        sqlx::query!(
+            "UPDATE jwt_tokens SET is_blacklist = 1, blacklist_at = strftime('%s', 'now') WHERE jti = ?",
+            jti
+        )
+        .execute(&mut **tx)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn blacklist_all_by_user(&self, user_id: i64) -> Result<(), sqlx::Error> {
+        sqlx::query!(
+            "UPDATE jwt_tokens SET is_blacklist = 1, blacklist_at = strftime('%s', 'now') WHERE user_id = ? AND is_blacklist = 0",
+            user_id
+        )
+        .execute(self.pool.as_ref())
+        .await?;
+        Ok(())
+    }
+
+    pub async fn insert_token(
+        &self,
+        tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+        jti: String,
+        role: String,
+        user_id: i64,
+        expired_at: i64,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query!(
+            "INSERT INTO jwt_tokens (jti, role, user_id, expired_at) VALUES (?, ?, ?, ?)",
+            jti,
+            role,
+            user_id,
+            expired_at
+        )
+        .execute(&mut **tx)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn is_token_active(&self, jti: &str) -> Result<bool, sqlx::Error> {
+        let active = sqlx::query_scalar!(
+            "SELECT EXISTS(SELECT 1 FROM jwt_tokens WHERE jti = ? AND is_blacklist = 0 AND expired_at > strftime('%s', 'now'))",
+            jti
+        )
+        .fetch_one(self.pool.as_ref())
+        .await?;
+        Ok(active == 1)
     }
 }

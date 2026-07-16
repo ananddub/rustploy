@@ -98,3 +98,41 @@ pub struct ComposeOperationResult {
     pub deployment_id: Option<i64>,
     pub operation: ComposeOperation,
 }
+
+impl From<crate::db::models::compose_projects::ComposeProject> for ComposeRecord {
+    fn from(item: crate::db::models::compose_projects::ComposeProject) -> Self {
+        Self {
+            id: item.id.as_deref().and_then(|s| s.parse::<i64>().ok()).unwrap_or(0),
+            name: item.name,
+            app_name: item.app_name,
+            description: item.description,
+            env_var: item.env_var,
+            compose_file: item.compose_file,
+            source_type: item.source_type,
+            compose_type: ComposeType::from_str(&item.compose_type).unwrap_or(ComposeType::DockerCompose),
+            compose_status: item.compose_status,
+            trigger_type: item.trigger_type,
+            repository: item.repository,
+            owner: item.owner,
+            branch: item.branch,
+            gitlab_repository: item.gitlab_repository,
+            gitlab_owner: item.gitlab_owner,
+            gitlab_branch: item.gitlab_branch,
+            gitea_repository: item.gitea_repository,
+            gitea_owner: item.gitea_owner,
+            gitea_branch: item.gitea_branch,
+            bitbucket_repository: item.bitbucket_repository,
+            bitbucket_owner: item.bitbucket_owner,
+            bitbucket_branch: item.bitbucket_branch,
+            custom_git_url: item.custom_git_url,
+            custom_git_branch: item.custom_git_branch,
+            command: item.command,
+            compose_path: item.compose_path,
+            environment_id: item.environment_id,
+            server_id: item.server_id,
+            created_at: item.created_at,
+            updated_at: item.updated_at,
+        }
+    }
+}
+

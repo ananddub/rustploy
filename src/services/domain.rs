@@ -9,6 +9,7 @@ use crate::utils::builder::compose::labels::build_compose_service_labels;
 use crate::utils::builder::shared::traefik::build_traefik_labels;
 use crate::utils::docker::DockerCli;
 use crate::utils::exec::{CommandExecutor, LocalExecutor};
+use crate::repository::{DomainRepository, ApplicationRepository, ComposeProjectRepository};
 
 #[derive(Debug, Clone)]
 pub struct DomainRecord {
@@ -33,51 +34,43 @@ pub struct DomainRecord {
 
 pub struct DomainService {
     db: Arc<SqlitePool>,
+    repo_domain: Arc<DomainRepository>,
+    repo_app: Arc<ApplicationRepository>,
+    repo_compose: Arc<ComposeProjectRepository>,
 }
 
 #[singleton]
 impl DomainService {
-    fn new(db: Arc<SqlitePool>) -> Self {
-        Self { db }
+    fn new(
+        db: Arc<SqlitePool>,
+        repo_domain: Arc<DomainRepository>,
+        repo_app: Arc<ApplicationRepository>,
+        repo_compose: Arc<ComposeProjectRepository>,
+    ) -> Self {
+        Self {
+            db,
+            repo_domain,
+            repo_app,
+            repo_compose,
+        }
     }
 
     pub async fn get_by_id(&self, id: i64) -> sqlx::Result<DomainRecord> {
-        select_domain_by_id(self.db.as_ref(), id).await
+        self.repo_domain
+            .get_record_by_id(id)
+            .await?
+            .ok_or(sqlx::Error::RowNotFound)
     }
 
     pub async fn list_by_application(
         &self,
         application_id: i64,
     ) -> sqlx::Result<Vec<DomainRecord>> {
-        sqlx::query_as!(
-            DomainRecord,
-            r#"SELECT id AS "id!: i64", host, https, port, path, internal_path,
-               custom_entrypoint, service_name, custom_cert_resolver, strip_path,
-               middlewares, domain_type, certificate_type, application_id, compose_id,
-               created_at, updated_at
-               FROM domains
-               WHERE application_id = ?
-               ORDER BY created_at DESC, id DESC"#,
-            application_id
-        )
-        .fetch_all(self.db.as_ref())
-        .await
+        self.repo_domain.list_by_application(application_id).await
     }
 
     pub async fn list_by_compose(&self, compose_id: i64) -> sqlx::Result<Vec<DomainRecord>> {
-        sqlx::query_as!(
-            DomainRecord,
-            r#"SELECT id AS "id!: i64", host, https, port, path, internal_path,
-               custom_entrypoint, service_name, custom_cert_resolver, strip_path,
-               middlewares, domain_type, certificate_type, application_id, compose_id,
-               created_at, updated_at
-               FROM domains
-               WHERE compose_id = ?
-               ORDER BY created_at DESC, id DESC"#,
-            compose_id
-        )
-        .fetch_all(self.db.as_ref())
-        .await
+        self.repo_domain.list_by_compose(compose_id).await
     }
 
     pub async fn create(&self, input: CreateDomainDto) -> sqlx::Result<DomainRecord> {
@@ -91,34 +84,22 @@ impl DomainService {
             _ => "APPLICATION",
         };
 
-        let domain = sqlx::query_as!(
-            DomainRecord,
-            r#"INSERT INTO domains
-               (host, https, port, path, internal_path, custom_entrypoint, service_name,
-                custom_cert_resolver, strip_path, middlewares, domain_type, certificate_type,
-                application_id, compose_id)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-               RETURNING id AS "id!: i64", host, https, port, path, internal_path,
-               custom_entrypoint, service_name, custom_cert_resolver, strip_path,
-               middlewares, domain_type, certificate_type, application_id, compose_id,
-               created_at, updated_at"#,
+        let domain = self.repo_domain.create_and_return(
             input.host,
             https,
             port,
-            input.path,
-            input.internal_path,
+            Some(input.path),
+            Some(input.internal_path),
             input.custom_entrypoint,
             input.service_name,
             input.custom_cert_resolver,
             strip_path,
             input.middlewares,
-            domain_type,
+            domain_type.to_string(),
             certificate_type,
             input.application_id,
-            input.compose_id
-        )
-        .fetch_one(self.db.as_ref())
-        .await?;
+            input.compose_id,
+        ).await?;
 
         if let Some(app_id) = domain.application_id.filter(|&id| id > 0) {
             self.apply_application_traefik(app_id).await;
@@ -147,17 +128,8 @@ impl DomainService {
             .map(|v| v.to_uppercase())
             .unwrap_or(current.certificate_type);
 
-        let domain = sqlx::query_as!(
-            DomainRecord,
-            r#"UPDATE domains SET
-               host = ?, https = ?, port = ?, path = ?, internal_path = ?,
-               custom_entrypoint = ?, service_name = ?, custom_cert_resolver = ?,
-               strip_path = ?, middlewares = ?, certificate_type = ?
-               WHERE id = ?
-               RETURNING id AS "id!: i64", host, https, port, path, internal_path,
-               custom_entrypoint, service_name, custom_cert_resolver, strip_path,
-               middlewares, domain_type, certificate_type, application_id, compose_id,
-               created_at, updated_at"#,
+        let domain = self.repo_domain.update_and_return(
+            id,
             host,
             https,
             port,
@@ -169,10 +141,7 @@ impl DomainService {
             strip_path,
             middlewares,
             certificate_type,
-            id
-        )
-        .fetch_one(self.db.as_ref())
-        .await?;
+        ).await?;
 
         // Auto-apply traefik labels after domain update.
         if let Some(app_id) = domain.application_id.filter(|&id| id > 0) {
@@ -187,12 +156,7 @@ impl DomainService {
 
     pub async fn delete(&self, id: i64) -> sqlx::Result<()> {
         let domain = self.get_by_id(id).await?;
-        let result = sqlx::query!("DELETE FROM domains WHERE id = ?", id)
-            .execute(self.db.as_ref())
-            .await?;
-        if result.rows_affected() == 0 {
-            return Err(sqlx::Error::RowNotFound);
-        }
+        self.repo_domain.delete(id).await?;
 
         if let Some(app_id) = domain.application_id.filter(|&id| id > 0) {
             self.apply_application_traefik(app_id).await;
@@ -203,7 +167,6 @@ impl DomainService {
 
         Ok(())
     }
-
 
     async fn apply_application_traefik(&self, application_id: i64) {
         if let Err(e) = self.try_apply_application_traefik(application_id).await {
@@ -216,13 +179,12 @@ impl DomainService {
     }
 
     async fn try_apply_application_traefik(&self, application_id: i64) -> Result<(), String> {
-        let (app_name, server_id) = sqlx::query_as::<_, (String, Option<i64>)>(
-            "SELECT app_name, server_id FROM applications WHERE id = ?",
-        )
-        .bind(application_id)
-        .fetch_one(self.db.as_ref())
-        .await
-        .map_err(|e| format!("app not found: {e}"))?;
+        let app = self.repo_app.get_by_id(application_id)
+            .await
+            .map_err(|e| format!("app check error: {e}"))?
+            .ok_or_else(|| format!("app not found: {application_id}"))?;
+        let app_name = app.app_name;
+        let server_id = app.server_id;
 
         let service_name = format!("{app_name}_{app_name}");
 
@@ -324,14 +286,13 @@ impl DomainService {
     }
 
     async fn try_apply_compose_traefik(&self, compose_id: i64) -> Result<(), String> {
-        let (app_name, server_id, compose_type) =
-            sqlx::query_as::<_, (String, Option<i64>, String)>(
-                "SELECT app_name, server_id, compose_type FROM compose_projects WHERE id = ?",
-            )
-            .bind(compose_id)
-            .fetch_one(self.db.as_ref())
+        let compose = self.repo_compose.get_by_id(compose_id)
             .await
-            .map_err(|e| format!("compose not found: {e}"))?;
+            .map_err(|e| format!("compose check error: {e}"))?
+            .ok_or_else(|| format!("compose not found: {compose_id}"))?;
+        let app_name = compose.app_name;
+        let server_id = compose.server_id;
+        let compose_type = compose.compose_type;
 
         let executor = match server_id {
             Some(sid) => {
@@ -413,19 +374,4 @@ impl DomainService {
 
 fn bool_to_i64(value: bool) -> i64 {
     if value { 1 } else { 0 }
-}
-
-async fn select_domain_by_id(pool: &SqlitePool, id: i64) -> sqlx::Result<DomainRecord> {
-    sqlx::query_as!(
-        DomainRecord,
-        r#"SELECT id AS "id!: i64", host, https, port, path, internal_path,
-           custom_entrypoint, service_name, custom_cert_resolver, strip_path,
-           middlewares, domain_type, certificate_type, application_id, compose_id,
-           created_at, updated_at
-           FROM domains
-           WHERE id = ?"#,
-        id
-    )
-    .fetch_one(pool)
-    .await
 }

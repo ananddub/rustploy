@@ -9,20 +9,20 @@ use crate::utils::{
     exec::{RemoteExecutor, SshAuth, SshHostKey},
     session::RemoteExecutorRegistry,
 };
-
+use crate::repository::ServerRepository;
+use auto_di::resolve;
 
 pub(crate) async fn remote_executor(
-    db: &SqlitePool,
+    _db: &SqlitePool,
     server_id: i64,
 ) -> Result<RemoteExecutor, String> {
-    let row = sqlx::query_as::<_, (String, i64, String, String, String)>(
-        r#"SELECT s.ip_address, s.port, s.username, k.private_key, k.public_key
-           FROM servers s JOIN ssh_keys k ON k.id = s.ssh_key_id WHERE s.id = ?"#,
-    )
-    .bind(server_id)
-    .fetch_one(db)
-    .await
-    .map_err(|error| format!("could not load SSH credentials: {error}"))?;
+    let repo_servers = resolve::<ServerRepository>().await.unwrap();
+    let row = repo_servers
+        .get_ssh_credentials(server_id)
+        .await
+        .map_err(|error| format!("could not load SSH credentials: {error}"))?
+        .ok_or_else(|| "Server not found".to_string())?;
+
     let mut hasher = DefaultHasher::new();
     row.hash(&mut hasher);
     let version = hasher.finish();

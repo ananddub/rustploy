@@ -7,41 +7,35 @@ use uuid::Uuid;
 use crate::{
     api::dto::remote_server::{CreateRemoteServerDto, PatchRemoteServerDto},
     db::models::servers::Server,
+    repository::{ServerRepository, SshKeyRepository},
 };
 
 pub struct ServerService {
-    db: Arc<SqlitePool>,
+    repo_server: Arc<ServerRepository>,
+    repo_ssh: Arc<SshKeyRepository>,
 }
 
 #[singleton]
 impl ServerService {
-    fn new(db: Arc<SqlitePool>) -> Self {
-        Self { db }
+    fn new(
+        repo_server: Arc<ServerRepository>,
+        repo_ssh: Arc<SshKeyRepository>,
+    ) -> Self {
+        Self {
+            repo_server,
+            repo_ssh,
+        }
     }
 
     pub async fn get_by_id(&self, id: i64) -> sqlx::Result<Server> {
-        sqlx::query_as!(
-            Server,
-            r#"SELECT id AS "id?", name, description, ip_address, port, username, app_name,
-               server_status, server_type, enable_docker_cleanup, log_cleanup_cron, command,
-               metrics_config, ssh_key_id, created_at, updated_at, build_memory_limit, build_cpu_limit
-               FROM servers WHERE id = ?"#,
-            id
-        )
-        .fetch_one(self.db.as_ref())
-        .await
+        self.repo_server
+            .get_by_id(id)
+            .await?
+            .ok_or(sqlx::Error::RowNotFound)
     }
 
     pub async fn list(&self) -> sqlx::Result<Vec<Server>> {
-        sqlx::query_as!(
-            Server,
-            r#"SELECT id AS "id?", name, description, ip_address, port, username, app_name,
-               server_status, server_type, enable_docker_cleanup, log_cleanup_cron, command,
-               metrics_config, ssh_key_id, created_at, updated_at, build_memory_limit, build_cpu_limit
-               FROM servers ORDER BY created_at DESC, id DESC"#
-        )
-        .fetch_all(self.db.as_ref())
-        .await
+        self.repo_server.list_ordered().await
     }
 
     pub async fn connection_details(
@@ -50,27 +44,14 @@ impl ServerService {
     ) -> sqlx::Result<(Server, crate::db::models::ssh_keys::SshKey)> {
         let server = self.get_by_id(id).await?;
         let key_id = server.ssh_key_id.ok_or(sqlx::Error::RowNotFound)?;
-        let key = sqlx::query_as!(
-            crate::db::models::ssh_keys::SshKey,
-            r#"SELECT id AS "id?", name, description, private_key, public_key, last_used_at, created_at, updated_at FROM ssh_keys WHERE id = ?"#,
-            key_id
-        )
-        .fetch_one(self.db.as_ref())
-        .await?;
+        let key = self.repo_ssh.get_by_id(key_id).await?.ok_or(sqlx::Error::RowNotFound)?;
         Ok((server, key))
     }
 
     pub async fn create(&self, input: CreateRemoteServerDto) -> sqlx::Result<Server> {
         let app_name = generate_app_name(&input.name);
 
-        sqlx::query_as!(
-            Server,
-            r#"INSERT INTO servers
-               (name, description, ip_address, port, username, app_name, server_type, ssh_key_id, build_memory_limit, build_cpu_limit)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-               RETURNING id AS "id?", name, description, ip_address, port, username, app_name,
-               server_status, server_type, enable_docker_cleanup, log_cleanup_cron, command,
-               metrics_config, ssh_key_id, created_at, updated_at, build_memory_limit, build_cpu_limit"#,
+        self.repo_server.create_and_return(
             input.name,
             input.description,
             input.ip_address,
@@ -81,9 +62,7 @@ impl ServerService {
             input.ssh_key_id,
             input.build_memory_limit,
             input.build_cpu_limit
-        )
-        .fetch_one(self.db.as_ref())
-        .await
+        ).await
     }
 
     pub async fn patch(&self, id: i64, input: PatchRemoteServerDto) -> sqlx::Result<Server> {
@@ -105,17 +84,8 @@ impl ServerService {
         let build_memory_limit = input.build_memory_limit.or(current.build_memory_limit);
         let build_cpu_limit = input.build_cpu_limit.or(current.build_cpu_limit);
 
-        sqlx::query_as!(
-            Server,
-            r#"UPDATE servers SET
-               name = ?, description = ?, ip_address = ?, port = ?, username = ?,
-               server_status = ?, server_type = ?, enable_docker_cleanup = ?,
-               log_cleanup_cron = ?, command = ?, metrics_config = ?, ssh_key_id = ?,
-               build_memory_limit = ?, build_cpu_limit = ?
-               WHERE id = ?
-               RETURNING id AS "id?", name, description, ip_address, port, username, app_name,
-               server_status, server_type, enable_docker_cleanup, log_cleanup_cron, command,
-               metrics_config, ssh_key_id, created_at, updated_at, build_memory_limit, build_cpu_limit"#,
+        self.repo_server.update_and_return(
+            id,
             name,
             description,
             ip_address,
@@ -129,46 +99,25 @@ impl ServerService {
             metrics_config,
             ssh_key_id,
             build_memory_limit,
-            build_cpu_limit,
-            id
-        )
-        .fetch_one(self.db.as_ref())
-        .await
+            build_cpu_limit
+        ).await
     }
 
     pub async fn set_status(&self, id: i64, status: &str) -> sqlx::Result<Server> {
-        sqlx::query_as!(
-            Server,
-            r#"UPDATE servers SET server_status = ? WHERE id = ?
-               RETURNING id AS "id?", name, description, ip_address, port, username, app_name,
-               server_status, server_type, enable_docker_cleanup, log_cleanup_cron, command,
-               metrics_config, ssh_key_id, created_at, updated_at, build_memory_limit, build_cpu_limit"#,
-            status,
-            id
-        )
-        .fetch_one(self.db.as_ref())
-        .await
+        self.repo_server.set_status(id, status).await
     }
 
     pub async fn touch_test_connection(&self, id: i64) -> sqlx::Result<Server> {
         let server = self.get_by_id(id).await?;
         if let Some(ssh_key_id) = server.ssh_key_id {
-            sqlx::query!(
-                "UPDATE ssh_keys SET last_used_at = strftime('%s', 'now') WHERE id = ?",
-                ssh_key_id
-            )
-            .execute(self.db.as_ref())
-            .await?;
+            self.repo_ssh.touch_ssh_key(ssh_key_id).await?;
         }
         Ok(server)
     }
 
     pub async fn delete(&self, id: i64) -> sqlx::Result<()> {
         self.get_by_id(id).await?;
-        sqlx::query!("DELETE FROM servers WHERE id = ?", id)
-            .execute(self.db.as_ref())
-            .await?;
-        Ok(())
+        self.repo_server.delete(id).await
     }
 }
 

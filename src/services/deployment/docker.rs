@@ -41,12 +41,9 @@ impl DeploymentService {
         application_id: i64,
         stream: bool,
     ) -> sqlx::Result<mpsc::Receiver<DockerStreamEvent>> {
-        let (app_name, server_id) = sqlx::query_as::<_, (String, Option<i64>)>(
-            "SELECT app_name, server_id FROM applications WHERE id = ?",
-        )
-        .bind(application_id)
-        .fetch_one(self.db.as_ref())
-        .await?;
+        let app = self.repo_app.get_by_id(application_id).await?.ok_or(sqlx::Error::RowNotFound)?;
+        let app_name = app.app_name;
+        let server_id = app.server_id;
 
         let docker = self.docker_for_server(server_id).await?;
         let service_name = format!("{app_name}_{app_name}");
@@ -75,12 +72,9 @@ impl DeploymentService {
         compose_id: i64,
         stream: bool,
     ) -> sqlx::Result<mpsc::Receiver<DockerStreamEvent>> {
-        let (app_name, server_id) = sqlx::query_as::<_, (String, Option<i64>)>(
-            "SELECT app_name, server_id FROM compose_projects WHERE id = ?",
-        )
-        .bind(compose_id)
-        .fetch_one(self.db.as_ref())
-        .await?;
+        let compose = self.repo_compose.get_by_id(compose_id).await?.ok_or(sqlx::Error::RowNotFound)?;
+        let app_name = compose.app_name;
+        let server_id = compose.server_id;
 
         let docker = self.docker_for_server(server_id).await?;
         let filter = crate::utils::docker::query::filter::ContainerFilter::Label(
@@ -135,7 +129,6 @@ impl DeploymentService {
     }
 
     async fn docker_for_server(&self, server_id: Option<i64>) -> sqlx::Result<DockerCli> {
-        // sqlx::query_scalar!()
         match server_id {
             Some(server_id) => {
                 let executor =
