@@ -43,8 +43,7 @@ impl<'a> NetworkCreate<'a> {
     fn new(cli: &'a DockerCli, name: impl Into<String>) -> Self {
         Self { cli, name: name.into(), args: ArgBuilder::default() }
     }
-    pub fn driver(mut self, v: impl Into<crate::utils::docker::NetworkDriver>)  -> Self {
-        let d: crate::utils::docker::NetworkDriver = v.into();
+    pub fn driver(mut self, d: crate::utils::docker::NetworkDriver)  -> Self {
         self.args.pair("--driver", d.as_str().to_string());
         self
     }
@@ -57,8 +56,7 @@ impl<'a> NetworkCreate<'a> {
     pub fn attachable(mut self) -> Self { self.args.flag("--attachable"); self }
     pub fn internal(mut self)   -> Self { self.args.flag("--internal"); self }
     pub fn ipv6(mut self)       -> Self { self.args.flag("--ipv6"); self }
-    pub fn scope(mut self, v: impl Into<crate::utils::docker::NetworkScope>) -> Self {
-        let s: crate::utils::docker::NetworkScope = v.into();
+    pub fn scope(mut self, s: crate::utils::docker::NetworkScope) -> Self {
         self.args.pair("--scope", s.to_string());
         self
     }
@@ -128,8 +126,7 @@ impl<'a> VolumeCreate<'a> {
     fn new(cli: &'a DockerCli, name: impl Into<String>) -> Self {
         Self { cli, name: name.into(), args: ArgBuilder::default() }
     }
-    pub fn driver(mut self, v: impl Into<crate::utils::docker::VolumeDriver>) -> Self {
-        let d: crate::utils::docker::VolumeDriver = v.into();
+    pub fn driver(mut self, d: crate::utils::docker::VolumeDriver) -> Self {
         self.args.pair("--driver", d.as_str().to_string());
         self
     }

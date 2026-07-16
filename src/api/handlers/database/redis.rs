@@ -35,7 +35,7 @@ impl RedisController {
             .map(|items| {
                 items
                     .into_iter()
-                    .filter(|item| item.kind == "redis")
+                    .filter(|item| item.kind == DatabaseKind::Redis)
                     .map(DatabaseResponseDto::from)
                     .collect()
             })

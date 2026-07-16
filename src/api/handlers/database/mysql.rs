@@ -35,7 +35,7 @@ impl MysqlController {
             .map(|items| {
                 items
                     .into_iter()
-                    .filter(|item| item.kind == "mysql")
+                    .filter(|item| item.kind == DatabaseKind::Mysql)
                     .map(DatabaseResponseDto::from)
                     .collect()
             })

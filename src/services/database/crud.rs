@@ -11,37 +11,37 @@ impl DatabaseService {
     ) -> sqlx::Result<Vec<DatabaseRecord>> {
         sqlx::query_as!(
             DatabaseRecord,
-            r#"SELECT 'postgres' AS kind, id AS "id!: i64", name, app_name, description, docker_image,
+            r#"SELECT 'postgres' AS "kind: DatabaseKind", id AS "id!: i64", name, app_name, description, docker_image,
                database_name AS "database_name?", database_user AS "database_user?", external_port,
                env_var, memory_reservation, memory_limit, cpu_reservation, cpu_limit, replicas,
                app_status, environment_id, server_id, created_at, updated_at
                FROM postgres_dbs WHERE environment_id = ?
                UNION ALL
-               SELECT 'mysql' AS kind, id AS "id!: i64", name, app_name, description, docker_image,
+               SELECT 'mysql' AS "kind: DatabaseKind", id AS "id!: i64", name, app_name, description, docker_image,
                database_name AS "database_name?", database_user AS "database_user?", external_port,
                env_var, memory_reservation, memory_limit, cpu_reservation, cpu_limit, replicas,
                app_status, environment_id, server_id, created_at, updated_at
                FROM mysql_dbs WHERE environment_id = ?
                UNION ALL
-               SELECT 'mariadb' AS kind, id AS "id!: i64", name, app_name, description, docker_image,
+               SELECT 'mariadb' AS "kind: DatabaseKind", id AS "id!: i64", name, app_name, description, docker_image,
                database_name AS "database_name?", database_user AS "database_user?", external_port,
                env_var, memory_reservation, memory_limit, cpu_reservation, cpu_limit, replicas,
                app_status, environment_id, server_id, created_at, updated_at
                FROM mariadb_dbs WHERE environment_id = ?
                UNION ALL
-               SELECT 'mongo' AS kind, id AS "id!: i64", name, app_name, description, docker_image,
+               SELECT 'mongo' AS "kind: DatabaseKind", id AS "id!: i64", name, app_name, description, docker_image,
                CAST(NULL AS TEXT) AS "database_name?", database_user AS "database_user?", external_port,
                env_var, memory_reservation, memory_limit, cpu_reservation, cpu_limit, replicas,
                app_status, environment_id, server_id, created_at, updated_at
                FROM mongo_dbs WHERE environment_id = ?
                UNION ALL
-               SELECT 'redis' AS kind, id AS "id!: i64", name, app_name, description, docker_image,
+               SELECT 'redis' AS "kind: DatabaseKind", id AS "id!: i64", name, app_name, description, docker_image,
                CAST(NULL AS TEXT) AS "database_name?", CAST(NULL AS TEXT) AS "database_user?", external_port,
                env_var, memory_reservation, memory_limit, cpu_reservation, cpu_limit, replicas,
                app_status, environment_id, server_id, created_at, updated_at
                FROM redis_dbs WHERE environment_id = ?
                UNION ALL
-               SELECT 'libsql' AS kind, id AS "id!: i64", name, app_name, description, docker_image,
+               SELECT 'libsql' AS "kind: DatabaseKind", id AS "id!: i64", name, app_name, description, docker_image,
                CAST(NULL AS TEXT) AS "database_name?", database_user AS "database_user?", external_port,
                env_var, memory_reservation, memory_limit, cpu_reservation, cpu_limit, replicas,
                app_status, environment_id, server_id, created_at, updated_at

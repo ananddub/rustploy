@@ -44,7 +44,7 @@ pub struct PatchDatabaseDto {
 
 #[derive(Debug, Clone, Serialize, poem_openapi::Object)]
 pub struct DatabaseResponseDto {
-    pub kind: String,
+    pub kind: crate::services::database::DatabaseKind,
     pub id: i64,
     pub name: String,
     pub app_name: String,

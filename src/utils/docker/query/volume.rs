@@ -60,8 +60,7 @@ impl<'a> VolumeCreate<'a> {
         }
     }
 
-    pub fn driver(mut self, v: impl Into<super::super::types::VolumeDriver>) -> Self {
-        let d: super::super::types::VolumeDriver = v.into();
+    pub fn driver(mut self, d: super::super::types::VolumeDriver) -> Self {
         self.driver = Some(d.as_str().to_string());
         self
     }
@@ -113,7 +112,7 @@ mod tests {
     fn volume_create_nfs_args() {
         let cli = fake();
         let args = VolumeCreate::new(&cli, "nfs-data")
-            .driver("local")
+            .driver(crate::utils::docker::VolumeDriver::Local)
             .opt("type", "nfs")
             .opt("o", "addr=10.0.0.1,rw")
             .opt("device", ":/exports/data")

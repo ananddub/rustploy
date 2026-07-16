@@ -1,6 +1,9 @@
 use std::str::FromStr;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, poem_openapi::Enum)]
+#[sqlx(rename_all = "lowercase")]
+#[oai(rename_all = "lowercase")]
 pub enum DatabaseKind {
     Postgres,
     Mysql,
@@ -52,7 +55,7 @@ impl FromStr for DatabaseKind {
 
 #[derive(Debug, Clone)]
 pub struct DatabaseRecord {
-    pub kind: String,
+    pub kind: DatabaseKind,
     pub id: i64,
     pub name: String,
     pub app_name: String,

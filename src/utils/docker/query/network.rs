@@ -70,8 +70,7 @@ impl<'a> NetworkCreate<'a> {
     }
 
     /// Set the network driver (default: `bridge`; use `overlay` for Swarm).
-    pub fn driver(mut self, v: impl Into<super::super::types::NetworkDriver>) -> Self {
-        let d: super::super::types::NetworkDriver = v.into();
+    pub fn driver(mut self, d: super::super::types::NetworkDriver) -> Self {
         self.driver = Some(d.as_str().to_string());
         self
     }
@@ -91,8 +90,7 @@ impl<'a> NetworkCreate<'a> {
     /// Restrict external access (`--internal`).
     pub fn internal(mut self) -> Self { self.internal = true; self }
     pub fn ipv6(mut self) -> Self { self.ipv6 = true; self }
-    pub fn scope(mut self, v: impl Into<crate::utils::docker::NetworkScope>) -> Self {
-        let s: crate::utils::docker::NetworkScope = v.into();
+    pub fn scope(mut self, s: crate::utils::docker::NetworkScope) -> Self {
         self.scope = Some(s.to_string());
         self
     }
@@ -136,9 +134,9 @@ mod tests {
     fn network_create_builds_overlay_swarm_args() {
         let cli = fake();
         let args = NetworkCreate::new(&cli, "rustploy-network")
-            .driver("overlay")
+            .driver(crate::utils::docker::NetworkDriver::Overlay)
             .attachable()
-            .scope("swarm")
+            .scope(crate::utils::docker::NetworkScope::Swarm)
             .label("managed-by", "rustploy")
             .opt("encrypted", "")
             .build_args();

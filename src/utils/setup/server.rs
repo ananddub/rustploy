@@ -142,7 +142,7 @@ fi
         docker
             .networks()
             .create(&self.config.network_name)
-            .driver("overlay")
+            .driver(crate::utils::docker::NetworkDriver::Overlay)
             .attachable()
             .run()
             .await?;

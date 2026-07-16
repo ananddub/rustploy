@@ -35,7 +35,7 @@ impl MongoController {
             .map(|items| {
                 items
                     .into_iter()
-                    .filter(|item| item.kind == "mongo")
+                    .filter(|item| item.kind == DatabaseKind::Mongo)
                     .map(DatabaseResponseDto::from)
                     .collect()
             })

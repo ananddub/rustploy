@@ -35,7 +35,7 @@ impl PostgresController {
             .map(|items| {
                 items
                     .into_iter()
-                    .filter(|item| item.kind == "postgres")
+                    .filter(|item| item.kind == DatabaseKind::Postgres)
                     .map(DatabaseResponseDto::from)
                     .collect()
             })

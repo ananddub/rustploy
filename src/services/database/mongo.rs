@@ -1,11 +1,11 @@
 use crate::api::dto::database::{CreateDatabaseDto, PatchDatabaseDto};
-use super::{DatabaseService, DatabaseRecord};
+use super::{DatabaseService, DatabaseRecord, DatabaseKind};
 
 impl DatabaseService {
     pub(super) async fn select_mongo(&self, id: i64) -> sqlx::Result<DatabaseRecord> {
         sqlx::query_as!(
             DatabaseRecord,
-            r#"SELECT 'mongo' AS kind, id AS "id!: i64", name, app_name, description, docker_image,
+            r#"SELECT 'mongo' AS "kind: DatabaseKind", id AS "id!: i64", name, app_name, description, docker_image,
                CAST(NULL AS TEXT) AS "database_name?", database_user AS "database_user?", external_port,
                env_var, memory_reservation, memory_limit, cpu_reservation, cpu_limit, replicas,
                app_status, environment_id, server_id, created_at, updated_at

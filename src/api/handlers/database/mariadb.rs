@@ -35,7 +35,7 @@ impl MariadbController {
             .map(|items| {
                 items
                     .into_iter()
-                    .filter(|item| item.kind == "mariadb")
+                    .filter(|item| item.kind == DatabaseKind::Mariadb)
                     .map(DatabaseResponseDto::from)
                     .collect()
             })

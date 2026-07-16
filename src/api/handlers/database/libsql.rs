@@ -35,7 +35,7 @@ impl LibsqlController {
             .map(|items| {
                 items
                     .into_iter()
-                    .filter(|item| item.kind == "libsql")
+                    .filter(|item| item.kind == DatabaseKind::Libsql)
                     .map(DatabaseResponseDto::from)
                     .collect()
             })
