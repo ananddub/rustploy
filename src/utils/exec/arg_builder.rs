@@ -87,6 +87,13 @@ impl ArgBuilder {
         self
     }
 
+    /// Inherit retry_limit and cancel_token from another ArgBuilder.
+    pub fn inherit_meta(&mut self, other: &Self) -> &mut Self {
+        self.retry_limit = other.retry_limit;
+        self.cancel_token = other.cancel_token.clone();
+        self
+    }
+
     /// Consume and return the built argument list.
     pub fn build(self) -> Vec<String> {
         self.args

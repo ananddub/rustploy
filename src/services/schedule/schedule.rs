@@ -7,6 +7,7 @@ use uuid::Uuid;
 use crate::{
     api::dto::schedule::{CreateScheduleDto, PatchScheduleDto},
     db::models::schedules::Schedule,
+    db::models::types::{BackupsDatabaseTypeEnum, VolumeBackupsServiceTypeEnum},
     services::{
         application::{ApplicationOperation, ApplicationService},
         compose::{ComposeOperation, ComposeService, remote::remote_executor},
@@ -15,7 +16,12 @@ use crate::{
         docker::DockerCli,
         exec::{CommandExecutor, LocalExecutor},
     },
-    repository::{ScheduleRepository, ApplicationRepository, ComposeProjectRepository},
+    repository::{
+        ScheduleRepository, ApplicationRepository, ComposeProjectRepository,
+        BackupRepository, VolumeBackupRepository, DestinationRepository,
+        PostgresRepository, MysqlRepository, MariadbRepository, MongoRepository,
+        RedisRepository, LibsqlRepository,
+    },
 };
 use crate::services::compose::ComposeType;
 use crate::services::schedule::types::{ScheduleAction, ScheduleType, ShellType};
@@ -32,12 +38,21 @@ pub struct ScheduleRunResult {
 }
 
 pub struct ScheduleService {
-    db: Arc<SqlitePool>,
-    applications: Arc<ApplicationService>,
-    compose: Arc<ComposeService>,
-    repo_schedule: Arc<ScheduleRepository>,
-    repo_app: Arc<ApplicationRepository>,
-    repo_compose: Arc<ComposeProjectRepository>,
+    pub db: Arc<SqlitePool>,
+    pub applications: Arc<ApplicationService>,
+    pub compose: Arc<ComposeService>,
+    pub repo_schedule: Arc<ScheduleRepository>,
+    pub repo_app: Arc<ApplicationRepository>,
+    pub repo_compose: Arc<ComposeProjectRepository>,
+    pub repo_backup: Arc<BackupRepository>,
+    pub repo_volume_backup: Arc<VolumeBackupRepository>,
+    pub repo_destination: Arc<DestinationRepository>,
+    pub repo_postgres: Arc<PostgresRepository>,
+    pub repo_mysql: Arc<MysqlRepository>,
+    pub repo_mariadb: Arc<MariadbRepository>,
+    pub repo_mongo: Arc<MongoRepository>,
+    pub repo_redis: Arc<RedisRepository>,
+    pub repo_libsql: Arc<LibsqlRepository>,
 }
 
 #[singleton]
@@ -49,6 +64,15 @@ impl ScheduleService {
         repo_schedule: Arc<ScheduleRepository>,
         repo_app: Arc<ApplicationRepository>,
         repo_compose: Arc<ComposeProjectRepository>,
+        repo_backup: Arc<BackupRepository>,
+        repo_volume_backup: Arc<VolumeBackupRepository>,
+        repo_destination: Arc<DestinationRepository>,
+        repo_postgres: Arc<PostgresRepository>,
+        repo_mysql: Arc<MysqlRepository>,
+        repo_mariadb: Arc<MariadbRepository>,
+        repo_mongo: Arc<MongoRepository>,
+        repo_redis: Arc<RedisRepository>,
+        repo_libsql: Arc<LibsqlRepository>,
     ) -> Self {
         Self {
             db,
@@ -57,6 +81,15 @@ impl ScheduleService {
             repo_schedule,
             repo_app,
             repo_compose,
+            repo_backup,
+            repo_volume_backup,
+            repo_destination,
+            repo_postgres,
+            repo_mysql,
+            repo_mariadb,
+            repo_mongo,
+            repo_redis,
+            repo_libsql,
         }
     }
 
@@ -464,6 +497,417 @@ impl ScheduleService {
             None => Ok(DockerCli::new_local()),
         }
     }
+
+    async fn resolve_volume_backup_server_id(
+        &self,
+        backup: &crate::db::models::volume_backups::VolumeBackup,
+    ) -> sqlx::Result<Option<i64>> {
+        if let Some(app_id) = backup.application_id {
+            if let Some(app) = self.repo_app.get_by_id(app_id).await? {
+                return Ok(app.server_id);
+            }
+        }
+        if let Some(compose_id) = backup.compose_id {
+            if let Some(comp) = self.repo_compose.get_by_id(compose_id).await? {
+                return Ok(comp.server_id);
+            }
+        }
+        if let Some(id) = backup.postgres_id {
+            return Ok(self.repo_postgres.get_server_id_and_name(id).await?.0);
+        }
+        if let Some(id) = backup.mysql_id {
+            return Ok(self.repo_mysql.get_server_id_and_name(id).await?.0);
+        }
+        if let Some(id) = backup.mariadb_id {
+            return Ok(self.repo_mariadb.get_server_id_and_name(id).await?.0);
+        }
+        if let Some(id) = backup.mongo_id {
+            return Ok(self.repo_mongo.get_server_id_and_name(id).await?.0);
+        }
+        if let Some(id) = backup.redis_id {
+            return Ok(self.repo_redis.get_server_id_and_name(id).await?.0);
+        }
+        if let Some(id) = backup.libsql_id {
+            return Ok(self.repo_libsql.get_server_id_and_name(id).await?.0);
+        }
+        Ok(None)
+    }
+
+    async fn resolve_volume_service_target(
+        &self,
+        backup: &crate::db::models::volume_backups::VolumeBackup,
+    ) -> sqlx::Result<crate::utils::backup::volume::VolumeServiceTarget> {
+        let service_type = parse_volume_service_type(&backup.service_type)
+            .unwrap_or(VolumeBackupsServiceTypeEnum::Application);
+
+        match service_type {
+            VolumeBackupsServiceTypeEnum::Postgres => {
+                let id = backup.postgres_id.ok_or_else(|| sqlx::Error::Protocol("missing postgres_id".into()))?;
+                let details = self.repo_postgres.get_details(id).await?;
+                Ok(crate::utils::backup::volume::VolumeServiceTarget::SwarmService {
+                    service_name: details.app_name,
+                })
+            }
+            VolumeBackupsServiceTypeEnum::Mysql => {
+                let id = backup.mysql_id.ok_or_else(|| sqlx::Error::Protocol("missing mysql_id".into()))?;
+                let details = self.repo_mysql.get_details(id).await?;
+                Ok(crate::utils::backup::volume::VolumeServiceTarget::SwarmService {
+                    service_name: details.app_name,
+                })
+            }
+            VolumeBackupsServiceTypeEnum::Mariadb => {
+                let id = backup.mariadb_id.ok_or_else(|| sqlx::Error::Protocol("missing mariadb_id".into()))?;
+                let details = self.repo_mariadb.get_details(id).await?;
+                Ok(crate::utils::backup::volume::VolumeServiceTarget::SwarmService {
+                    service_name: details.app_name,
+                })
+            }
+            VolumeBackupsServiceTypeEnum::Mongo => {
+                let id = backup.mongo_id.ok_or_else(|| sqlx::Error::Protocol("missing mongo_id".into()))?;
+                let details = self.repo_mongo.get_details(id).await?;
+                Ok(crate::utils::backup::volume::VolumeServiceTarget::SwarmService {
+                    service_name: details.app_name,
+                })
+            }
+            VolumeBackupsServiceTypeEnum::Redis => {
+                let id = backup.redis_id.ok_or_else(|| sqlx::Error::Protocol("missing redis_id".into()))?;
+                let details = self.repo_redis.get_details(id).await?;
+                Ok(crate::utils::backup::volume::VolumeServiceTarget::SwarmService {
+                    service_name: details.app_name,
+                })
+            }
+            VolumeBackupsServiceTypeEnum::Libsql => {
+                let id = backup.libsql_id.ok_or_else(|| sqlx::Error::Protocol("missing libsql_id".into()))?;
+                let details = self.repo_libsql.get_details(id).await?;
+                Ok(crate::utils::backup::volume::VolumeServiceTarget::SwarmService {
+                    service_name: details.app_name,
+                })
+            }
+            VolumeBackupsServiceTypeEnum::Application => {
+                if let Some(id) = backup.postgres_id {
+                    let details = self.repo_postgres.get_details(id).await?;
+                    return Ok(crate::utils::backup::volume::VolumeServiceTarget::SwarmService {
+                        service_name: details.app_name,
+                    });
+                }
+                if let Some(id) = backup.mysql_id {
+                    let details = self.repo_mysql.get_details(id).await?;
+                    return Ok(crate::utils::backup::volume::VolumeServiceTarget::SwarmService {
+                        service_name: details.app_name,
+                    });
+                }
+                if let Some(id) = backup.mariadb_id {
+                    let details = self.repo_mariadb.get_details(id).await?;
+                    return Ok(crate::utils::backup::volume::VolumeServiceTarget::SwarmService {
+                        service_name: details.app_name,
+                    });
+                }
+                if let Some(id) = backup.mongo_id {
+                    let details = self.repo_mongo.get_details(id).await?;
+                    return Ok(crate::utils::backup::volume::VolumeServiceTarget::SwarmService {
+                        service_name: details.app_name,
+                    });
+                }
+                if let Some(id) = backup.redis_id {
+                    let details = self.repo_redis.get_details(id).await?;
+                    return Ok(crate::utils::backup::volume::VolumeServiceTarget::SwarmService {
+                        service_name: details.app_name,
+                    });
+                }
+                if let Some(id) = backup.libsql_id {
+                    let details = self.repo_libsql.get_details(id).await?;
+                    return Ok(crate::utils::backup::volume::VolumeServiceTarget::SwarmService {
+                        service_name: details.app_name,
+                    });
+                }
+
+                let service_name = backup.service_name.clone().unwrap_or_else(|| {
+                    format!("{}_{}", backup.app_name, backup.app_name)
+                });
+                Ok(crate::utils::backup::volume::VolumeServiceTarget::SwarmService { service_name })
+            }
+            VolumeBackupsServiceTypeEnum::Compose => {
+                let service = backup.service_name.clone().unwrap_or_default();
+                Ok(crate::utils::backup::volume::VolumeServiceTarget::ComposeService {
+                    project: backup.app_name.clone(),
+                    service,
+                })
+            }
+        }
+    }
+
+    async fn resolve_database_backup_server_id(
+        &self,
+        backup: &crate::db::models::backups::Backup,
+    ) -> sqlx::Result<Option<i64>> {
+        if let Some(id) = backup.postgres_id {
+            return Ok(self.repo_postgres.get_server_id_and_name(id).await?.0);
+        }
+        if let Some(id) = backup.mysql_id {
+            return Ok(self.repo_mysql.get_server_id_and_name(id).await?.0);
+        }
+        if let Some(id) = backup.mariadb_id {
+            return Ok(self.repo_mariadb.get_server_id_and_name(id).await?.0);
+        }
+        if let Some(id) = backup.mongo_id {
+            return Ok(self.repo_mongo.get_server_id_and_name(id).await?.0);
+        }
+        if let Some(id) = backup.redis_id {
+            return Ok(self.repo_redis.get_server_id_and_name(id).await?.0);
+        }
+        if let Some(id) = backup.libsql_id {
+            return Ok(self.repo_libsql.get_server_id_and_name(id).await?.0);
+        }
+        if let Some(compose_id) = backup.compose_id {
+            if let Some(comp) = self.repo_compose.get_by_id(compose_id).await? {
+                return Ok(comp.server_id);
+            }
+        }
+        Ok(None)
+    }
+
+    async fn resolve_database_dumper(
+        &self,
+        backup: &crate::db::models::backups::Backup,
+    ) -> sqlx::Result<crate::utils::backup::database::DatabaseDumper> {
+        if let Some(id) = backup.postgres_id {
+            let details = self.repo_postgres.get_details(id).await?;
+            return Ok(crate::utils::backup::database::DatabaseDumper::Postgres {
+                creds: crate::utils::backup::database::DbCredentials {
+                    user: details.database_user,
+                    password: details.database_password,
+                    database: details.database_name,
+                },
+                target: crate::utils::backup::database::ContainerTarget {
+                    service_name: details.app_name,
+                },
+            });
+        }
+        if let Some(id) = backup.mysql_id {
+            let details = self.repo_mysql.get_details(id).await?;
+            return Ok(crate::utils::backup::database::DatabaseDumper::Mysql {
+                creds: crate::utils::backup::database::DbCredentials {
+                    user: details.database_user,
+                    password: details.database_password,
+                    database: details.database_name,
+                },
+                target: crate::utils::backup::database::ContainerTarget {
+                    service_name: details.app_name,
+                },
+            });
+        }
+        if let Some(id) = backup.mariadb_id {
+            let details = self.repo_mariadb.get_details(id).await?;
+            return Ok(crate::utils::backup::database::DatabaseDumper::MariaDb {
+                creds: crate::utils::backup::database::DbCredentials {
+                    user: details.database_user,
+                    password: details.database_password,
+                    database: details.database_name,
+                },
+                target: crate::utils::backup::database::ContainerTarget {
+                    service_name: details.app_name,
+                },
+            });
+        }
+        if let Some(id) = backup.mongo_id {
+            let details = self.repo_mongo.get_details(id).await?;
+            return Ok(crate::utils::backup::database::DatabaseDumper::Mongo {
+                creds: crate::utils::backup::database::DbCredentials {
+                    user: details.database_user,
+                    password: details.database_password,
+                    database: backup.database_name.clone(),
+                },
+                target: crate::utils::backup::database::ContainerTarget {
+                    service_name: details.app_name,
+                },
+            });
+        }
+        if let Some(id) = backup.redis_id {
+            let details = self.repo_redis.get_details(id).await?;
+            return Ok(crate::utils::backup::database::DatabaseDumper::Redis {
+                target: crate::utils::backup::database::ContainerTarget {
+                    service_name: details.app_name,
+                },
+            });
+        }
+        if let Some(id) = backup.libsql_id {
+            let details = self.repo_libsql.get_details(id).await?;
+            return Ok(crate::utils::backup::database::DatabaseDumper::LibSql {
+                database: backup.database_name.clone(),
+                target: crate::utils::backup::database::ContainerTarget {
+                    service_name: details.app_name,
+                },
+            });
+        }
+
+        let (user, password) = if let Some(meta_str) = &backup.metadata {
+            if let Ok(json) = serde_json::from_str::<serde_json::Value>(meta_str) {
+                let u = json.get("databaseUser").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                let p = json.get("databasePassword").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                (u, p)
+            } else {
+                ("".to_string(), "".to_string())
+            }
+        } else {
+            ("".to_string(), "".to_string())
+        };
+
+        let service_name = backup.service_name.clone().unwrap_or_else(|| backup.app_name.clone());
+
+        let db_type = parse_database_type(&backup.database_type).ok_or_else(|| {
+            sqlx::Error::Protocol(format!("unsupported database type: {}", backup.database_type))
+        })?;
+
+        match db_type {
+            BackupsDatabaseTypeEnum::Postgres => Ok(crate::utils::backup::database::DatabaseDumper::Postgres {
+                creds: crate::utils::backup::database::DbCredentials {
+                    user,
+                    password,
+                    database: backup.database_name.clone(),
+                },
+                target: crate::utils::backup::database::ContainerTarget { service_name },
+            }),
+            BackupsDatabaseTypeEnum::Mysql => Ok(crate::utils::backup::database::DatabaseDumper::Mysql {
+                creds: crate::utils::backup::database::DbCredentials {
+                    user,
+                    password,
+                    database: backup.database_name.clone(),
+                },
+                target: crate::utils::backup::database::ContainerTarget { service_name },
+            }),
+            BackupsDatabaseTypeEnum::Mariadb => Ok(crate::utils::backup::database::DatabaseDumper::MariaDb {
+                creds: crate::utils::backup::database::DbCredentials {
+                    user,
+                    password,
+                    database: backup.database_name.clone(),
+                },
+                target: crate::utils::backup::database::ContainerTarget { service_name },
+            }),
+            BackupsDatabaseTypeEnum::Mongo => Ok(crate::utils::backup::database::DatabaseDumper::Mongo {
+                creds: crate::utils::backup::database::DbCredentials {
+                    user,
+                    password,
+                    database: backup.database_name.clone(),
+                },
+                target: crate::utils::backup::database::ContainerTarget { service_name },
+            }),
+            BackupsDatabaseTypeEnum::Redis => Ok(crate::utils::backup::database::DatabaseDumper::Redis {
+                target: crate::utils::backup::database::ContainerTarget { service_name },
+            }),
+            BackupsDatabaseTypeEnum::Libsql => Ok(crate::utils::backup::database::DatabaseDumper::LibSql {
+                database: backup.database_name.clone(),
+                target: crate::utils::backup::database::ContainerTarget { service_name },
+            }),
+        }
+    }
+
+    pub async fn run_database_backup(&self, id: i64) -> sqlx::Result<()> {
+        let backup = self.repo_backup.get_by_id(id).await?.ok_or(sqlx::Error::RowNotFound)?;
+        if backup.enabled == 0 {
+            return Err(sqlx::Error::Protocol("backup is disabled".into()));
+        }
+
+        let server_id = self.resolve_database_backup_server_id(&backup).await?;
+        let executor = if let Some(sid) = server_id {
+            CommandExecutor::Remote(
+                remote_executor(self.db.as_ref(), sid)
+                    .await
+                    .map_err(sqlx::Error::Protocol)?,
+            )
+        } else {
+            CommandExecutor::Local(LocalExecutor::new())
+        };
+
+        let dumper = self.resolve_database_dumper(&backup).await?;
+        let dest_model = self.repo_destination.get_by_id(backup.destination_id).await?.ok_or_else(|| {
+            sqlx::Error::Protocol("destination not found".into())
+        })?;
+
+        let destination = crate::utils::backup::database::S3Destination {
+            access_key: dest_model.access_key,
+            secret_key: dest_model.secret_access_key,
+            bucket: dest_model.bucket,
+            region: dest_model.region,
+            endpoint: dest_model.endpoint,
+            provider: Some(dest_model.provider),
+            additional_flags: dest_model.additional_flags,
+        };
+
+        let runner = crate::utils::backup::database::BackupRunner::new(&executor, &dumper, &destination);
+
+        let ext = dumper.file_extension();
+        let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
+        let object_key = format!(
+            "{}/{}_{}.{}",
+            backup.prefix.trim_matches('/'),
+            backup.database_name,
+            timestamp,
+            ext
+        );
+
+        let cancel = tokio_util::sync::CancellationToken::new();
+        runner.run(&object_key, &cancel).await.map_err(|e| {
+            sqlx::Error::Protocol(e.to_string())
+        })?;
+
+        Ok(())
+    }
+
+    pub async fn run_volume_backup(&self, id: i64) -> sqlx::Result<()> {
+        let backup = self.repo_volume_backup.get_by_id(id).await?.ok_or(sqlx::Error::RowNotFound)?;
+        if backup.enabled == 0 {
+            return Err(sqlx::Error::Protocol("volume backup is disabled".into()));
+        }
+
+        let server_id = self.resolve_volume_backup_server_id(&backup).await?;
+        let executor = if let Some(sid) = server_id {
+            CommandExecutor::Remote(
+                remote_executor(self.db.as_ref(), sid)
+                    .await
+                    .map_err(sqlx::Error::Protocol)?,
+            )
+        } else {
+            CommandExecutor::Local(LocalExecutor::new())
+        };
+
+        let target = self.resolve_volume_service_target(&backup).await?;
+        let dest_model = self.repo_destination.get_by_id(backup.destination_id).await?.ok_or_else(|| {
+            sqlx::Error::Protocol("destination not found".into())
+        })?;
+
+        let destination = crate::utils::backup::database::S3Destination {
+            access_key: dest_model.access_key,
+            secret_key: dest_model.secret_access_key,
+            bucket: dest_model.bucket,
+            region: dest_model.region,
+            endpoint: dest_model.endpoint,
+            provider: Some(dest_model.provider),
+            additional_flags: dest_model.additional_flags,
+        };
+
+        let volume_backup = crate::utils::backup::volume::VolumeBackup {
+            volume_name: backup.volume_name.clone(),
+            service: target,
+            turn_off: backup.turn_off == 1,
+        };
+
+        let runner = crate::utils::backup::volume::VolumeBackupRunner::new(&executor, &volume_backup, &destination);
+
+        let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
+        let object_key = format!(
+            "{}/{}_{}.tar.gz",
+            backup.prefix.trim_matches('/'),
+            backup.name,
+            timestamp
+        );
+
+        let cancel = tokio_util::sync::CancellationToken::new();
+        runner.run(&object_key, &cancel).await.map_err(|e| {
+            sqlx::Error::Protocol(e.to_string())
+        })?;
+
+        Ok(())
+    }
 }
 
 fn normalize_shell_type(value: Option<&str>) -> sqlx::Result<String> {
@@ -644,4 +1088,30 @@ fn generate_schedule_app_name(name: &str) -> String {
         slug
     };
     format!("{slug}-{}", Uuid::new_v4().simple())
+}
+
+fn parse_database_type(value: &str) -> Option<BackupsDatabaseTypeEnum> {
+    match value.to_ascii_uppercase().as_str() {
+        "POSTGRES" | "POSTGRESQL" => Some(BackupsDatabaseTypeEnum::Postgres),
+        "MYSQL" => Some(BackupsDatabaseTypeEnum::Mysql),
+        "MARIADB" => Some(BackupsDatabaseTypeEnum::Mariadb),
+        "MONGO" | "MONGODB" => Some(BackupsDatabaseTypeEnum::Mongo),
+        "REDIS" => Some(BackupsDatabaseTypeEnum::Redis),
+        "LIBSQL" => Some(BackupsDatabaseTypeEnum::Libsql),
+        _ => None,
+    }
+}
+
+fn parse_volume_service_type(value: &str) -> Option<VolumeBackupsServiceTypeEnum> {
+    match value.to_ascii_uppercase().as_str() {
+        "APPLICATION" => Some(VolumeBackupsServiceTypeEnum::Application),
+        "COMPOSE" => Some(VolumeBackupsServiceTypeEnum::Compose),
+        "POSTGRES" => Some(VolumeBackupsServiceTypeEnum::Postgres),
+        "MYSQL" => Some(VolumeBackupsServiceTypeEnum::Mysql),
+        "MARIADB" => Some(VolumeBackupsServiceTypeEnum::Mariadb),
+        "MONGO" | "MONGODB" => Some(VolumeBackupsServiceTypeEnum::Mongo),
+        "REDIS" => Some(VolumeBackupsServiceTypeEnum::Redis),
+        "LIBSQL" => Some(VolumeBackupsServiceTypeEnum::Libsql),
+        _ => None,
+    }
 }

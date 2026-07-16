@@ -23,6 +23,31 @@ impl<'a> HerokuCli<'a> {
         Self { executor }
     }
 
+    pub async fn exists(&self) -> bool {
+        self.executor
+            .run("sh", &["-c", "command -v pack"])
+            .await
+            .map(|out| out.success())
+            .unwrap_or(false)
+    }
+
+    pub async fn is_exists(&self) -> bool {
+        self.exists().await
+    }
+
+    pub async fn install(&self) -> ExecResult<ExecOutput> {
+        self.executor
+            .run("sh", &["-c", "curl https://cli-assets.heroku.com/install.sh | sh"])
+            .await
+    }
+
+    pub async fn if_not_exist_install(&self) -> ExecResult<()> {
+        if !self.exists().await {
+            self.install().await?;
+        }
+        Ok(())
+    }
+
     pub fn build(&self, image_name: impl Into<String>) -> HerokuBuildBuilder<'_> {
         let mut args = ArgBuilder::cmd(&["build"]);
         args.push(image_name.into());

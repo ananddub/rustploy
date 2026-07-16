@@ -437,6 +437,7 @@ impl fmt::Display for TaskFilter {
 
 #[cfg(test)]
 mod tests {
+    use crate::utils::docker::DockerCli;
     use super::*;
 
     #[test]
@@ -472,4 +473,5 @@ mod tests {
         assert_eq!(VolumeFilter::Dangling(false).to_string(), "dangling=false");
         assert_eq!(VolumeFilter::driver("local").to_string(), "driver=local");
     }
+
 }

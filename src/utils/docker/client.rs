@@ -205,7 +205,7 @@ impl DockerCli {
         let mut attempts = 0;
         let args = builder.clone().build();
         let refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        tracing::debug!(command = ?refs, "running docker exec");
+        tracing::debug!(command = ?refs, "running docker command");
         loop {
             attempts += 1;
             if let Some(cancel) = &builder.cancel_token {

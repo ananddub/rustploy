@@ -148,6 +148,7 @@ impl<'a> ContainerCreate<'a> {
 
     fn finalize(mut self, subcmd: &str) -> (ArgBuilder, &'a DockerCli) {
         let mut full = ArgBuilder::cmd(&["container", subcmd]);
+        full.inherit_meta(&self.args);
         full.push_all(self.args.build());
         full.push(&self.image);
         full.push_all(self.command.drain(..));
@@ -210,6 +211,7 @@ impl<'a> ExecBuilder<'a> {
 
     pub async fn run(self, cmd: impl IntoIterator<Item = impl Into<String>>) -> DockerResult<DockerOutput> {
         let mut a = ArgBuilder::cmd(&["container", "exec"]);
+        a.inherit_meta(&self.args);
         a.push_all(self.args.build());
         a.push(&self.id);
         a.push_all(cmd.into_iter().map(Into::into));
@@ -218,6 +220,7 @@ impl<'a> ExecBuilder<'a> {
 
     pub async fn run_stream(self, cmd: impl IntoIterator<Item = impl Into<String>>, sender: mpsc::Sender<DockerStreamEvent>) -> DockerResult<DockerExitStatus> {
         let mut a = ArgBuilder::cmd(&["container", "exec"]);
+        a.inherit_meta(&self.args);
         a.push_all(self.args.build());
         a.push(&self.id);
         a.push_all(cmd.into_iter().map(Into::into));
@@ -251,6 +254,7 @@ impl<'a> LogsBuilder<'a> {
 
     pub async fn output(self) -> DockerResult<String> {
         let mut a = ArgBuilder::cmd(&["container", "logs"]);
+        a.inherit_meta(&self.args);
         a.push_all(self.args.build());
         a.push(&self.id);
         let out = self.cli.execute(&a).await?;
@@ -259,6 +263,7 @@ impl<'a> LogsBuilder<'a> {
 
     pub async fn stream(self, sender: mpsc::Sender<DockerStreamEvent>) -> DockerResult<DockerExitStatus> {
         let mut a = ArgBuilder::cmd(&["container", "logs"]);
+        a.inherit_meta(&self.args);
         a.push_all(self.args.build());
         a.push(&self.id);
         self.cli.execute_stream(&a, sender).await
@@ -278,6 +283,7 @@ impl<'a> StatsBuilder<'a> {
 
     pub async fn stream(self, sender: mpsc::Sender<DockerStreamEvent>) -> DockerResult<DockerExitStatus> {
         let mut a = ArgBuilder::cmd(&["container", "stats"]);
+        a.inherit_meta(&self.args);
         a.push_all(self.args.build());
         a.push(&self.id);
         self.cli.execute_stream(&a, sender).await

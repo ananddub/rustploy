@@ -140,7 +140,10 @@ impl<'a> ServiceUpdate<'a> {
         a.push(self.name.clone());
         a
     }
-
+    pub fn print(self)->String {
+        let args = self.build_args();
+        args.join(" ")
+    }
     pub async fn run(self) -> DockerResult<DockerOutput> {
         let args = self.build_args();
         let refs: Vec<&str> = args.iter().map(String::as_str).collect();
@@ -185,4 +188,12 @@ mod tests {
         assert!(args.contains(&"--force".to_string()));
         assert_eq!(args.last(), Some(&"myapp".to_string()));
     }
+
+    #[test]
+    fn service_test(){
+        // let docker = DockerCli::new_local();
+        // let data  = docker.services().list().filter(ServiceFilter::name("myservice")).print();
+        // println!("Service data: {}", data);
+    }
 }
+

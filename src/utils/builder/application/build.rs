@@ -40,6 +40,7 @@ impl ApplicationBuilder {
                 )))
                 .await;
                 let cli = NixpacksCli::new(&self.ctx.executor);
+                cli.if_not_exist_install().await?;
                 let mut builder = cli
                     .build(spec.work_directory.as_str())
                     .name(spec.image.as_str());
@@ -56,6 +57,7 @@ impl ApplicationBuilder {
                 )))
                 .await;
                 let cli = PackCli::new(&self.ctx.executor);
+                cli.if_not_exist_install().await?;
                 let mut builder = cli
                     .build(spec.image.as_str())
                     .path(spec.work_directory.as_str())
@@ -73,6 +75,7 @@ impl ApplicationBuilder {
                 )))
                 .await;
                 let cli = HerokuCli::new(&self.ctx.executor);
+                cli.if_not_exist_install().await?;
                 let mut builder = cli
                     .build(spec.image.as_str())
                     .path(spec.work_directory.as_str())
@@ -91,6 +94,7 @@ impl ApplicationBuilder {
                 .await;
                 let plan = format!("{}/railpack-plan.json", spec.work_directory);
                 let cli = RailpackCli::new(&self.ctx.executor);
+                cli.if_not_exist_install().await?;
                 let mut builder = cli
                     .prepare(spec.work_directory.as_str())
                     .plan_out(plan.as_str());
