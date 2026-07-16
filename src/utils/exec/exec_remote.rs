@@ -5,7 +5,6 @@ use crate::utils::session::{SshSessionLease, SshSessionPool};
 use russh_extra::{Client, HostKeyPolicy, Identity, KeyboardInteractiveReply};
 use std::time::Duration;
 use std::{ffi::OsStr, sync::Arc};
-use sqlx::SqlitePool;
 use tokio::{sync::mpsc, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
@@ -67,23 +66,20 @@ impl RemoteExecutor {
         }
     }
 
-    pub async fn new_with_db(db :Arc<SqlitePool>,server_id:i64)->Result<RemoteExecutor, sqlx::Error>{
-        let server = sqlx::query!(r#" SELECT
-                                        sr.ip_address AS host,
-                                        sr.name AS username,
-                                        sr.port AS port,
-                                        sh.public_key AS public_key,
-                                        sh.private_key AS private_key
-                                    FROM servers sr
-                                    LEFT JOIN ssh_keys sh
-                                    ON sr.ssh_key_id = sh.id WHERE sr.id = ? "#,server_id)
-            .fetch_one(db.as_ref())
-            .await?;
+    pub async fn new_with_db(_db: Arc<sqlx::SqlitePool>, server_id: i64) -> Result<RemoteExecutor, sqlx::Error> {
+        let repo = auto_di::resolve::<crate::repository::ServerRepository>()
+            .await
+            .map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
+        let server = repo
+            .get_ssh_credentials(server_id)
+            .await?
+            .ok_or(sqlx::Error::RowNotFound)?;
+        let port = u16::try_from(server.1).map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
         Ok(RemoteExecutor::new(
-            server.host,
-            server.port as u16,
-            server.username,
-            SshAuth::key_pair(server.private_key.unwrap_or("".to_string()), server.public_key.unwrap_or("".to_string())),
+            server.0,
+            port,
+            server.2,
+            SshAuth::key_pair(server.3, server.4),
             SshHostKey::InsecureAcceptAny,
         )
             .with_pool_size(4)

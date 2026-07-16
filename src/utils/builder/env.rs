@@ -1,8 +1,11 @@
 use auto_di::resolve;
 use minijinja::{Environment, Value, context};
 use serde::Serialize;
-use sqlx::SqlitePool;
 use std::collections::{BTreeMap, HashMap};
+
+use crate::repository::{
+    EnvironmentRepository, ProjectRepository, ApplicationRepository, ComposeProjectRepository
+};
 
 pub fn generate_env_app(
     db_env: String,
@@ -27,22 +30,13 @@ pub async fn generate_env_app_with_id(
     pr_id: i64,
     app_id: i64,
 ) -> Option<HashMap<String, String>> {
-    let q = resolve::<SqlitePool>().await.unwrap();
-    let db_env = sqlx::query!(r#"select * from environments where id =?"#, env_id)
-        .fetch_one(q.as_ref())
-        .await
-        .ok()
-        .unwrap();
-    let db_project_env = sqlx::query!("select * from projects where id = ?", pr_id)
-        .fetch_one(q.as_ref())
-        .await
-        .ok()
-        .unwrap();
-    let db_app_env = sqlx::query!("select * from applications where id = ?", app_id)
-        .fetch_one(q.as_ref())
-        .await
-        .ok()
-        .unwrap();
+    let repo_env = resolve::<EnvironmentRepository>().await.ok()?;
+    let repo_project = resolve::<ProjectRepository>().await.ok()?;
+    let repo_app = resolve::<ApplicationRepository>().await.ok()?;
+
+    let db_env = repo_env.get_by_id(env_id).await.ok()??;
+    let db_project_env = repo_project.get_by_id(pr_id).await.ok()??;
+    let db_app_env = repo_app.get_by_id(app_id).await.ok()??;
 
     let map: HashMap<String, String> = convert_env_to_map(&db_env.env_var);
 
@@ -58,7 +52,7 @@ pub async fn generate_env_app_with_id(
 
     let app_env = fix_env(
         env_project_map(map, pro_map),
-        &db_app_env.env_var.or_else(|| Some("".to_string())).unwrap(),
+        &db_app_env.env_var.unwrap_or_default(),
     );
 
     Some(convert_env_to_map(&app_env))
@@ -69,22 +63,13 @@ pub async fn generate_env_compose(
     pr_id: i64,
     compose_id: i64,
 ) -> Option<HashMap<String, String>> {
-    let q = resolve::<SqlitePool>().await.unwrap();
-    let db_env = sqlx::query!(r#"select * from environments where id =?"#, env_id)
-        .fetch_one(q.as_ref())
-        .await
-        .ok()
-        .unwrap();
-    let db_project_env = sqlx::query!("select * from projects where id = ?", pr_id)
-        .fetch_one(q.as_ref())
-        .await
-        .ok()
-        .unwrap();
-    let db_compose_env = sqlx::query!("select * from compose_projects where id = ?", compose_id)
-        .fetch_one(q.as_ref())
-        .await
-        .ok()
-        .unwrap();
+    let repo_env = resolve::<EnvironmentRepository>().await.ok()?;
+    let repo_project = resolve::<ProjectRepository>().await.ok()?;
+    let repo_compose = resolve::<ComposeProjectRepository>().await.ok()?;
+
+    let db_env = repo_env.get_by_id(env_id).await.ok()??;
+    let db_project_env = repo_project.get_by_id(pr_id).await.ok()??;
+    let db_compose_env = repo_compose.get_by_id(compose_id).await.ok()??;
     let map: HashMap<String, String> = convert_env_to_map(&db_env.env_var);
 
     let pro_env = fix_env(
@@ -99,10 +84,7 @@ pub async fn generate_env_compose(
 
     let compose_env = fix_env(
         env_project_map(map, pro_map),
-        &db_compose_env
-            .env_var
-            .or_else(|| Some("".to_string()))
-            .unwrap(),
+        &db_compose_env.env_var.unwrap_or_default(),
     );
 
     Some(convert_env_to_map(&compose_env))
@@ -112,15 +94,11 @@ pub async fn generate_env_db(
     env_id: i64,
     db_env_var: &str,
 ) -> Option<HashMap<String, String>> {
-    let q = resolve::<SqlitePool>().await.unwrap();
-    let db_env = sqlx::query!(r#"select * from environments where id =?"#, env_id)
-        .fetch_one(q.as_ref())
-        .await
-        .ok()?;
-    let db_project_env = sqlx::query!("select * from projects where id = ?", db_env.project_id)
-        .fetch_one(q.as_ref())
-        .await
-        .ok()?;
+    let repo_env = resolve::<EnvironmentRepository>().await.ok()?;
+    let repo_project = resolve::<ProjectRepository>().await.ok()?;
+
+    let db_env = repo_env.get_by_id(env_id).await.ok()??;
+    let db_project_env = repo_project.get_by_id(db_env.project_id).await.ok()??;
     let map: HashMap<String, String> = convert_env_to_map(&db_env.env_var);
 
     let pro_env = fix_env(
