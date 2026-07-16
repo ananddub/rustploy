@@ -72,6 +72,39 @@ impl DatabaseDumper {
         }
     }
 
+    pub fn inner_restore_command(&self) -> String {
+        match self {
+            Self::Postgres { creds: c, .. } => format!(
+                "set -o pipefail; gunzip | pg_restore -U '{user}' -d '{db}' -O --clean --if-exists",
+                user = c.user,
+                db   = c.database,
+            ),
+            Self::Mysql { creds: c, .. } => format!(
+                "set -o pipefail; gunzip | mysql -u 'root' --password='{password}' '{db}'",
+                password = c.password,
+                db       = c.database,
+            ),
+            Self::MariaDb { creds: c, .. } => format!(
+                "set -o pipefail; gunzip | mariadb -u '{user}' --password='{password}' '{db}'",
+                user     = c.user,
+                password = c.password,
+                db       = c.database,
+            ),
+            Self::Mongo { creds: c, .. } => format!(
+                "set -o pipefail; mongorestore --username '{user}' --password '{password}' --authenticationDatabase admin --db '{db}' --archive --gzip --drop",
+                user     = c.user,
+                password = c.password,
+                db       = c.database,
+            ),
+            Self::LibSql { .. } => {
+                "set -o pipefail; gunzip | tar xf - -C /var/lib/sqld".to_string()
+            },
+            Self::Redis { .. } => {
+                "gunzip > /data/dump.rdb".to_string()
+            }
+        }
+    }
+
     pub fn service_name(&self) -> &str {
         match self {
             Self::Postgres  { target, .. }

@@ -1,4 +1,4 @@
-use russh_extra::russh::keys::signature::digest::common::getrandom::u32;
+
 use crate::utils::docker::{DockerCli, DockerError};
 use crate::utils::docker::query::filter::{ContainerFilter, ContainerStatus};
 use crate::utils::exec::{CommandExecutor, ExecError, ExecResult, ExecOutput};
@@ -143,6 +143,26 @@ impl<'a> VolumeBackupRunner<'a> {
             .await
     }
 
+    async fn stream_from_s3(
+        &self,
+        object_key: &str,
+        cancel: &CancellationToken,
+    ) -> ExecResult<ExecOutput> {
+        let vol = &self.backup.volume_name;
+        let rclone_args = self.destination.rclone_cat_args(object_key);
+        let rclone_cmd  = format!("rclone {}", rclone_args.join(" "));
+
+        let pipeline = format!(
+            "set -eo pipefail; {rclone} | docker run -i --rm -v {vol}:/volume_data ubuntu tar xf - -C /volume_data",
+            vol    = vol,
+            rclone = rclone_cmd,
+        );
+
+        self.executor
+            .run_cancelled("sh", ["-c", &pipeline], cancel)
+            .await
+    }
+
     pub async fn run(
         &self,
         object_key: &str,
@@ -169,6 +189,38 @@ impl<'a> VolumeBackupRunner<'a> {
             }
             (VolumeServiceTarget::Standalone, _) => {
                 self.stream_to_s3(object_key, cancel).await
+            }
+        };
+
+        result
+    }
+
+    pub async fn run_restore(
+        &self,
+        object_key: &str,
+        cancel: &CancellationToken,
+    ) -> ExecResult<ExecOutput> {
+        let result = match (&self.backup.service, self.backup.turn_off) {
+            (VolumeServiceTarget::SwarmService { service_name }, true) => {
+                let replicas = self.swarm_stop(service_name).await?;
+                let out = self.stream_from_s3(object_key, cancel).await;
+                let _ = self.swarm_start(service_name, replicas).await;
+                out
+            }
+            (VolumeServiceTarget::SwarmService { .. }, false) => {
+                self.stream_from_s3(object_key, cancel).await
+            }
+            (VolumeServiceTarget::ComposeService { project, service }, true) => {
+                let id = self.compose_stop(project, service).await?;
+                let out = self.stream_from_s3(object_key, cancel).await;
+                let _ = self.compose_start(&id).await;
+                out
+            }
+            (VolumeServiceTarget::ComposeService { .. }, false) => {
+                self.stream_from_s3(object_key, cancel).await
+            }
+            (VolumeServiceTarget::Standalone, _) => {
+                self.stream_from_s3(object_key, cancel).await
             }
         };
 

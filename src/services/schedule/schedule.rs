@@ -226,6 +226,90 @@ impl ScheduleService {
         self.repo_schedule.set_enabled(id, enabled).await
     }
 
+    pub async fn restore_database_backup(&self, id: i64, backup_file: &str) -> sqlx::Result<()> {
+        let backup = self.repo_backup.get_by_id(id).await?.ok_or(sqlx::Error::RowNotFound)?;
+
+        let server_id = self.resolve_database_backup_server_id(&backup).await?;
+        let executor = if let Some(sid) = server_id {
+            CommandExecutor::Remote(
+                remote_executor(self.db.as_ref(), sid)
+                    .await
+                    .map_err(sqlx::Error::Protocol)?,
+            )
+        } else {
+            CommandExecutor::Local(LocalExecutor::new())
+        };
+
+        let dumper = self.resolve_database_dumper(&backup).await?;
+        let dest_model = self.repo_destination.get_by_id(backup.destination_id).await?.ok_or_else(|| {
+            sqlx::Error::Protocol("destination not found".into())
+        })?;
+
+        let destination = crate::utils::backup::database::S3Destination {
+            access_key: dest_model.access_key,
+            secret_key: dest_model.secret_access_key,
+            bucket: dest_model.bucket,
+            region: dest_model.region,
+            endpoint: dest_model.endpoint,
+            provider: Some(dest_model.provider),
+            additional_flags: dest_model.additional_flags,
+        };
+
+        let runner = crate::utils::backup::database::BackupRunner::new(&executor, &dumper, &destination);
+
+        let cancel = tokio_util::sync::CancellationToken::new();
+        runner.run_restore(backup_file, &cancel).await.map_err(|e| {
+            sqlx::Error::Protocol(e.to_string())
+        })?;
+
+        Ok(())
+    }
+
+    pub async fn restore_volume_backup(&self, id: i64, backup_file: &str) -> sqlx::Result<()> {
+        let backup = self.repo_volume_backup.get_by_id(id).await?.ok_or(sqlx::Error::RowNotFound)?;
+
+        let server_id = self.resolve_volume_backup_server_id(&backup).await?;
+        let executor = if let Some(sid) = server_id {
+            CommandExecutor::Remote(
+                remote_executor(self.db.as_ref(), sid)
+                    .await
+                    .map_err(sqlx::Error::Protocol)?,
+            )
+        } else {
+            CommandExecutor::Local(LocalExecutor::new())
+        };
+
+        let target = self.resolve_volume_service_target(&backup).await?;
+        let dest_model = self.repo_destination.get_by_id(backup.destination_id).await?.ok_or_else(|| {
+            sqlx::Error::Protocol("destination not found".into())
+        })?;
+
+        let destination = crate::utils::backup::database::S3Destination {
+            access_key: dest_model.access_key,
+            secret_key: dest_model.secret_access_key,
+            bucket: dest_model.bucket,
+            region: dest_model.region,
+            endpoint: dest_model.endpoint,
+            provider: Some(dest_model.provider),
+            additional_flags: dest_model.additional_flags,
+        };
+
+        let volume_backup = crate::utils::backup::volume::VolumeBackup {
+            volume_name: backup.volume_name.clone(),
+            service: target,
+            turn_off: backup.turn_off == 1,
+        };
+
+        let runner = crate::utils::backup::volume::VolumeBackupRunner::new(&executor, &volume_backup, &destination);
+
+        let cancel = tokio_util::sync::CancellationToken::new();
+        runner.run_restore(backup_file, &cancel).await.map_err(|e| {
+            sqlx::Error::Protocol(e.to_string())
+        })?;
+
+        Ok(())
+    }
+
     pub async fn delete(&self, id: i64) -> sqlx::Result<()> {
         self.get_by_id(id).await?;
         self.repo_schedule.delete(id).await

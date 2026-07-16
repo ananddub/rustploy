@@ -92,6 +92,31 @@ impl<'a> BackupRunner<'a> {
             .run_cancelled("sh", ["-c", &pipeline], cancel)
             .await
     }
+
+    pub async fn run_restore(
+        &self,
+        object_key: &str,
+        cancel: &CancellationToken,
+    ) -> ExecResult<ExecOutput> {
+        let container_id = self.resolve_container_id().await?;
+
+        self.verify_connection(&container_id).await?;
+
+        let inner_cmd   = self.dumper.inner_restore_command();
+        let rclone_args = self.destination.rclone_cat_args(object_key);
+        let rclone_cmd  = format!("rclone {}", rclone_args.join(" "));
+
+        let pipeline = format!(
+            "set -eo pipefail; {rclone} | docker exec -i {id} sh -c {inner}",
+            rclone = rclone_cmd,
+            id    = container_id,
+            inner = shell_single_quote(&inner_cmd),
+        );
+
+        self.executor
+            .run_cancelled("sh", ["-c", &pipeline], cancel)
+            .await
+    }
 }
 
 fn docker_to_exec_error(e: DockerError) -> ExecError {

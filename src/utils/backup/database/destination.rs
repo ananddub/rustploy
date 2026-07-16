@@ -50,4 +50,19 @@ impl S3Destination {
         args.push(format!(":s3:{}/{}", self.bucket, object_path));
         args
     }
+
+    pub fn rclone_cat_args(&self, object_path: &str) -> Vec<String> {
+        let mut args = vec!["cat".to_string()];
+        args.extend(self.rclone_flags());
+        args.push(format!(":s3:{}/{}", self.bucket, object_path));
+        args
+    }
+
+    pub fn rclone_copyto_args(&self, object_path: &str, target_path: &str) -> Vec<String> {
+        let mut args = vec!["copyto".to_string()];
+        args.extend(self.rclone_flags());
+        args.push(format!(":s3:{}/{}", self.bucket, object_path));
+        args.push(target_path.to_string());
+        args
+    }
 }
