@@ -1,8 +1,20 @@
 use crate::api::dto::database::{CreateDatabaseDto, PatchDatabaseDto};
-use super::{DatabaseService, DatabaseRecord, DatabaseKind};
+use crate::services::database::{DatabaseRecord, DatabaseKind};
+use sqlx::SqlitePool;
+use std::sync::Arc;
+use auto_di::singleton;
 
-impl DatabaseService {
-    pub(super) async fn select_mongo(&self, id: i64) -> sqlx::Result<DatabaseRecord> {
+pub struct MongoRepository {
+    pool: Arc<SqlitePool>,
+}
+
+#[singleton]
+impl MongoRepository {
+    pub fn new(pool: Arc<SqlitePool>) -> Self {
+        Self { pool }
+    }
+
+    pub async fn get_by_id(&self, id: i64) -> sqlx::Result<DatabaseRecord> {
         sqlx::query_as!(
             DatabaseRecord,
             r#"SELECT 'mongo' AS "kind: DatabaseKind", id AS "id!: i64", name, app_name, description, docker_image,
@@ -12,11 +24,11 @@ impl DatabaseService {
                FROM mongo_dbs WHERE id = ?"#,
             id
         )
-        .fetch_one(self.db.as_ref())
+        .fetch_one(self.pool.as_ref())
         .await
     }
 
-    pub(super) async fn create_mongo(
+    pub async fn create(
         &self,
         input: &CreateDatabaseDto,
         app_name: &str,
@@ -40,12 +52,12 @@ impl DatabaseService {
             input.environment_id,
             input.server_id
         )
-        .execute(self.db.as_ref())
+        .execute(self.pool.as_ref())
         .await?;
         Ok(())
     }
 
-    pub(super) async fn patch_mongo(
+    pub async fn update(
         &self,
         id: i64,
         input: &PatchDatabaseDto,
@@ -67,22 +79,29 @@ impl DatabaseService {
             input.server_id,
             id
         )
-        .execute(self.db.as_ref())
+        .execute(self.pool.as_ref())
         .await?;
         Ok(())
     }
 
-    pub(super) async fn delete_mongo(&self, id: i64) -> sqlx::Result<()> {
+    pub async fn delete(&self, id: i64) -> sqlx::Result<()> {
         sqlx::query!("DELETE FROM mongo_dbs WHERE id = ?", id)
-            .execute(self.db.as_ref())
+            .execute(self.pool.as_ref())
             .await?;
         Ok(())
     }
 
-    pub(super) async fn get_mongo_server_id_and_name(&self, id: i64) -> sqlx::Result<(Option<i64>, String)> {
+    pub async fn get_server_id_and_name(&self, id: i64) -> sqlx::Result<(Option<i64>, String)> {
         let r = sqlx::query!("SELECT server_id, name FROM mongo_dbs WHERE id = ?", id)
-            .fetch_one(self.db.as_ref())
+            .fetch_one(self.pool.as_ref())
             .await?;
         Ok((r.server_id, r.name))
+    }
+
+    pub async fn update_status(&self, id: i64, status: &str) -> sqlx::Result<()> {
+        sqlx::query!("UPDATE mongo_dbs SET app_status = ? WHERE id = ?", status, id)
+            .execute(self.pool.as_ref())
+            .await?;
+        Ok(())
     }
 }

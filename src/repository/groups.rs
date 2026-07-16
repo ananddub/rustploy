@@ -1,0 +1,71 @@
+use crate::db::models::groups::Group;
+use crate::db::models::types::*;
+use chrono::NaiveDateTime;
+use sqlx::SqlitePool;
+use std::sync::Arc;
+use auto_di::singleton;
+
+pub struct GroupRepository {
+    pool: Arc<SqlitePool>,
+}
+
+#[singleton]
+impl GroupRepository {
+    pub fn new(pool: Arc<SqlitePool>) -> Self {
+        Self { pool }
+    }
+
+    pub async fn get_all(&self) -> Result<Vec<Group>, sqlx::Error> {
+        sqlx::query_as!(
+            Group,
+            r#"SELECT id AS "id?: i64", name AS "name: String", created_at AS "created_at: i64", updated_at AS "updated_at: i64" FROM groups"#
+        )
+        .fetch_all(self.pool.as_ref())
+        .await
+    }
+
+    pub async fn get_by_id(&self, id: i64) -> Result<Option<Group>, sqlx::Error> {
+        sqlx::query_as!(
+            Group,
+            r#"SELECT id AS "id?: i64", name AS "name: String", created_at AS "created_at: i64", updated_at AS "updated_at: i64" FROM groups WHERE id = ?"#,
+            id
+        )
+        .fetch_optional(self.pool.as_ref())
+        .await
+    }
+
+    pub async fn create(&self, item: &Group) -> Result<i64, sqlx::Error> {
+        let _res = sqlx::query!(
+            r#"INSERT INTO groups (name, created_at, updated_at) VALUES (?, ?, ?)"#,
+            &item.name,
+            item.created_at,
+            item.updated_at
+        )
+        .execute(self.pool.as_ref())
+        .await?;
+        Ok(_res.last_insert_rowid())
+    }
+
+    pub async fn update(&self, id: i64, item: &Group) -> Result<(), sqlx::Error> {
+        sqlx::query!(
+            r#"UPDATE groups SET name = ?, created_at = ?, updated_at = ? WHERE id = ?"#,
+            &item.name,
+            item.created_at,
+            item.updated_at,
+            id
+        )
+        .execute(self.pool.as_ref())
+        .await?;
+        Ok(())
+    }
+
+    pub async fn delete(&self, id: i64) -> Result<(), sqlx::Error> {
+        sqlx::query!(
+            r#"DELETE FROM groups WHERE id = ?"#,
+            id
+        )
+        .execute(self.pool.as_ref())
+        .await?;
+        Ok(())
+    }
+}

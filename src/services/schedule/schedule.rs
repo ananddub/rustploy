@@ -15,6 +15,7 @@ use crate::{
         docker::DockerCli,
         exec::{CommandExecutor, LocalExecutor},
     },
+    repository::{ScheduleRepository, ApplicationRepository, ComposeProjectRepository},
 };
 use crate::services::compose::ComposeType;
 use crate::services::schedule::types::{ScheduleAction, ScheduleType, ShellType};
@@ -34,6 +35,9 @@ pub struct ScheduleService {
     db: Arc<SqlitePool>,
     applications: Arc<ApplicationService>,
     compose: Arc<ComposeService>,
+    repo_schedule: Arc<ScheduleRepository>,
+    repo_app: Arc<ApplicationRepository>,
+    repo_compose: Arc<ComposeProjectRepository>,
 }
 
 #[singleton]
@@ -42,85 +46,45 @@ impl ScheduleService {
         db: Arc<SqlitePool>,
         applications: Arc<ApplicationService>,
         compose: Arc<ComposeService>,
+        repo_schedule: Arc<ScheduleRepository>,
+        repo_app: Arc<ApplicationRepository>,
+        repo_compose: Arc<ComposeProjectRepository>,
     ) -> Self {
         Self {
             db,
             applications,
             compose,
+            repo_schedule,
+            repo_app,
+            repo_compose,
         }
     }
 
     pub async fn get_by_id(&self, id: i64) -> sqlx::Result<Schedule> {
-        select_schedule_by_id(self.db.as_ref(), id).await
+        self.repo_schedule
+            .get_by_id(id)
+            .await?
+            .ok_or(sqlx::Error::RowNotFound)
     }
 
     pub async fn list_by_application(&self, application_id: i64) -> sqlx::Result<Vec<Schedule>> {
-        sqlx::query_as!(
-            Schedule,
-            r#"SELECT id AS "id?", name, description, cron_expression, app_name, service_name,
-               shell_type, schedule_type, schedule_action, command, script, timezone, enabled, application_id,
-               compose_id, server_id, organization_id, created_at, updated_at
-               FROM schedules WHERE application_id = ?
-               ORDER BY created_at DESC, id DESC"#,
-            application_id,
-        )
-        .fetch_all(self.db.as_ref())
-        .await
+        self.repo_schedule.list_by_application(application_id).await
     }
 
     pub async fn list_by_compose(&self, compose_id: i64) -> sqlx::Result<Vec<Schedule>> {
-        sqlx::query_as!(
-            Schedule,
-            r#"SELECT id AS "id?", name, description, cron_expression, app_name, service_name,
-               shell_type, schedule_type, schedule_action, command, script, timezone, enabled, application_id,
-               compose_id, server_id, organization_id, created_at, updated_at
-               FROM schedules WHERE compose_id = ?
-               ORDER BY created_at DESC, id DESC"#,
-            compose_id,
-        )
-        .fetch_all(self.db.as_ref())
-        .await
+        self.repo_schedule.list_by_compose(compose_id).await
     }
 
     pub async fn list_by_server(&self, server_id: i64) -> sqlx::Result<Vec<Schedule>> {
-        sqlx::query_as!(
-            Schedule,
-            r#"SELECT id AS "id?", name, description, cron_expression, app_name, service_name,
-               shell_type, schedule_type, schedule_action, command, script, timezone, enabled, application_id,
-               compose_id, server_id, organization_id, created_at, updated_at
-               FROM schedules WHERE server_id = ?
-               ORDER BY created_at DESC, id DESC"#,
-            server_id,
-        )
-        .fetch_all(self.db.as_ref())
-        .await
+        self.repo_schedule.list_by_server(server_id).await
     }
 
     pub async fn list_by_organization(&self, organization_id: i64) -> sqlx::Result<Vec<Schedule>> {
-        sqlx::query_as!(
-            Schedule,
-            r#"SELECT id AS "id?", name, description, cron_expression, app_name, service_name,
-               shell_type, schedule_type, schedule_action, command, script, timezone, enabled, application_id,
-               compose_id, server_id, organization_id, created_at, updated_at
-               FROM schedules WHERE organization_id = ?
-               ORDER BY created_at DESC, id DESC"#,
-            organization_id,
-        )
-        .fetch_all(self.db.as_ref())
-        .await
+        self.repo_schedule.list_by_organization(organization_id).await
     }
 
     pub async fn list_enabled(&self) -> sqlx::Result<Vec<Schedule>> {
-        sqlx::query_as!(
-            Schedule,
-            r#"SELECT id AS "id?", name, description, cron_expression, app_name, service_name,
-               shell_type, schedule_type, schedule_action, command, script, timezone, enabled, application_id,
-               compose_id, server_id, organization_id, created_at, updated_at
-               FROM schedules WHERE enabled = 1
-               ORDER BY created_at DESC, id DESC"#
-        )
-        .fetch_all(self.db.as_ref())
-        .await
+        self.repo_schedule.list_enabled().await
     }
 
     pub async fn create(&self, input: CreateScheduleDto) -> sqlx::Result<Schedule> {
@@ -144,35 +108,26 @@ impl ScheduleService {
             .app_name
             .unwrap_or_else(|| generate_schedule_app_name(&input.name));
 
-        sqlx::query_as!(
-            Schedule,
-            r#"INSERT INTO schedules
-               (name, description, cron_expression, app_name, service_name, shell_type,
-                schedule_type, schedule_action, command, script, timezone, enabled, application_id, compose_id,
-                server_id, organization_id)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-               RETURNING id AS "id?", name, description, cron_expression, app_name, service_name,
-               shell_type, schedule_type, schedule_action, command, script, timezone, enabled, application_id,
-               compose_id, server_id, organization_id, created_at, updated_at"#,
-            input.name,
-            input.description,
-            input.cron_expression,
-            app_name,
-            input.service_name,
-            shell_type,
-            schedule_type,
-            schedule_action,
-            input.command,
-            input.script,
-            input.timezone,
-            enabled,
-            input.application_id,
-            input.compose_id,
-            input.server_id,
-            input.organization_id,
-        )
-        .fetch_one(self.db.as_ref())
-        .await
+        self.repo_schedule
+            .create_and_return(
+                input.name,
+                input.description,
+                input.cron_expression,
+                app_name,
+                input.service_name,
+                shell_type,
+                schedule_type,
+                schedule_action,
+                input.command,
+                input.script,
+                input.timezone,
+                enabled,
+                input.application_id,
+                input.compose_id,
+                input.server_id,
+                input.organization_id,
+            )
+            .await
     }
 
     pub async fn patch(&self, id: i64, input: PatchScheduleDto) -> sqlx::Result<Schedule> {
@@ -211,58 +166,36 @@ impl ScheduleService {
             service_name.as_deref(),
         )?;
 
-        sqlx::query_as!(
-            Schedule,
-            r#"UPDATE schedules SET
-               name = ?, description = ?, cron_expression = ?, app_name = ?, service_name = ?,
-               shell_type = ?, schedule_type = ?, schedule_action = ?, command = ?, script = ?, timezone = ?,
-               enabled = ?, application_id = ?, compose_id = ?, server_id = ?, organization_id = ?
-               WHERE id = ?
-               RETURNING id AS "id?", name, description, cron_expression, app_name, service_name,
-               shell_type, schedule_type, schedule_action, command, script, timezone, enabled, application_id,
-               compose_id, server_id, organization_id, created_at, updated_at"#,
-            name,
-            description,
-            cron_expression,
-            app_name,
-            service_name,
-            shell_type,
-            schedule_type,
-            schedule_action,
-            command,
-            script,
-            timezone,
-            enabled,
-            application_id,
-            compose_id,
-            server_id,
-            organization_id,
-            id,
-        )
-        .fetch_one(self.db.as_ref())
-        .await
+        self.repo_schedule
+            .update_and_return(
+                id,
+                name,
+                description,
+                cron_expression,
+                app_name,
+                service_name,
+                shell_type,
+                schedule_type,
+                schedule_action,
+                command,
+                script,
+                timezone,
+                enabled,
+                application_id,
+                compose_id,
+                server_id,
+                organization_id,
+            )
+            .await
     }
 
     pub async fn set_enabled(&self, id: i64, enabled: bool) -> sqlx::Result<Schedule> {
-        sqlx::query_as!(
-            Schedule,
-            r#"UPDATE schedules SET enabled = ? WHERE id = ?
-               RETURNING id AS "id?", name, description, cron_expression, app_name, service_name,
-               shell_type, schedule_type, schedule_action, command, script, timezone, enabled, application_id,
-               compose_id, server_id, organization_id, created_at, updated_at"#,
-            if enabled { 1 } else { 0 },
-            id,
-        )
-        .fetch_one(self.db.as_ref())
-        .await
+        self.repo_schedule.set_enabled(id, enabled).await
     }
 
     pub async fn delete(&self, id: i64) -> sqlx::Result<()> {
         self.get_by_id(id).await?;
-        sqlx::query!("DELETE FROM schedules WHERE id = ?", id)
-            .execute(self.db.as_ref())
-            .await?;
-        Ok(())
+        self.repo_schedule.delete(id).await
     }
 
     pub async fn run_now(&self, id: i64) -> sqlx::Result<ScheduleRunResult> {
@@ -277,9 +210,9 @@ impl ScheduleService {
             ))
         })?;
         match v {
-                ScheduleType::Application => self.run_application_schedule(schedule).await,
-                ScheduleType::Compose => self.run_compose_schedule(schedule).await,
-                ScheduleType::Server | ScheduleType::DokpanelServer => self.run_shell_schedule(schedule).await,
+            ScheduleType::Application => self.run_application_schedule(schedule).await,
+            ScheduleType::Compose => self.run_compose_schedule(schedule).await,
+            ScheduleType::Server | ScheduleType::DokpanelServer => self.run_shell_schedule(schedule).await,
         }
     }
 
@@ -379,12 +312,9 @@ impl ScheduleService {
         schedule: Schedule,
         application_id: i64,
     ) -> sqlx::Result<ScheduleRunResult> {
-        let (app_name, server_id) = sqlx::query_as::<_, (String, Option<i64>)>(
-            "SELECT app_name, server_id FROM applications WHERE id = ?",
-        )
-        .bind(application_id)
-        .fetch_one(self.db.as_ref())
-        .await?;
+        let app = self.repo_app.get_by_id(application_id).await?.ok_or(sqlx::Error::RowNotFound)?;
+        let app_name = app.app_name;
+        let server_id = app.server_id;
         // Applications are always deployed as Swarm services.
         let service_name = format!("{app_name}_{app_name}");
         self.run_swarm_container_command(schedule, server_id, &service_name)
@@ -396,12 +326,10 @@ impl ScheduleService {
         schedule: Schedule,
         compose_id: i64,
     ) -> sqlx::Result<ScheduleRunResult> {
-        let (app_name, server_id, compose_type) = sqlx::query_as::<_, (String, Option<i64>, String)>(
-            "SELECT app_name, server_id, compose_type FROM compose_projects WHERE id = ?",
-        )
-        .bind(compose_id)
-        .fetch_one(self.db.as_ref())
-        .await?;
+        let compose = self.repo_compose.get_by_id(compose_id).await?.ok_or(sqlx::Error::RowNotFound)?;
+        let app_name = compose.app_name;
+        let server_id = compose.server_id;
+        let compose_type = compose.compose_type;
 
         let compose_service = schedule.service_name.clone().ok_or_else(|| {
             sqlx::Error::Protocol("compose EXEC schedule requires service_name".into())
@@ -423,7 +351,6 @@ impl ScheduleService {
                     .await
             }
             ComposeType::DockerCompose => {
-
                 self.run_compose_project_container_command(
                     schedule, server_id, &app_name, &compose_service,
                 )
@@ -537,19 +464,6 @@ impl ScheduleService {
             None => Ok(DockerCli::new_local()),
         }
     }
-}
-
-async fn select_schedule_by_id(db: &SqlitePool, id: i64) -> sqlx::Result<Schedule> {
-    sqlx::query_as!(
-        Schedule,
-        r#"SELECT id AS "id?", name, description, cron_expression, app_name, service_name,
-           shell_type, schedule_type, schedule_action, command, script, timezone, enabled, application_id,
-           compose_id, server_id, organization_id, created_at, updated_at
-           FROM schedules WHERE id = ?"#,
-        id,
-    )
-    .fetch_one(db)
-    .await
 }
 
 fn normalize_shell_type(value: Option<&str>) -> sqlx::Result<String> {
