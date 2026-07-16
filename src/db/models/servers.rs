@@ -5,7 +5,7 @@
 use serde::{Deserialize, Serialize};
 use sqlx_gen::SqlxGen;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::FromRow, SqlxGen)]
+#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::FromRow, SqlxGen)]
 #[sqlx_gen(kind = "table", schema = "main", table = "servers")]
 pub struct Server {
     #[sqlx_gen(primary_key, sql_type = "INTEGER")]
@@ -40,4 +40,8 @@ pub struct Server {
     pub created_at: i64,
     #[sqlx_gen(sql_type = "INTEGER", column_default = "strftime('%s', 'now')")]
     pub updated_at: i64,
+    #[sqlx_gen(sql_type = "TEXT")]
+    pub build_memory_limit: Option<String>,
+    #[sqlx_gen(sql_type = "TEXT")]
+    pub build_cpu_limit: Option<String>,
 }

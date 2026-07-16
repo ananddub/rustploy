@@ -7,6 +7,7 @@ use crate::utils::{
     },
     docker::DockerCli,
     exec::{CommandExecutor, ExecError, ExecResult},
+    cgroup::Cgroup,
 };
 use std::sync::Arc;
 use tokio::{sync::mpsc, time::Duration};
@@ -26,6 +27,7 @@ pub mod traefik;
 pub struct BuilderContext {
     pub executor: CommandExecutor,
     pub docker: DockerCli,
+    pub cgroup: Option<Cgroup>,
     events: Option<mpsc::Sender<BuilderEvent>>,
     state: Option<(Arc<ApplicationState>, IdType)>,
     pub health_timeout: Duration,
@@ -36,6 +38,7 @@ impl BuilderContext {
         Self {
             docker: DockerCli::from_executor(executor.clone()),
             executor,
+            cgroup: None,
             events: None,
             state: None,
             health_timeout: Duration::from_secs(120),
@@ -54,6 +57,11 @@ impl BuilderContext {
 
     pub fn with_health_timeout(mut self, timeout: Duration) -> Self {
         self.health_timeout = timeout;
+        self
+    }
+
+    pub fn with_cgroup(mut self, cg: Cgroup) -> Self {
+        self.cgroup = Some(cg);
         self
     }
 

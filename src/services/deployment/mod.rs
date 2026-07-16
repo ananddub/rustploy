@@ -42,7 +42,7 @@ impl DeploymentService {
         sqlx::query_as!(
             Deployment,
             r#"SELECT id AS "id?", title, description, status, state, log_path, pid,
-               error_message, is_preview_deployment, started_at, last_state_at, finished_at,
+               error_message, operation, is_preview_deployment, started_at, last_state_at, finished_at,
                application_id, compose_id, server_id, created_at
                FROM deployments WHERE id = ?"#,
             id,
@@ -60,7 +60,7 @@ impl DeploymentService {
         sqlx::query_as!(
             Deployment,
             r#"SELECT id AS "id?", title, description, status, state, log_path, pid,
-               error_message, is_preview_deployment, started_at, last_state_at, finished_at,
+               error_message, operation, is_preview_deployment, started_at, last_state_at, finished_at,
                application_id, compose_id, server_id, created_at
                FROM deployments
                WHERE (? IS NULL OR status = ?)

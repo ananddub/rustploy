@@ -46,7 +46,8 @@ impl ApplicationBuilder {
                 for (k, v) in &spec.build_args {
                     builder = builder.env(k, v);
                 }
-                builder.run(cancel).await?;
+                let cgroup_path = self.ctx.cgroup.as_ref().map(|cg| cg.cgroup_path());
+                builder.run_in_cgroup(cgroup_path.as_deref(), cancel).await?;
             }
             BuildStrategy::Paketo => {
                 self.ctx.emit(BuilderEvent::Message(format!(
@@ -62,7 +63,8 @@ impl ApplicationBuilder {
                 for (k, v) in &spec.build_args {
                     builder = builder.env(k, v);
                 }
-                builder.run(cancel).await?;
+                let cgroup_path = self.ctx.cgroup.as_ref().map(|cg| cg.cgroup_path());
+                builder.run_in_cgroup(cgroup_path.as_deref(), cancel).await?;
             }
             BuildStrategy::Heroku => {
                 self.ctx.emit(BuilderEvent::Message(format!(
@@ -78,7 +80,8 @@ impl ApplicationBuilder {
                 for (k, v) in &spec.build_args {
                     builder = builder.env(k, v);
                 }
-                builder.run(cancel).await?;
+                let cgroup_path = self.ctx.cgroup.as_ref().map(|cg| cg.cgroup_path());
+                builder.run_in_cgroup(cgroup_path.as_deref(), cancel).await?;
             }
             BuildStrategy::Railpack { version } => {
                 self.ctx.emit(BuilderEvent::Message(format!(
@@ -94,7 +97,8 @@ impl ApplicationBuilder {
                 for (k, v) in &spec.build_args {
                     builder = builder.env(k, v);
                 }
-                builder.run(cancel).await?;
+                let cgroup_path = self.ctx.cgroup.as_ref().map(|cg| cg.cgroup_path());
+                builder.run_in_cgroup(cgroup_path.as_deref(), cancel).await?;
                 let _ = self.ctx.docker.images().build(&spec.work_directory)
                     .tag(spec.image.clone())
                     .dockerfile(&plan)

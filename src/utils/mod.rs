@@ -1,4 +1,5 @@
 pub mod builder;
+pub mod cgroup;
 pub mod docker;
 pub mod exec;
 pub mod git;

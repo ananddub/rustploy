@@ -24,7 +24,7 @@ impl ServerService {
             Server,
             r#"SELECT id AS "id?", name, description, ip_address, port, username, app_name,
                server_status, server_type, enable_docker_cleanup, log_cleanup_cron, command,
-               metrics_config, ssh_key_id, created_at, updated_at
+               metrics_config, ssh_key_id, created_at, updated_at, build_memory_limit, build_cpu_limit
                FROM servers WHERE id = ?"#,
             id
         )
@@ -37,7 +37,7 @@ impl ServerService {
             Server,
             r#"SELECT id AS "id?", name, description, ip_address, port, username, app_name,
                server_status, server_type, enable_docker_cleanup, log_cleanup_cron, command,
-               metrics_config, ssh_key_id, created_at, updated_at
+               metrics_config, ssh_key_id, created_at, updated_at, build_memory_limit, build_cpu_limit
                FROM servers ORDER BY created_at DESC, id DESC"#
         )
         .fetch_all(self.db.as_ref())
@@ -50,7 +50,13 @@ impl ServerService {
     ) -> sqlx::Result<(Server, crate::db::models::ssh_keys::SshKey)> {
         let server = self.get_by_id(id).await?;
         let key_id = server.ssh_key_id.ok_or(sqlx::Error::RowNotFound)?;
-        let key=sqlx::query_as!(crate::db::models::ssh_keys::SshKey,r#"SELECT id AS "id?", name, description, private_key, public_key, last_used_at, created_at, updated_at FROM ssh_keys WHERE id = ?"#,key_id).fetch_one(self.db.as_ref()).await?;
+        let key = sqlx::query_as!(
+            crate::db::models::ssh_keys::SshKey,
+            r#"SELECT id AS "id?", name, description, private_key, public_key, last_used_at, created_at, updated_at FROM ssh_keys WHERE id = ?"#,
+            key_id
+        )
+        .fetch_one(self.db.as_ref())
+        .await?;
         Ok((server, key))
     }
 
@@ -60,11 +66,11 @@ impl ServerService {
         sqlx::query_as!(
             Server,
             r#"INSERT INTO servers
-               (name, description, ip_address, port, username, app_name, server_type, ssh_key_id)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+               (name, description, ip_address, port, username, app_name, server_type, ssh_key_id, build_memory_limit, build_cpu_limit)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                RETURNING id AS "id?", name, description, ip_address, port, username, app_name,
                server_status, server_type, enable_docker_cleanup, log_cleanup_cron, command,
-               metrics_config, ssh_key_id, created_at, updated_at"#,
+               metrics_config, ssh_key_id, created_at, updated_at, build_memory_limit, build_cpu_limit"#,
             input.name,
             input.description,
             input.ip_address,
@@ -72,7 +78,9 @@ impl ServerService {
             input.username,
             app_name,
             input.server_type,
-            input.ssh_key_id
+            input.ssh_key_id,
+            input.build_memory_limit,
+            input.build_cpu_limit
         )
         .fetch_one(self.db.as_ref())
         .await
@@ -94,17 +102,20 @@ impl ServerService {
         let command = input.command.unwrap_or(current.command);
         let metrics_config = input.metrics_config.unwrap_or(current.metrics_config);
         let ssh_key_id = input.ssh_key_id.or(current.ssh_key_id);
+        let build_memory_limit = input.build_memory_limit.or(current.build_memory_limit);
+        let build_cpu_limit = input.build_cpu_limit.or(current.build_cpu_limit);
 
         sqlx::query_as!(
             Server,
             r#"UPDATE servers SET
                name = ?, description = ?, ip_address = ?, port = ?, username = ?,
                server_status = ?, server_type = ?, enable_docker_cleanup = ?,
-               log_cleanup_cron = ?, command = ?, metrics_config = ?, ssh_key_id = ?
+               log_cleanup_cron = ?, command = ?, metrics_config = ?, ssh_key_id = ?,
+               build_memory_limit = ?, build_cpu_limit = ?
                WHERE id = ?
                RETURNING id AS "id?", name, description, ip_address, port, username, app_name,
                server_status, server_type, enable_docker_cleanup, log_cleanup_cron, command,
-               metrics_config, ssh_key_id, created_at, updated_at"#,
+               metrics_config, ssh_key_id, created_at, updated_at, build_memory_limit, build_cpu_limit"#,
             name,
             description,
             ip_address,
@@ -117,6 +128,8 @@ impl ServerService {
             command,
             metrics_config,
             ssh_key_id,
+            build_memory_limit,
+            build_cpu_limit,
             id
         )
         .fetch_one(self.db.as_ref())
@@ -129,7 +142,7 @@ impl ServerService {
             r#"UPDATE servers SET server_status = ? WHERE id = ?
                RETURNING id AS "id?", name, description, ip_address, port, username, app_name,
                server_status, server_type, enable_docker_cleanup, log_cleanup_cron, command,
-               metrics_config, ssh_key_id, created_at, updated_at"#,
+               metrics_config, ssh_key_id, created_at, updated_at, build_memory_limit, build_cpu_limit"#,
             status,
             id
         )

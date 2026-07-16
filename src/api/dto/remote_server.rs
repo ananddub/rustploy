@@ -18,6 +18,8 @@ pub struct CreateRemoteServerDto {
     #[serde(default = "default_server_type")]
     pub server_type: String,
     pub ssh_key_id: Option<i64>,
+    pub build_memory_limit: Option<String>,
+    pub build_cpu_limit: Option<String>,
 }
 
 #[derive(Debug, Validate, Deserialize, poem_openapi::Object)]
@@ -36,6 +38,8 @@ pub struct PatchRemoteServerDto {
     pub command: Option<String>,
     pub metrics_config: Option<String>,
     pub ssh_key_id: Option<i64>,
+    pub build_memory_limit: Option<String>,
+    pub build_cpu_limit: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, poem_openapi::Object)]
@@ -56,6 +60,8 @@ pub struct RemoteServerResponseDto {
     pub ssh_key_id: Option<i64>,
     pub created_at: i64,
     pub updated_at: i64,
+    pub build_memory_limit: Option<String>,
+    pub build_cpu_limit: Option<String>,
 }
 
 impl From<Server> for RemoteServerResponseDto {
@@ -77,6 +83,8 @@ impl From<Server> for RemoteServerResponseDto {
             ssh_key_id: value.ssh_key_id,
             created_at: value.created_at,
             updated_at: value.updated_at,
+            build_memory_limit: value.build_memory_limit,
+            build_cpu_limit: value.build_cpu_limit,
         }
     }
 }

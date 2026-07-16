@@ -135,6 +135,7 @@ impl DeploymentService {
     }
 
     async fn docker_for_server(&self, server_id: Option<i64>) -> sqlx::Result<DockerCli> {
+        // sqlx::query_scalar!()
         match server_id {
             Some(server_id) => {
                 let executor =

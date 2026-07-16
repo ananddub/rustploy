@@ -17,6 +17,8 @@ CREATE TABLE servers (
 	-- JSON: metrics config object { server: {...}, containers: {...} }
 	metrics_config TEXT NOT NULL DEFAULT '{}',
 	ssh_key_id INTEGER REFERENCES ssh_keys(id) ON DELETE SET NULL,
+	build_memory_limit TEXT,
+	build_cpu_limit TEXT,
 	created_at INTEGER DEFAULT (strftime('%s', 'now')) NOT NULL,
 	updated_at INTEGER DEFAULT (strftime('%s', 'now')) NOT NULL,
 	CONSTRAINT server_status_check CHECK (server_status IN ('ACTIVE', 'INACTIVE')),

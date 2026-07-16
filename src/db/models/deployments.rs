@@ -5,7 +5,7 @@
 use serde::{Deserialize, Serialize};
 use sqlx_gen::SqlxGen;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::FromRow, SqlxGen)]
+#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::FromRow, SqlxGen)]
 #[sqlx_gen(kind = "table", schema = "main", table = "deployments")]
 pub struct Deployment {
     #[sqlx_gen(primary_key, sql_type = "INTEGER")]
@@ -14,7 +14,7 @@ pub struct Deployment {
     pub title: String,
     #[sqlx_gen(sql_type = "TEXT")]
     pub description: Option<String>,
-    #[sqlx_gen(sql_type = "deployments_status_enum", column_default = "'RUNNING'")]
+    #[sqlx_gen(sql_type = "deployments_status_enum", column_default = "'QUEUED'")]
     pub status: String,
     #[sqlx_gen(sql_type = "TEXT", column_default = "'QUEUE'")]
     pub state: String,
@@ -24,6 +24,8 @@ pub struct Deployment {
     pub pid: Option<String>,
     #[sqlx_gen(sql_type = "TEXT")]
     pub error_message: Option<String>,
+    #[sqlx_gen(sql_type = "TEXT")]
+    pub operation: Option<String>,
     #[sqlx_gen(sql_type = "INTEGER", column_default = "0")]
     pub is_preview_deployment: i64,
     #[sqlx_gen(sql_type = "INTEGER")]

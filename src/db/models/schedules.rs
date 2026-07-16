@@ -5,7 +5,7 @@
 use serde::{Deserialize, Serialize};
 use sqlx_gen::SqlxGen;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::FromRow, SqlxGen)]
+#[derive(Debug, Clone, PartialEq,  Serialize, Deserialize, sqlx::FromRow, SqlxGen)]
 #[sqlx_gen(kind = "table", schema = "main", table = "schedules")]
 pub struct Schedule {
     #[sqlx_gen(primary_key, sql_type = "INTEGER")]
@@ -27,8 +27,6 @@ pub struct Schedule {
         column_default = "'APPLICATION'"
     )]
     pub schedule_type: String,
-    #[sqlx_gen(sql_type = "TEXT", column_default = "'EXEC'")]
-    pub schedule_action: String,
     #[sqlx_gen(sql_type = "TEXT")]
     pub command: String,
     #[sqlx_gen(sql_type = "TEXT")]
@@ -49,4 +47,6 @@ pub struct Schedule {
     pub created_at: i64,
     #[sqlx_gen(sql_type = "INTEGER", column_default = "strftime('%s', 'now')")]
     pub updated_at: i64,
+    #[sqlx_gen(sql_type = "schedules_schedule_action_enum", column_default = "'EXEC'")]
+    pub schedule_action: String,
 }
