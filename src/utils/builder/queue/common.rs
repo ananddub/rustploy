@@ -2,6 +2,8 @@ use std::sync::Arc;
 
 use sqlx::SqlitePool;
 
+use auto_di::resolve;
+
 use crate::{
     services::{
         application::ApplicationOperation,
@@ -26,15 +28,14 @@ pub async fn process(
     database_kind: Option<String>,
     operation: String,
 ) {
-
     tracing::info!(
         deployment_id,
-        operation = %operation,
-        application_id,
-        compose_id,
-        database_id,
-        database_kind,
-        "builder queue: job started"
+        ?application_id,
+        ?compose_id,
+        ?database_id,
+        ?database_kind,
+        %operation,
+        "builder queue: starting job"
     );
 
     let result = match (application_id, compose_id, database_id, database_kind.as_deref()) {
@@ -60,73 +61,39 @@ pub async fn process(
         Err(e) if is_cancelled_error(&e.to_string()) => "CANCELLED",
         Err(_) => "ERROR",
     };
-
     let error_message = result.err().map(|e| e.to_string());
+    
+    let repo = match resolve::<crate::repository::DeploymentRepository>().await {
+        Ok(r) => r,
+        Err(e) => {
+            tracing::error!(error = %e, "builder queue: could not resolve DeploymentRepository");
+            return;
+        }
+    };
 
-    if let Err(e) = sqlx::query(
-        "UPDATE deployments
-         SET status        = ?,
-             state         = ?,
-             error_message = COALESCE(?, error_message),
-             finished_at   = strftime('%s', 'now'),
-             last_state_at = strftime('%s', 'now')
-         WHERE id = ?",
-    )
-    .bind(final_status)
-    .bind(final_status)
-    .bind(error_message.as_deref())
-    .bind(deployment_id)
-    .execute(db.as_ref())
-    .await
-    {
+    if let Err(e) = repo.update_final_status(deployment_id, final_status, error_message.as_deref()).await {
         tracing::error!(deployment_id, error = %e, "builder queue: could not persist final deployment status");
     }
 
     let target_status = if final_status == "DONE" { "DONE" } else { "ERROR" };
+    
     if let Some(app_id) = application_id {
-        if let Err(e) = sqlx::query("UPDATE applications SET app_status = ? WHERE id = ?")
-            .bind(target_status)
-            .bind(app_id)
-            .execute(db.as_ref())
-            .await
-        {
+        if let Err(e) = repo.set_application_status(app_id, target_status).await {
             tracing::error!(deployment_id, app_id, error = %e, "builder queue: could not persist application status");
         }
         application_state.remove_state(IdType::AppId(app_id));
     }
 
     if let Some(cmp_id) = compose_id {
-        if let Err(e) = sqlx::query("UPDATE compose_projects SET compose_status = ? WHERE id = ?")
-            .bind(target_status)
-            .bind(cmp_id)
-            .execute(db.as_ref())
-            .await
-        {
+        if let Err(e) = repo.set_compose_status(cmp_id, target_status).await {
             tracing::error!(deployment_id, cmp_id, error = %e, "builder queue: could not persist compose status");
         }
         application_state.remove_state(IdType::ComposeId(cmp_id));
     }
 
     if let (Some(db_id), Some(db_kind)) = (database_id, database_kind.as_deref()) {
-        let table_name = match db_kind {
-            "postgres" => "postgres_dbs",
-            "mysql" => "mysql_dbs",
-            "mariadb" => "mariadb_dbs",
-            "mongo" => "mongo_dbs",
-            "redis" => "redis_dbs",
-            "libsql" => "libsql_dbs",
-            _ => "",
-        };
-        if !table_name.is_empty() {
-            let query_str = format!("UPDATE {} SET app_status = ? WHERE id = ?", table_name);
-            if let Err(e) = sqlx::query(sqlx::AssertSqlSafe(&*query_str))
-                .bind(target_status)
-                .bind(db_id)
-                .execute(db.as_ref())
-                .await
-            {
-                tracing::error!(deployment_id, db_id, db_kind, error = %e, "builder queue: could not persist database status");
-            }
+        if let Err(e) = repo.set_database_status(db_id, db_kind, target_status).await {
+            tracing::error!(deployment_id, db_id, db_kind, error = %e, "builder queue: could not persist database status");
         }
         application_state.remove_state(IdType::DatabaseId(db_id));
     }

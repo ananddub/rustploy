@@ -166,14 +166,17 @@ impl DatabaseBuilder {
         &self,
         db_kind: DatabaseKind,
         db_id: i64,
-        db_pool: Arc<sqlx::SqlitePool>,
         cancel: &CancellationToken,
     ) -> ExecResult<()> {
         self.ctx.emit(BuilderEvent::Preparing).await;
         self.ctx.cancelled(cancel)?;
 
         // Fetch mounts for this database
-        let mounts = MountRepository::new(db_pool.clone())
+        let mount_repo = auto_di::resolve::<MountRepository>().await.map_err(|e| ExecError::CommandFailed {
+            code: None,
+            stderr: format!("Failed to resolve MountRepository: {}", e),
+        })?;
+        let mounts = mount_repo
             .fetch_for_database(db_id)
             .await
             .map_err(|e| ExecError::CommandFailed {
@@ -184,22 +187,22 @@ impl DatabaseBuilder {
         // 1. Build stack file based on database kind
         let (app_name, docker_image, stack_file_content) = match db_kind {
             DatabaseKind::Postgres => {
-                super::postgres::build_postgres_stack(db_id, db_pool.clone(), &mounts).await?
+                super::postgres::build_postgres_stack(db_id, &mounts).await?
             }
             DatabaseKind::Mysql => {
-                super::mysql::build_mysql_stack(db_id, db_pool.clone(), &mounts).await?
+                super::mysql::build_mysql_stack(db_id, &mounts).await?
             }
             DatabaseKind::Mariadb => {
-                super::mariadb::build_mariadb_stack(db_id, db_pool.clone(), &mounts).await?
+                super::mariadb::build_mariadb_stack(db_id, &mounts).await?
             }
             DatabaseKind::Mongo => {
-                super::mongo::build_mongo_stack(db_id, db_pool.clone(), &mounts).await?
+                super::mongo::build_mongo_stack(db_id, &mounts).await?
             }
             DatabaseKind::Redis => {
-                super::redis::build_redis_stack(db_id, db_pool.clone(), &mounts).await?
+                super::redis::build_redis_stack(db_id, &mounts).await?
             }
             DatabaseKind::Libsql => {
-                super::libsql::build_libsql_stack(db_id, db_pool.clone(), &mounts).await?
+                super::libsql::build_libsql_stack(db_id, &mounts).await?
             }
         };
 

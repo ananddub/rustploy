@@ -8,7 +8,7 @@ use tokio_util::sync::CancellationToken;
 use crate::{
     core::config::Config,
     services::{
-        database::{DatabaseOperation, DatabaseKind},
+        database::DatabaseOperation,
         compose::remote::{deployment_pid_file, remote_executor},
     },
     utils::{
@@ -98,86 +98,14 @@ impl BuilderQueue {
         let kind = std::str::FromStr::from_str(&database_kind)
             .map_err(|_| BuilderError::Execution(format!("Invalid database kind: {}", database_kind)))?;
 
-        let (server_id, environment_id, project_id, memory_limit_db, cpu_limit_db) = match kind {
-            DatabaseKind::Postgres => {
-                let r = sqlx::query!(
-                    r#"SELECT d.server_id, d.environment_id, e.project_id, d.memory_limit, d.cpu_limit
-                       FROM postgres_dbs d
-                       JOIN environments e ON e.id = d.environment_id
-                       WHERE d.id = ?"#,
-                    database_id
-                )
-                .fetch_one(db_pool.as_ref())
-                .await
-                .map_err(|e| BuilderError::Execution(format!("Database postgres not found: {}", e)))?;
-                (r.server_id, r.environment_id, r.project_id, r.memory_limit, r.cpu_limit)
-            }
-            DatabaseKind::Mysql => {
-                let r = sqlx::query!(
-                    r#"SELECT d.server_id, d.environment_id, e.project_id, d.memory_limit, d.cpu_limit
-                       FROM mysql_dbs d
-                       JOIN environments e ON e.id = d.environment_id
-                       WHERE d.id = ?"#,
-                    database_id
-                )
-                .fetch_one(db_pool.as_ref())
-                .await
-                .map_err(|e| BuilderError::Execution(format!("Database mysql not found: {}", e)))?;
-                (r.server_id, r.environment_id, r.project_id, r.memory_limit, r.cpu_limit)
-            }
-            DatabaseKind::Mariadb => {
-                let r = sqlx::query!(
-                    r#"SELECT d.server_id, d.environment_id, e.project_id, d.memory_limit, d.cpu_limit
-                       FROM mariadb_dbs d
-                       JOIN environments e ON e.id = d.environment_id
-                       WHERE d.id = ?"#,
-                    database_id
-                )
-                .fetch_one(db_pool.as_ref())
-                .await
-                .map_err(|e| BuilderError::Execution(format!("Database mariadb not found: {}", e)))?;
-                (r.server_id, r.environment_id, r.project_id, r.memory_limit, r.cpu_limit)
-            }
-            DatabaseKind::Mongo => {
-                let r = sqlx::query!(
-                    r#"SELECT d.server_id, d.environment_id, e.project_id, d.memory_limit, d.cpu_limit
-                       FROM mongo_dbs d
-                       JOIN environments e ON e.id = d.environment_id
-                       WHERE d.id = ?"#,
-                    database_id
-                )
-                .fetch_one(db_pool.as_ref())
-                .await
-                .map_err(|e| BuilderError::Execution(format!("Database mongo not found: {}", e)))?;
-                (r.server_id, r.environment_id, r.project_id, r.memory_limit, r.cpu_limit)
-            }
-            DatabaseKind::Redis => {
-                let r = sqlx::query!(
-                    r#"SELECT d.server_id, d.environment_id, e.project_id, d.memory_limit, d.cpu_limit
-                       FROM redis_dbs d
-                       JOIN environments e ON e.id = d.environment_id
-                       WHERE d.id = ?"#,
-                    database_id
-                )
-                .fetch_one(db_pool.as_ref())
-                .await
-                .map_err(|e| BuilderError::Execution(format!("Database redis not found: {}", e)))?;
-                (r.server_id, r.environment_id, r.project_id, r.memory_limit, r.cpu_limit)
-            }
-            DatabaseKind::Libsql => {
-                let r = sqlx::query!(
-                    r#"SELECT d.server_id, d.environment_id, e.project_id, d.memory_limit, d.cpu_limit
-                       FROM libsql_dbs d
-                       JOIN environments e ON e.id = d.environment_id
-                       WHERE d.id = ?"#,
-                    database_id
-                )
-                .fetch_one(db_pool.as_ref())
-                .await
-                .map_err(|e| BuilderError::Execution(format!("Database libsql not found: {}", e)))?;
-                (r.server_id, r.environment_id, r.project_id, r.memory_limit, r.cpu_limit)
-            }
-        };
+        let dep_repo = resolve::<crate::repository::DeploymentRepository>()
+            .await
+            .map_err(|e| BuilderError::Execution(format!("could not resolve DeploymentRepository: {e}")))?;
+
+        let (server_id, environment_id, project_id, memory_limit_db, cpu_limit_db) = dep_repo
+            .get_database_deployment_context(database_id, &database_kind)
+            .await
+            .map_err(|e| BuilderError::Execution(format!("Database context not found: {}", e)))?;
 
         let db_key = IdType::DatabaseId(database_id);
         let state = resolve::<ApplicationState>()
@@ -195,10 +123,7 @@ impl BuilderQueue {
         let executor = match server_id {
             Some(sid) => {
                 let pid_file = deployment_pid_file(deployment_id);
-                sqlx::query("UPDATE deployments SET pid = ? WHERE id = ?")
-                    .bind(&pid_file)
-                    .bind(deployment_id)
-                    .execute(db_pool.as_ref())
+                dep_repo.set_pid(deployment_id, &pid_file)
                     .await
                     .map_err(|e| BuilderError::Execution(format!("could not persist remote deployment pid file: {e}")))?;
                 CommandExecutor::Remote(
@@ -216,11 +141,10 @@ impl BuilderQueue {
 
         if mem_limit_str.is_none() || cpu_limit_str.is_none() {
             if let Some(sid) = server_id {
-                if let Ok(server) = sqlx::query_as::<_, crate::db::models::servers::Server>("SELECT * FROM servers WHERE id = ?")
-                    .bind(sid)
-                    .fetch_one(db_pool.as_ref())
+                let server_repo = resolve::<crate::repository::ServerRepository>()
                     .await
-                {
+                    .map_err(|e| BuilderError::Execution(format!("could not resolve ServerRepository: {e}")))?;
+                if let Ok(Some(server)) = server_repo.get_by_id(sid).await {
                     if mem_limit_str.is_none() {
                         mem_limit_str = server.build_memory_limit;
                     }
@@ -288,32 +212,16 @@ impl BuilderQueue {
             match operation {
                 DatabaseOperation::Deploy | DatabaseOperation::Redeploy | DatabaseOperation::Reload | DatabaseOperation::Start => {
                     builder
-                        .deploy(kind, database_id, db_pool.clone(), &cancel)
+                        .deploy(kind, database_id, &cancel)
                         .await
                         .map(|_| ())
                         .map_err(|e| BuilderError::Execution(e.to_string()))
                 }
                 DatabaseOperation::Stop => {
-                    let app_name = match kind {
-                        DatabaseKind::Postgres => {
-                            sqlx::query_scalar::<_, String>("SELECT app_name FROM postgres_dbs WHERE id = ?").bind(database_id).fetch_one(db_pool.as_ref()).await
-                        }
-                        DatabaseKind::Mysql => {
-                            sqlx::query_scalar::<_, String>("SELECT app_name FROM mysql_dbs WHERE id = ?").bind(database_id).fetch_one(db_pool.as_ref()).await
-                        }
-                        DatabaseKind::Mariadb => {
-                            sqlx::query_scalar::<_, String>("SELECT app_name FROM mariadb_dbs WHERE id = ?").bind(database_id).fetch_one(db_pool.as_ref()).await
-                        }
-                        DatabaseKind::Mongo => {
-                            sqlx::query_scalar::<_, String>("SELECT app_name FROM mongo_dbs WHERE id = ?").bind(database_id).fetch_one(db_pool.as_ref()).await
-                        }
-                        DatabaseKind::Redis => {
-                            sqlx::query_scalar::<_, String>("SELECT app_name FROM redis_dbs WHERE id = ?").bind(database_id).fetch_one(db_pool.as_ref()).await
-                        }
-                        DatabaseKind::Libsql => {
-                            sqlx::query_scalar::<_, String>("SELECT app_name FROM libsql_dbs WHERE id = ?").bind(database_id).fetch_one(db_pool.as_ref()).await
-                        }
-                    }.map_err(|e| BuilderError::Execution(format!("Failed to query database app_name: {}", e)))?;
+                    let app_name = dep_repo
+                        .get_database_app_name(database_id, &database_kind)
+                        .await
+                        .map_err(|e| BuilderError::Execution(format!("Failed to query database app_name: {}", e)))?;
 
                     builder
                         .stop(&app_name, &cancel)

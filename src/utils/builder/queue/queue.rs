@@ -83,11 +83,10 @@ impl BuilderQueue {
             .unwrap_or(100)
             .max(1);
 
-        let queued = sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM deployments WHERE status = 'QUEUED'",
-        )
-        .fetch_one(self.db.as_ref())
-        .await?;
+        let repo = auto_di::resolve::<crate::repository::DeploymentRepository>()
+            .await
+            .map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
+        let queued = repo.get_queued_count().await?;
 
         if queued >= max_size {
             return Err(sqlx::Error::Protocol(format!(
@@ -98,63 +97,37 @@ impl BuilderQueue {
     }
 
     pub async fn cancel_queued_application(&self, application_id: i64) -> sqlx::Result<bool> {
-        let ids: Vec<i64> = sqlx::query_scalar::<_, i64>(
-            "SELECT id FROM deployments WHERE application_id = ? AND status = 'QUEUED'",
-        )
-        .bind(application_id)
-        .fetch_all(self.db.as_ref())
-        .await?;
+        let repo = auto_di::resolve::<crate::repository::DeploymentRepository>()
+            .await
+            .map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
+        let ids = repo.get_queued_ids_for_application(application_id).await?;
+        let cancelled = repo.cancel_queued_for_application(application_id).await?;
 
-        let rows = sqlx::query(
-            "UPDATE deployments
-             SET status        = 'CANCELLED',
-                 state         = 'CANCELLED',
-                 finished_at   = strftime('%s', 'now'),
-                 last_state_at = strftime('%s', 'now')
-             WHERE application_id = ? AND status = 'QUEUED'",
-        )
-        .bind(application_id)
-        .execute(self.db.as_ref())
-        .await?;
-
-        if rows.rows_affected() > 0 {
+        if cancelled {
             for id in ids {
                 if let Ok(mut log) = super::deployment_log::DeploymentLog::open(id).await {
                     let _ = log.write_line("[CANCELLED] deployment cancelled before worker started").await;
                 }
             }
         }
-        Ok(rows.rows_affected() > 0)
+        Ok(cancelled)
     }
 
     pub async fn cancel_queued_compose(&self, compose_id: i64) -> sqlx::Result<bool> {
-        let ids: Vec<i64> = sqlx::query_scalar::<_, i64>(
-            "SELECT id FROM deployments WHERE compose_id = ? AND status = 'QUEUED'",
-        )
-        .bind(compose_id)
-        .fetch_all(self.db.as_ref())
-        .await?;
+        let repo = auto_di::resolve::<crate::repository::DeploymentRepository>()
+            .await
+            .map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
+        let ids = repo.get_queued_ids_for_compose(compose_id).await?;
+        let cancelled = repo.cancel_queued_for_compose(compose_id).await?;
 
-        let rows = sqlx::query(
-            "UPDATE deployments
-             SET status        = 'CANCELLED',
-                 state         = 'CANCELLED',
-                 finished_at   = strftime('%s', 'now'),
-                 last_state_at = strftime('%s', 'now')
-             WHERE compose_id = ? AND status = 'QUEUED'",
-        )
-        .bind(compose_id)
-        .execute(self.db.as_ref())
-        .await?;
-
-        if rows.rows_affected() > 0 {
+        if cancelled {
             for id in ids {
                 if let Ok(mut log) = super::deployment_log::DeploymentLog::open(id).await {
                     let _ = log.write_line("[CANCELLED] deployment cancelled before worker started").await;
                 }
             }
         }
-        Ok(rows.rows_affected() > 0)
+        Ok(cancelled)
     }
 
     fn semaphore_for(&self, server_id: ServerKey) -> Arc<Semaphore> {
@@ -170,70 +143,40 @@ impl BuilderQueue {
     async fn recover_stale_deployments(&self) {
         self.cleanup_stale_remote_jobs().await;
 
-        if let Err(e) = sqlx::query(
-            "UPDATE deployments
-             SET status        = 'ERROR',
-                 state         = 'RECOVERED_AFTER_RESTART',
-                 error_message = COALESCE(error_message, 'server restarted while deployment was running'),
-                 finished_at   = strftime('%s', 'now'),
-                 last_state_at = strftime('%s', 'now')
-             WHERE status = 'RUNNING'",
-        )
-        .execute(self.db.as_ref())
-        .await
-        {
+        let repo = match auto_di::resolve::<crate::repository::DeploymentRepository>().await {
+            Ok(r) => r,
+            Err(e) => {
+                tracing::error!(error = %e, "builder queue: could not resolve DeploymentRepository");
+                return;
+            }
+        };
+
+        if let Err(e) = repo.mark_running_as_recovered().await {
             tracing::error!(error = %e, "builder queue: could not recover stale deployments");
         }
 
-        if let Err(e) = sqlx::query(
-            "UPDATE applications SET app_status = 'ERROR'
-             WHERE app_status = 'RUNNING'
-             AND id IN (
-                 SELECT application_id FROM deployments
-                 WHERE state = 'RECOVERED_AFTER_RESTART' AND application_id IS NOT NULL
-             )",
-        )
-        .execute(self.db.as_ref())
-        .await
-        {
+        if let Err(e) = repo.recover_stale_application_statuses().await {
             tracing::error!(error = %e, "builder queue: could not recover stale application statuses");
         }
 
-        if let Err(e) = sqlx::query(
-            "UPDATE compose_projects SET compose_status = 'ERROR'
-             WHERE compose_status = 'RUNNING'
-             AND id IN (
-                 SELECT compose_id FROM deployments
-                 WHERE state = 'RECOVERED_AFTER_RESTART' AND compose_id IS NOT NULL
-             )",
-        )
-        .execute(self.db.as_ref())
-        .await
-        {
+        if let Err(e) = repo.recover_stale_compose_statuses().await {
             tracing::error!(error = %e, "builder queue: could not recover stale compose statuses");
         }
 
-        for table in &["postgres_dbs", "mysql_dbs", "mariadb_dbs", "mongo_dbs", "redis_dbs", "libsql_dbs"] {
-            let query_str = format!(
-                "UPDATE {} SET app_status = 'ERROR' WHERE app_status = 'RUNNING' AND id IN (
-                    SELECT database_id FROM deployments WHERE state = 'RECOVERED_AFTER_RESTART' AND database_id IS NOT NULL
-                )",
-                table
-            );
-            if let Err(e) = sqlx::query(sqlx::AssertSqlSafe(&*query_str)).execute(self.db.as_ref()).await {
-                tracing::error!(table, error = %e, "builder queue: could not recover stale database status");
-            }
+        if let Err(e) = repo.recover_stale_database_statuses().await {
+            tracing::error!(error = %e, "builder queue: could not recover stale database status");
         }
     }
 
     async fn cleanup_stale_remote_jobs(&self) {
-        let rows = match sqlx::query_as::<_, (i64, i64, String)>(
-            "SELECT id, server_id, pid FROM deployments
-             WHERE status = 'RUNNING' AND server_id IS NOT NULL AND pid IS NOT NULL",
-        )
-        .fetch_all(self.db.as_ref())
-        .await
-        {
+        let repo = match auto_di::resolve::<crate::repository::DeploymentRepository>().await {
+            Ok(r) => r,
+            Err(e) => {
+                tracing::error!(error = %e, "builder queue: could not resolve DeploymentRepository");
+                return;
+            }
+        };
+        let rows = match repo.get_running_remote_jobs().await {
             Ok(rows) => rows,
             Err(e) => {
                 tracing::error!(error = %e, "builder queue: could not load stale remote jobs");
@@ -248,14 +191,14 @@ impl BuilderQueue {
 
     async fn retry_stale_remote_cleanup(self: Arc<Self>) {
         for attempt in 1..=20 {
-            let rows = match sqlx::query_as::<_, (i64, i64, String)>(
-                "SELECT id, server_id, pid FROM deployments
-                 WHERE status = 'ERROR' AND state = 'RECOVERED_AFTER_RESTART'
-                 AND server_id IS NOT NULL AND pid IS NOT NULL",
-            )
-            .fetch_all(self.db.as_ref())
-            .await
-            {
+            let repo = match auto_di::resolve::<crate::repository::DeploymentRepository>().await {
+                Ok(r) => r,
+                Err(e) => {
+                    tracing::error!(error = %e, "builder queue: could not resolve DeploymentRepository");
+                    return;
+                }
+            };
+            let rows = match repo.get_recovered_remote_jobs().await {
                 Ok(rows) => rows,
                 Err(e) => {
                     tracing::error!(error = %e, "builder queue: could not load recovered remote jobs");
@@ -295,11 +238,9 @@ impl BuilderQueue {
         match remote_executor(self.db.as_ref(), server_id).await {
             Ok(executor) => match executor.kill_pid_file(pid_file).await {
                 Ok(()) => {
-                    sqlx::query("UPDATE deployments SET pid = NULL WHERE id = ?")
-                        .bind(deployment_id)
-                        .execute(self.db.as_ref())
-                        .await
-                        .ok();
+                    if let Ok(repo) = auto_di::resolve::<crate::repository::DeploymentRepository>().await {
+                        repo.set_pid_null(deployment_id).await.ok();
+                    }
                     tracing::warn!(deployment_id, server_id, pid_file, stage,
                         "builder queue: killed stale remote deployment");
                     true
@@ -330,16 +271,14 @@ impl BuilderQueue {
     }
 
     async fn dispatch_available(self: &Arc<Self>) {
-        // Load all QUEUED deployments grouped by server_id.
-        // For each server, try to fill free slots.
-        let queued = match sqlx::query_as::<_, (i64, Option<i64>)>(
-            "SELECT id, server_id FROM deployments
-             WHERE status = 'QUEUED'
-             ORDER BY created_at ASC, id ASC",
-        )
-        .fetch_all(self.db.as_ref())
-        .await
-        {
+        let repo = match auto_di::resolve::<crate::repository::DeploymentRepository>().await {
+            Ok(r) => r,
+            Err(e) => {
+                tracing::error!(error = %e, "builder queue: could not resolve DeploymentRepository");
+                return;
+            }
+        };
+        let queued = match repo.get_queued_deployments_grouped().await {
             Ok(rows) => rows,
             Err(e) => {
                 tracing::error!(error = %e, "builder queue: could not load queued deployments");
@@ -356,30 +295,16 @@ impl BuilderQueue {
             };
 
             // Atomically claim this specific deployment.
-            let row = sqlx::query(
-                r#"UPDATE deployments
-                   SET status        = 'RUNNING',
-                       state         = 'QUEUE',
-                       started_at    = COALESCE(started_at, strftime('%s', 'now')),
-                       last_state_at = strftime('%s', 'now')
-                   WHERE id = ? AND status = 'QUEUED'
-                   RETURNING id, application_id, compose_id, database_id, database_kind, operation"#,
-            )
-            .bind(deployment_id)
-            .fetch_optional(self.db.as_ref())
-            .await;
+            let row = repo.claim_queued_deployment(deployment_id).await;
 
             match row {
-                Ok(Some(row)) => {
-                    use sqlx::Row;
-                    let dep_id: i64 = row.get("id");
-                    let application_id: Option<i64> = row.get("application_id");
-                    let compose_id: Option<i64> = row.get("compose_id");
-                    let database_id: Option<i64> = row.get("database_id");
-                    let database_kind: Option<String> = row.get("database_kind");
-                    let operation: String = row
-                        .get::<Option<String>, _>("operation")
-                        .unwrap_or_else(|| "deploy".into());
+                Ok(Some(claim)) => {
+                    let dep_id: i64 = claim.id;
+                    let application_id: Option<i64> = claim.application_id;
+                    let compose_id: Option<i64> = claim.compose_id;
+                    let database_id: Option<i64> = claim.database_id;
+                    let database_kind: Option<String> = claim.database_kind;
+                    let operation: String = claim.operation.unwrap_or_else(|| "deploy".into());
 
                     let db = Arc::clone(&self.db);
                     let state = Arc::clone(&self.application_state);

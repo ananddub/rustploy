@@ -608,4 +608,16 @@ impl ApplicationRepository {
 
          self.get_by_id(id).await?.ok_or(sqlx::Error::RowNotFound)
      }
+
+     pub async fn get_deployment_context(&self, id: i64) -> Result<(i64, i64, Option<i64>), sqlx::Error> {
+         sqlx::query_as::<_, (i64, i64, Option<i64>)>(
+             r#"SELECT a.environment_id, e.project_id, a.server_id
+                FROM applications a
+                JOIN environments e ON e.id = a.environment_id
+                WHERE a.id = ?"#,
+         )
+         .bind(id)
+         .fetch_one(self.pool.as_ref())
+         .await
+     }
 }

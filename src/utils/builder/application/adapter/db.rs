@@ -2,6 +2,7 @@ use crate::db::models::{domains::Domain, mounts::Mount};
 use crate::utils::builder::spec::ApplicationSpec;
 use sqlx::SqlitePool;
 use std::sync::Arc;
+use auto_di::singleton;
 
 use super::mapper::{AppRow, AppRowWithRelations};
 
@@ -10,6 +11,7 @@ pub struct ApplicationSpecAdapter {
     db: Arc<SqlitePool>,
 }
 
+#[singleton]
 impl ApplicationSpecAdapter {
     pub fn new(db: Arc<SqlitePool>) -> Self {
         Self { db }

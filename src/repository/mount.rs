@@ -1,11 +1,13 @@
 use crate::db::models::mounts::Mount;
 use sqlx::SqlitePool;
 use std::sync::Arc;
+use auto_di::singleton;
 
 pub struct MountRepository {
     pool: Arc<SqlitePool>,
 }
 
+#[singleton]
 impl MountRepository {
     pub fn new(pool: Arc<SqlitePool>) -> Self {
         Self { pool }

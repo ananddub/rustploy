@@ -251,6 +251,18 @@ impl ComposeProjectRepository {
         self.get_by_id(id).await?.ok_or(sqlx::Error::RowNotFound)
     }
 
+    pub async fn get_deployment_context(&self, id: i64) -> Result<(i64, i64, Option<i64>), sqlx::Error> {
+        sqlx::query_as::<_, (i64, i64, Option<i64>)>(
+            r#"SELECT c.environment_id, e.project_id, c.server_id
+               FROM compose_projects c
+               JOIN environments e ON e.id = c.environment_id
+               WHERE c.id = ?"#,
+        )
+        .bind(id)
+        .fetch_one(self.pool.as_ref())
+        .await
+    }
+
     pub async fn set_github_source(
         &self,
         id: i64,

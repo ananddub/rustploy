@@ -103,4 +103,38 @@ impl LibsqlRepository {
             .await?;
         Ok(())
     }
+
+    pub async fn get_details(&self, id: i64) -> sqlx::Result<LibsqlDbDetails> {
+        sqlx::query_as!(
+            LibsqlDbDetails,
+            r#"SELECT name, app_name, docker_image, database_user, database_password, sqld_node, sqld_primary_url, enable_namespaces,
+               external_port, command, args, env_var, memory_reservation, memory_limit, cpu_reservation, cpu_limit,
+               replicas, environment_id
+               FROM libsql_dbs WHERE id = ?"#,
+            id
+        )
+        .fetch_one(self.pool.as_ref())
+        .await
+    }
+}
+
+pub struct LibsqlDbDetails {
+    pub name: String,
+    pub app_name: String,
+    pub docker_image: String,
+    pub database_user: String,
+    pub database_password: String,
+    pub sqld_node: String,
+    pub sqld_primary_url: Option<String>,
+    pub enable_namespaces: i64,
+    pub external_port: Option<i64>,
+    pub command: Option<String>,
+    pub args: Option<String>,
+    pub env_var: Option<String>,
+    pub memory_reservation: Option<String>,
+    pub memory_limit: Option<String>,
+    pub cpu_reservation: Option<String>,
+    pub cpu_limit: Option<String>,
+    pub replicas: i64,
+    pub environment_id: i64,
 }

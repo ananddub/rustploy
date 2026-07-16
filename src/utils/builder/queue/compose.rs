@@ -29,20 +29,18 @@ impl BuilderQueue {
         deployment_id: i64,
         operation: ComposeOperation,
     ) -> Result<(), BuilderError> {
-        let spec = ComposeSpecAdapter::new(db.clone())
+        let spec_adapter = resolve::<ComposeSpecAdapter>()
+            .await
+            .map_err(|e| BuilderError::Execution(format!("could not resolve ComposeSpecAdapter: {e}")))?;
+        let spec = spec_adapter
             .load(compose_id)
             .await
             .map_err(|e| BuilderError::Execution(format!("could not load compose config: {e}")))?;
 
-        let (environment_id, project_id, server_id) =
-            sqlx::query_as::<_, (i64, i64, Option<i64>)>(
-                r#"SELECT c.environment_id, e.project_id, c.server_id
-                   FROM compose_projects c
-                   JOIN environments e ON e.id = c.environment_id
-                   WHERE c.id = ?"#,
-            )
-            .bind(compose_id)
-            .fetch_one(db.as_ref())
+        let compose_repo = resolve::<crate::repository::ComposeProjectRepository>()
+            .await
+            .map_err(|e| BuilderError::Execution(format!("could not resolve ComposeProjectRepository: {e}")))?;
+        let (environment_id, project_id, server_id) = compose_repo.get_deployment_context(compose_id)
             .await
             .map_err(|e| BuilderError::Execution(format!("could not resolve compose context: {e}")))?;
 
@@ -58,10 +56,10 @@ impl BuilderQueue {
         let executor = match server_id {
             Some(sid) => {
                 let pid_file = deployment_pid_file(deployment_id);
-                sqlx::query("UPDATE deployments SET pid = ? WHERE id = ?")
-                    .bind(&pid_file)
-                    .bind(deployment_id)
-                    .execute(db.as_ref())
+                let dep_repo = resolve::<crate::repository::DeploymentRepository>()
+                    .await
+                    .map_err(|e| BuilderError::Execution(format!("could not resolve DeploymentRepository: {e}")))?;
+                dep_repo.set_pid(deployment_id, &pid_file)
                     .await
                     .map_err(|e| BuilderError::Execution(format!("could not persist remote compose pid file: {e}")))?;
                 CommandExecutor::Remote(

@@ -95,20 +95,18 @@ impl BuilderQueue {
         deployment_id: i64,
         _operation: ApplicationOperation,
     ) -> Result<(), BuilderError> {
-        let spec = ApplicationSpecAdapter::new(db.clone())
+        let spec_adapter = resolve::<ApplicationSpecAdapter>()
+            .await
+            .map_err(|e| BuilderError::Execution(format!("could not resolve ApplicationSpecAdapter: {e}")))?;
+        let spec = spec_adapter
             .load(application_id)
             .await
             .map_err(|e| BuilderError::Execution(format!("could not load deployment config: {e}")))?;
 
-        let (environment_id, project_id, server_id) =
-            sqlx::query_as::<_, (i64, i64, Option<i64>)>(
-                r#"SELECT a.environment_id, e.project_id, a.server_id
-                   FROM applications a
-                   JOIN environments e ON e.id = a.environment_id
-                   WHERE a.id = ?"#,
-            )
-            .bind(application_id)
-            .fetch_one(db.as_ref())
+        let app_repo = resolve::<crate::repository::ApplicationRepository>()
+            .await
+            .map_err(|e| BuilderError::Execution(format!("could not resolve ApplicationRepository: {e}")))?;
+        let (environment_id, project_id, server_id) = app_repo.get_deployment_context(application_id)
             .await
             .map_err(|e| BuilderError::Execution(format!("could not resolve deployment context: {e}")))?;
 
@@ -128,10 +126,10 @@ impl BuilderQueue {
         let executor = match server_id {
             Some(sid) => {
                 let pid_file = deployment_pid_file(deployment_id);
-                sqlx::query("UPDATE deployments SET pid = ? WHERE id = ?")
-                    .bind(&pid_file)
-                    .bind(deployment_id)
-                    .execute(db.as_ref())
+                let dep_repo = resolve::<crate::repository::DeploymentRepository>()
+                    .await
+                    .map_err(|e| BuilderError::Execution(format!("could not resolve DeploymentRepository: {e}")))?;
+                dep_repo.set_pid(deployment_id, &pid_file)
                     .await
                     .map_err(|e| BuilderError::Execution(format!("could not persist remote deployment pid file: {e}")))?;
                 CommandExecutor::Remote(
@@ -149,11 +147,10 @@ impl BuilderQueue {
         let mut cpu_limit_str = None;
 
         if let Some(sid) = server_id {
-            if let Ok(server) = sqlx::query_as::<_, crate::db::models::servers::Server>("SELECT * FROM servers WHERE id = ?")
-                .bind(sid)
-                .fetch_one(db.as_ref())
+            let server_repo = resolve::<crate::repository::ServerRepository>()
                 .await
-            {
+                .map_err(|e| BuilderError::Execution(format!("could not resolve ServerRepository: {e}")))?;
+            if let Ok(Some(server)) = server_repo.get_by_id(sid).await {
                 if let Some(val) = server.build_memory_limit {
                     if !val.trim().is_empty() {
                         mem_limit_str = Some(val);

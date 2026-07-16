@@ -10,14 +10,13 @@ use crate::{
 };
 
 pub struct SshKeyService {
-    db: Arc<SqlitePool>,
     repo_ssh: Arc<SshKeyRepository>,
 }
 
 #[singleton]
 impl SshKeyService {
-    fn new(db: Arc<SqlitePool>, repo_ssh: Arc<SshKeyRepository>) -> Self {
-        Self { db, repo_ssh }
+    fn new(repo_ssh: Arc<SshKeyRepository>) -> Self {
+        Self { repo_ssh }
     }
 
     pub async fn get_by_id(&self, id: i64) -> sqlx::Result<SshKey> {

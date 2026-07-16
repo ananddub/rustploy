@@ -74,22 +74,28 @@ impl DeploymentLog {
 }
 
 pub async fn record_builder_events(
-    db: std::sync::Arc<sqlx::SqlitePool>,
+    _db: std::sync::Arc<sqlx::SqlitePool>,
     deployment_id: i64,
     mut events: tokio::sync::mpsc::Receiver<BuilderEvent>,
     log_context: &'static str,
 ) {
     let mut log = match DeploymentLog::open(deployment_id).await {
         Ok(log) => {
-            let _ = sqlx::query("UPDATE deployments SET log_path = ? WHERE id = ?")
-                .bind(log.path())
-                .bind(deployment_id)
-                .execute(db.as_ref())
-                .await;
+            if let Ok(repo) = auto_di::resolve::<crate::repository::DeploymentRepository>().await {
+                repo.update_log_path(deployment_id, log.path()).await.ok();
+            }
             Some(log)
         }
         Err(e) => {
             tracing::error!(deployment_id, error = %e, "could not open deployment log file");
+            None
+        }
+    };
+
+    let repo = match auto_di::resolve::<crate::repository::DeploymentRepository>().await {
+        Ok(r) => Some(r),
+        Err(e) => {
+            tracing::error!(error = %e, "could not resolve DeploymentRepository");
             None
         }
     };
@@ -110,20 +116,11 @@ pub async fn record_builder_events(
             BuilderEvent::Failed(e) => Some(e.as_str()),
             _ => None,
         };
-        if let Err(e) = sqlx::query(
-            "UPDATE deployments
-             SET state         = ?,
-                 error_message = COALESCE(?, error_message),
-                 last_state_at = strftime('%s', 'now')
-             WHERE id = ? AND status = 'RUNNING'",
-        )
-        .bind(state)
-        .bind(message)
-        .bind(deployment_id)
-        .execute(db.as_ref())
-        .await
-        {
-            tracing::error!(deployment_id, error = %e, "could not persist {} builder event", log_context);
+        
+        if let Some(ref r) = repo {
+            if let Err(e) = r.update_state_if_running(deployment_id, state, message).await {
+                tracing::error!(deployment_id, error = %e, "could not persist {} builder event", log_context);
+            }
         }
     }
 }

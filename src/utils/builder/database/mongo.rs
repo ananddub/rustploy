@@ -1,25 +1,18 @@
-use std::sync::Arc;
-use sqlx::SqlitePool;
 use crate::utils::exec::{ExecResult, ExecError};
 use crate::db::models::mounts::Mount;
+use crate::repository::MongoRepository;
 use crate::utils::builder::database::builder::{StackFile, StackService, StackMount, DeploySpec, DeployResources, Limits, RestartPolicy, UpdateConfig, ExternalNetwork};
 use std::collections::BTreeMap;
 
 pub async fn build_mongo_stack(
     db_id: i64,
-    db_pool: Arc<SqlitePool>,
     mounts: &[Mount],
 ) -> ExecResult<(String, String, String)> {
-    let db = sqlx::query!(
-        r#"SELECT name, app_name, docker_image, database_user, database_password,
-           external_port, command, args, env_var, memory_reservation, memory_limit, cpu_reservation, cpu_limit,
-           replicas, environment_id
-           FROM mongo_dbs WHERE id = ?"#,
-        db_id
-    )
-    .fetch_one(db_pool.as_ref())
-    .await
-    .map_err(|e| ExecError::CommandFailed {
+    let repo = auto_di::resolve::<MongoRepository>().await.map_err(|e| ExecError::CommandFailed {
+        code: None,
+        stderr: format!("Failed to resolve MongoRepository: {}", e),
+    })?;
+    let db = repo.get_details(db_id).await.map_err(|e| ExecError::CommandFailed {
         code: None,
         stderr: format!("Failed to fetch mongo db: {}", e),
     })?;
@@ -88,24 +81,24 @@ pub async fn build_mongo_stack(
                     memory: db.memory_reservation.clone(),
                 },
             },
-            restart_policy: RestartPolicy {
-                condition: "on-failure",
-                delay: "5s",
-                max_attempts: 3,
-                window: "120s",
-            },
-            update_config: UpdateConfig {
-                parallelism: 1,
-                delay: "5s",
-                order: "stop-first",
-                failure_action: "rollback",
-            },
-            rollback_config: UpdateConfig {
-                parallelism: 1,
-                delay: "5s",
-                order: "stop-first",
-                failure_action: "pause",
-            },
+			restart_policy: RestartPolicy {
+				condition: "on-failure",
+				delay: "5s",
+				max_attempts: 3,
+				window: "120s",
+			},
+			update_config: UpdateConfig {
+				parallelism: 1,
+				delay: "5s",
+				order: "stop-first",
+				failure_action: "rollback",
+			},
+			rollback_config: UpdateConfig {
+				parallelism: 1,
+				delay: "5s",
+				order: "stop-first",
+				failure_action: "pause",
+			},
             placement: Default::default(),
             labels: Vec::new(),
         },

@@ -2,6 +2,7 @@ use crate::db::models::{domains::Domain, mounts::Mount};
 use crate::utils::builder::compose::spec::ComposeSpec;
 use sqlx::SqlitePool;
 use std::sync::Arc;
+use auto_di::singleton;
 
 use super::mapper::{ComposeRow, ComposeRowWithRelations};
 
@@ -10,6 +11,7 @@ pub struct ComposeSpecAdapter {
     db: Arc<SqlitePool>,
 }
 
+#[singleton]
 impl ComposeSpecAdapter {
     pub fn new(db: Arc<SqlitePool>) -> Self {
         Self { db }
