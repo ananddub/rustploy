@@ -38,6 +38,24 @@ impl SshKeyService {
         ).await
     }
 
+    pub async fn generate(&self, name: String, description: Option<String>, key_type: &str) -> sqlx::Result<SshKey> {
+        let kt = key_type.to_lowercase();
+        if kt != "ed25519" && kt != "rsa" {
+            return Err(sqlx::Error::Configuration(
+                "Invalid key type. Supported types are 'ed25519' and 'rsa'".into()
+            ));
+        }
+        let (private_key, public_key) = crate::utils::ssh::generate_keypair(&kt)
+            .map_err(|e| sqlx::Error::Configuration(e.into()))?;
+
+        self.repo_ssh.create_and_return(
+            name,
+            description,
+            private_key,
+            public_key
+        ).await
+    }
+
     pub async fn patch(&self, id: i64, input: PatchSshKeyDto) -> sqlx::Result<SshKey> {
         let current = self.get_by_id(id).await?;
         let name = input.name.unwrap_or(current.name);

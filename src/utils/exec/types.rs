@@ -63,6 +63,8 @@ pub enum SshAuth {
         passphrase: Option<String>,
     },
     Agent,
+    AgentWithSocket(std::path::PathBuf),
+    KeyFile(std::path::PathBuf),
 }
 impl SshAuth {
     pub fn password(value: impl Into<String>) -> Self {
@@ -81,6 +83,12 @@ impl SshAuth {
             public_key: None,
             passphrase: None,
         }
+    }
+    pub fn key_file(path: impl Into<std::path::PathBuf>) -> Self {
+        Self::KeyFile(path.into())
+    }
+    pub fn agent_with_socket(path: impl Into<std::path::PathBuf>) -> Self {
+        Self::AgentWithSocket(path.into())
     }
     pub fn with_passphrase(mut self, value: impl Into<String>) -> Self {
         if let Self::KeyPair { passphrase, .. } = &mut self {

@@ -1,13 +1,13 @@
 use super::{
     ExecError, ExecExitStatus, ExecOutput, ExecResult, ExecStreamEvent, SshAuth, SshHostKey,
 };
-use crate::utils::session::{SshSessionLease, SshSessionPool};
-use russh_extra::{Client, HostKeyPolicy, Identity, KeyboardInteractiveReply};
+use crate::utils::session::SshSessionPool;
 use std::time::Duration;
 use std::{ffi::OsStr, sync::Arc};
 use tokio::{sync::mpsc, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 #[derive(Clone, Debug)]
 pub struct RemoteExecutor {
@@ -133,28 +133,37 @@ impl RemoteExecutor {
     pub async fn open_terminal(
         &self,
         output: mpsc::Sender<ExecStreamEvent>,
-        term: impl Into<String>,
-        cols: u16,
-        rows: u16,
+        _term: impl Into<String>,
+        _cols: u16,
+        _rows: u16,
     ) -> ExecResult<RemoteTerminal> {
-        let session = self.connect_session().await?;
-        let guard = session
-            .russh_handle()
-            .await
-            .map_err(|e| ExecError::Ssh(e.to_string()))?;
-        let mut channel = guard
-            .channel_open_session()
-            .await
+        let builder = crate::utils::ssh::SshBuilder::new(
+            self.host.clone(),
+            self.username.clone(),
+            self.auth.clone(),
+            self.host_key.clone(),
+        )
+        .port(self.port)
+        .connect_timeout(self.connect_timeout.as_secs() as u32)
+        .tty(crate::utils::ssh::TtyMode::ForceTty);
+
+        let ssh_cmd = builder.build_command("sh", &[])
             .map_err(|e| ExecError::Ssh(e.to_string()))?;
 
-        channel
-            .request_pty(true, &term.into(), cols.into(), rows.into(), 0, 0, &[])
-            .await
+        let mut tokio_command = ssh_cmd.command;
+        let temp_key = ssh_cmd.temp_key_file;
+
+        tokio_command
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped());
+
+        let mut child = tokio_command.spawn()
             .map_err(|e| ExecError::Ssh(e.to_string()))?;
-        channel
-            .request_shell(true)
-            .await
-            .map_err(|e| ExecError::Ssh(e.to_string()))?;
+
+        let mut child_stdin = child.stdin.take().ok_or_else(|| ExecError::Ssh("stdin failed".into()))?;
+        let mut child_stdout = child.stdout.take().ok_or_else(|| ExecError::Ssh("stdout failed".into()))?;
+        let mut child_stderr = child.stderr.take().ok_or_else(|| ExecError::Ssh("stderr failed".into()))?;
 
         let (input_tx, mut input_rx) = mpsc::channel::<Vec<u8>>(128);
         let (resize_tx, mut resize_rx) = mpsc::channel::<(u16, u16)>(16);
@@ -162,63 +171,59 @@ impl RemoteExecutor {
         let task_cancel = cancel.clone();
 
         let task = tokio::spawn(async move {
-            use russh_extra::russh::ChannelMsg;
+            let _keep_alive = temp_key;
+            let mut stdout_buf = [0u8; 4096];
+            let mut stderr_buf = [0u8; 4096];
+            let mut stdout_done = false;
+            let mut stderr_done = false;
 
             loop {
                 tokio::select! {
                     _ = task_cancel.cancelled() => {
-                        let _ = channel.close().await;
+                        let _ = child.kill().await;
                         return Ok(());
                     }
                     input = input_rx.recv() => {
                         let Some(input) = input else {
-                            let _ = channel.close().await;
-                            return Ok(());
+                            break;
                         };
-                        channel
-                            .data(input.as_slice())
-                            .await
-                            .map_err(|e| ExecError::Ssh(e.to_string()))?;
+                        if child_stdin.write_all(&input).await.is_err() {
+                            break;
+                        }
                     }
                     resize = resize_rx.recv() => {
-                        let Some((cols, rows)) = resize else {
-                            continue;
-                        };
-                        channel
-                            .window_change(cols.into(), rows.into(), 0, 0)
-                            .await
-                            .map_err(|e| ExecError::Ssh(e.to_string()))?;
+                        let _ = resize;
                     }
-                    message = channel.wait() => {
-                        let Some(message) = message else {
-                            return Ok(());
-                        };
-
-                        match message {
-                            ChannelMsg::Data { data } => {
-                                if output.send(ExecStreamEvent::Stdout(data.to_vec())).await.is_err() {
-                                    let _ = channel.close().await;
-                                    return Err(ExecError::StreamCancelled);
+                    res = child_stdout.read(&mut stdout_buf), if !stdout_done => {
+                        match res {
+                            Ok(0) => stdout_done = true,
+                            Ok(n) => {
+                                if output.send(ExecStreamEvent::Stdout(stdout_buf[..n].to_vec())).await.is_err() {
+                                    break;
                                 }
                             }
-                            ChannelMsg::ExtendedData { data, .. } => {
-                                if output.send(ExecStreamEvent::Stderr(data.to_vec())).await.is_err() {
-                                    let _ = channel.close().await;
-                                    return Err(ExecError::StreamCancelled);
-                                }
-                            }
-                            ChannelMsg::ExitStatus { .. } | ChannelMsg::Close => {
-                                return Ok(());
-                            }
-                            ChannelMsg::ExitSignal { .. } => {
-                                let _ = channel.close().await;
-                                return Err(ExecError::Ssh("remote terminal terminated by a signal".into()));
-                            }
-                            _ => {}
+                            Err(_) => break,
                         }
+                    }
+                    res = child_stderr.read(&mut stderr_buf), if !stderr_done => {
+                        match res {
+                            Ok(0) => stderr_done = true,
+                            Ok(n) => {
+                                if output.send(ExecStreamEvent::Stderr(stderr_buf[..n].to_vec())).await.is_err() {
+                                    break;
+                                }
+                            }
+                            Err(_) => break,
+                        }
+                    }
+                    status = child.wait() => {
+                        let _ = status;
+                        break;
                     }
                 }
             }
+            let _ = child.kill().await;
+            Ok(())
         });
 
         Ok(RemoteTerminal {
@@ -228,6 +233,7 @@ impl RemoteExecutor {
             task,
         })
     }
+
     pub async fn kill_pid_file(&self, pid_file: impl AsRef<str>) -> ExecResult<()> {
         let command = remote_command(
             "sh",
@@ -298,51 +304,7 @@ impl RemoteExecutor {
             .await?
             .status)
     }
-    async fn connect_session(&self) -> ExecResult<russh_extra::Session> {
-        let mut builder = Client::builder()
-            .endpoint((self.host.clone(), self.port))
-            .username(self.username.clone());
-        builder = match &self.auth {
-            SshAuth::Password(password) => {
-                let keyboard_password = password.clone();
-                builder
-                    .password(password.clone())
-                    .keyboard_interactive(move |info| {
-                        let password = keyboard_password.clone();
-                        Box::pin(async move {
-                            KeyboardInteractiveReply::Responses(
-                                info.prompts().iter().map(|_| password.clone()).collect(),
-                            )
-                        })
-                    })
-            }
-            SshAuth::KeyPair {
-                private_key,
-                passphrase,
-                ..
-            } => {
-                let mut identity = Identity::load_openssh_pem(private_key.as_bytes().to_vec());
-                if let Some(passphrase) = passphrase {
-                    identity = identity.with_passphrase(passphrase.clone());
-                }
-                builder.identity(identity)
-            }
-            SshAuth::Agent => builder.agent(),
-        };
-        builder = match &self.host_key {
-            SshHostKey::PinnedSha256(key) => builder.host_key_policy(
-                HostKeyPolicy::pinned_sha256(key.clone())
-                    .map_err(|e| ExecError::Ssh(e.to_string()))?,
-            ),
-            SshHostKey::InsecureAcceptAny => builder.accept_any_host_key(),
-        };
-        match tokio::time::timeout(self.connect_timeout, builder.build().connect()).await {
-            Ok(result) => result.map_err(|e| ExecError::Ssh(e.to_string())),
-            Err(_) => Err(ExecError::Timeout {
-                seconds: self.connect_timeout.as_secs(),
-            }),
-        }
-    }
+
     async fn execute(
         &self,
         program: &str,
@@ -351,82 +313,15 @@ impl RemoteExecutor {
         stream: Option<mpsc::Sender<ExecStreamEvent>>,
         cancel: Option<&CancellationToken>,
     ) -> ExecResult<ExecOutput> {
-        let mut last_error = None;
-        for _ in 0..2 {
-            let mut lease = self.pool.acquire().await?;
-            if let SshSessionLease::New { connection_permit } = lease {
-                lease = match self.connect_session().await {
-                    Ok(session) => self.pool.attach(session, connection_permit).await?,
-                    Err(error) => return Err(error),
-                };
-            }
-            let Some(session) = lease.session() else {
-                return Err(ExecError::Ssh("SSH session lease was not attached".into()));
-            };
-            let result = match tokio::time::timeout(
-                self.command_timeout,
-                self.execute_on_session(session, program, args, stdin, stream.clone(), cancel),
-            )
-                .await
-            {
-                Ok(result) => result,
-                Err(_) => {
-                    if cancel.is_some() {
-                        if let Some(pid_file) = &self.job_pid_file {
-                            if let Err(error) = self.kill_pid_file(pid_file).await {
-                                tracing::warn!(
-                                    error = %error,
-                                    pid_file = %pid_file,
-                                    "failed to kill timed out remote cancellable SSH job"
-                                );
-                            }
-                        }
-                    }
-                    Err(ExecError::Timeout {
-                        seconds: self.command_timeout.as_secs(),
-                    })
-                }
-            };
-            match result {
-                Ok(output) => {
-                    drop(lease);
-                    return Ok(output);
-                }
-                Err(error @ ExecError::Ssh(_)) => {
-                    last_error = Some(error);
-                    self.pool.discard(&lease).await;
-                    drop(lease);
-                }
-                Err(error) => {
-                    if matches!(error, ExecError::Timeout { .. }) {
-                        self.pool.discard(&lease).await;
-                    }
-                    drop(lease);
-                    return Err(error);
-                }
-            }
-        }
-        Err(last_error
-            .unwrap_or_else(|| ExecError::Ssh("SSH execution failed after reconnect".into())))
-    }
-    async fn execute_on_session(
-        &self,
-        session: &russh_extra::Session,
-        program: &str,
-        args: &[String],
-        stdin: &[u8],
-        stream: Option<mpsc::Sender<ExecStreamEvent>>,
-        cancel: Option<&CancellationToken>,
-    ) -> ExecResult<ExecOutput> {
-        use russh_extra::russh::ChannelMsg;
-        let guard = session
-            .russh_handle()
-            .await
-            .map_err(|e| ExecError::Ssh(e.to_string()))?;
-        let mut channel = guard
-            .channel_open_session()
-            .await
-            .map_err(|e| ExecError::Ssh(e.to_string()))?;
+        let builder = crate::utils::ssh::SshBuilder::new(
+            self.host.clone(),
+            self.username.clone(),
+            self.auth.clone(),
+            self.host_key.clone(),
+        )
+        .port(self.port)
+        .connect_timeout(self.connect_timeout.as_secs() as u32);
+
         let base_command = remote_command(program, args, self.sudo_password.is_some());
         let cancel_job = cancel.map(|_| {
             self.job_pid_file
@@ -439,130 +334,181 @@ impl RemoteExecutor {
         } else {
             base_command
         };
-        channel
-            .exec(true, command.into_bytes())
-            .await
+
+        let ssh_cmd = builder.build_command("sh", &["-c".to_string(), command])
             .map_err(|e| ExecError::Ssh(e.to_string()))?;
-        let mut input = Vec::new();
+
+        let mut tokio_command = ssh_cmd.command;
+        let _temp_key_file = ssh_cmd.temp_key_file;
+
+        tokio_command
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped());
+
+        let mut child = tokio_command.spawn()
+            .map_err(|e| ExecError::Ssh(e.to_string()))?;
+
+        let mut child_stdin = child.stdin.take().ok_or_else(|| ExecError::Ssh("Failed to open stdin".into()))?;
+        let mut child_stdout = child.stdout.take().ok_or_else(|| ExecError::Ssh("Failed to open stdout".into()))?;
+        let mut child_stderr = child.stderr.take().ok_or_else(|| ExecError::Ssh("Failed to open stderr".into()))?;
+
+        let mut input_data = Vec::new();
         if let Some(password) = &self.sudo_password {
-            input.extend_from_slice(password.as_bytes());
-            input.push(b'\n');
+            input_data.extend_from_slice(password.as_bytes());
+            input_data.push(b'\n');
         }
-        input.extend_from_slice(stdin);
-        if !input.is_empty() {
-            channel
-                .data(input.as_slice())
-                .await
-                .map_err(|e| ExecError::Ssh(e.to_string()))?;
-        }
-        channel
-            .eof()
-            .await
-            .map_err(|e| ExecError::Ssh(e.to_string()))?;
-        let mut stdout = Vec::new();
-        let mut stderr = Vec::new();
-        let mut exit = None;
+        input_data.extend_from_slice(stdin);
+
+        tokio::spawn(async move {
+            if !input_data.is_empty() {
+                let _ = child_stdin.write_all(&input_data).await;
+            }
+            drop(child_stdin);
+        });
+
+        let mut stdout_buf = [0u8; 4096];
+        let mut stderr_buf = [0u8; 4096];
+        let mut stdout_accum = Vec::new();
+        let mut stderr_accum = Vec::new();
+        let mut stdout_done = false;
+        let mut stderr_done = false;
+        let exit_status;
+
+        let timeout_fut = tokio::time::sleep(self.command_timeout);
+        tokio::pin!(timeout_fut);
+
         loop {
-            let message = if let Some(cancel) = cancel {
-                if let Some(sender) = &stream {
-                    tokio::select! {
-                        message=channel.wait()=>message,
-                        _=sender.closed()=>{
-                            self.cancel_remote_job(cancel_job.as_ref()).await;
-                            let _=channel.close().await;
-                            return Err(ExecError::StreamCancelled);
-                        },
-                        _=cancel.cancelled()=>{
-                            self.cancel_remote_job(cancel_job.as_ref()).await;
-                            let _=channel.close().await;
-                            return Err(ExecError::StreamCancelled);
+            tokio::select! {
+                res = child_stdout.read(&mut stdout_buf), if !stdout_done => {
+                    match res {
+                        Ok(0) => stdout_done = true,
+                        Ok(n) => {
+                            let data = &stdout_buf[..n];
+                            if let Some(tx) = &stream {
+                                if tx.send(ExecStreamEvent::Stdout(data.to_vec())).await.is_err() {
+                                    let _ = child.kill().await;
+                                    self.cancel_remote_job(cancel_job.as_ref()).await;
+                                    return Err(ExecError::StreamCancelled);
+                                }
+                            } else {
+                                stdout_accum.extend_from_slice(data);
+                                let s = String::from_utf8_lossy(data);
+                                for line in s.lines() {
+                                    crate::utils::builder::queue::deployment_log::log_message(line.to_string());
+                                }
+                            }
                         }
-                    }
-                } else {
-                    tokio::select! {
-                        message=channel.wait()=>message,
-                        _=cancel.cancelled()=>{
-                            self.cancel_remote_job(cancel_job.as_ref()).await;
-                            let _=channel.close().await;
-                            return Err(ExecError::StreamCancelled);
-                        }
+                        Err(e) => return Err(ExecError::Ssh(e.to_string())),
                     }
                 }
-            } else if let Some(sender) = &stream {
-                tokio::select! {message=channel.wait()=>message,_=sender.closed()=>{let _=channel.close().await;return Err(ExecError::StreamCancelled);}}
-            } else {
-                channel.wait().await
-            };
-            let Some(message) = message else {
-                break;
-            };
-            match message {
-                ChannelMsg::Data { data } => {
-                    if let Some(tx) = &stream {
-                        if tx
-                            .send(ExecStreamEvent::Stdout(data.to_vec()))
-                            .await
-                            .is_err()
-                        {
-                            let _ = channel.close().await;
-                            return Err(ExecError::StreamCancelled);
+                res = child_stderr.read(&mut stderr_buf), if !stderr_done => {
+                    match res {
+                        Ok(0) => stderr_done = true,
+                        Ok(n) => {
+                            let data = &stderr_buf[..n];
+                            if let Some(tx) = &stream {
+                                if tx.send(ExecStreamEvent::Stderr(data.to_vec())).await.is_err() {
+                                    let _ = child.kill().await;
+                                    self.cancel_remote_job(cancel_job.as_ref()).await;
+                                    return Err(ExecError::StreamCancelled);
+                                }
+                            } else {
+                                stderr_accum.extend_from_slice(data);
+                                let s = String::from_utf8_lossy(data);
+                                for line in s.lines() {
+                                    crate::utils::builder::queue::deployment_log::log_message(line.to_string());
+                                }
+                            }
                         }
+                        Err(e) => return Err(ExecError::Ssh(e.to_string())),
+                    }
+                }
+                _ = &mut timeout_fut => {
+                    let _ = child.kill().await;
+                    self.cancel_remote_job(cancel_job.as_ref()).await;
+                    return Err(ExecError::Timeout {
+                        seconds: self.command_timeout.as_secs(),
+                    });
+                }
+                _ = async {
+                    if let Some(c) = cancel {
+                        c.cancelled().await
                     } else {
-                        stdout.extend_from_slice(&data);
-                        let s = String::from_utf8_lossy(&data);
-                        for line in s.lines() {
-                            crate::utils::builder::queue::deployment_log::log_message(line.to_string());
+                        std::future::pending().await
+                    }
+                } => {
+                    let _ = child.kill().await;
+                    self.cancel_remote_job(cancel_job.as_ref()).await;
+                    return Err(ExecError::StreamCancelled);
+                }
+                status = child.wait() => {
+                    match status {
+                        Ok(s) => {
+                            exit_status = Some(s);
+                            break;
                         }
+                        Err(e) => return Err(ExecError::Ssh(e.to_string())),
                     }
                 }
-                ChannelMsg::ExtendedData { data, .. } => {
-                    if let Some(tx) = &stream {
-                        if tx
-                            .send(ExecStreamEvent::Stderr(data.to_vec()))
-                            .await
-                            .is_err()
-                        {
-                            let _ = channel.close().await;
-                            return Err(ExecError::StreamCancelled);
-                        }
-                    } else {
-                        stderr.extend_from_slice(&data);
-                        let s = String::from_utf8_lossy(&data);
-                        for line in s.lines() {
-                            crate::utils::builder::queue::deployment_log::log_message(line.to_string());
-                        }
-                    }
-                }
-                ChannelMsg::ExitStatus { exit_status } => {
-                    exit = Some(exit_status);
-                    break;
-                }
-                ChannelMsg::ExitSignal { .. } => {
-                    let _ = channel.close().await;
-                    return Err(ExecError::Ssh(
-                        "remote command terminated by a signal".into(),
-                    ));
-                }
-                ChannelMsg::Close => break,
-                _ => {}
             }
         }
-        let _ = channel.close().await;
-        let status =
-            ExecExitStatus::Remote(exit.ok_or_else(|| {
-                ExecError::Ssh("remote command ended without an exit status".into())
-            })?);
+
+        // Drain any remaining output from streams
+        if !stdout_done {
+            let mut buf = Vec::new();
+            if child_stdout.read_to_end(&mut buf).await.is_ok() && !buf.is_empty() {
+                if let Some(tx) = &stream {
+                    let _ = tx.send(ExecStreamEvent::Stdout(buf)).await;
+                } else {
+                    stdout_accum.extend_from_slice(&buf);
+                    let s = String::from_utf8_lossy(&buf);
+                    for line in s.lines() {
+                        crate::utils::builder::queue::deployment_log::log_message(line.to_string());
+                    }
+                }
+            }
+        }
+        if !stderr_done {
+            let mut buf = Vec::new();
+            if child_stderr.read_to_end(&mut buf).await.is_ok() && !buf.is_empty() {
+                if let Some(tx) = &stream {
+                    let _ = tx.send(ExecStreamEvent::Stderr(buf)).await;
+                } else {
+                    stderr_accum.extend_from_slice(&buf);
+                    let s = String::from_utf8_lossy(&buf);
+                    for line in s.lines() {
+                        crate::utils::builder::queue::deployment_log::log_message(line.to_string());
+                    }
+                }
+            }
+        }
+
+        let status_code = exit_status.and_then(|s| s.code()).ok_or_else(|| {
+            ExecError::Ssh("remote command ended without an exit status".into())
+        })?;
+
+        if status_code == 255 {
+            return Err(ExecError::Ssh(format!(
+                "SSH connection/authentication failed: {}",
+                String::from_utf8_lossy(&stderr_accum)
+            )));
+        }
+
+        let status = ExecExitStatus::Remote(status_code as u32);
         let result = ExecOutput {
             status,
-            stdout: String::from_utf8_lossy(&stdout).into_owned(),
-            stderr: String::from_utf8_lossy(&stderr).into_owned(),
+            stdout: String::from_utf8_lossy(&stdout_accum).into_owned(),
+            stderr: String::from_utf8_lossy(&stderr_accum).into_owned(),
         };
+
         if !result.success() {
             return Err(ExecError::CommandFailed {
                 code: result.status.code(),
                 stderr: result.combined_output(),
             });
         }
+
         Ok(result)
     }
 
@@ -585,74 +531,62 @@ impl RemoteExecutor {
         send_sudo_password: bool,
         timeout: Duration,
     ) -> ExecResult<()> {
-        let session = self.connect_session().await?;
-        let result = tokio::time::timeout(timeout, async {
-            use russh_extra::russh::ChannelMsg;
+        let builder = crate::utils::ssh::SshBuilder::new(
+            self.host.clone(),
+            self.username.clone(),
+            self.auth.clone(),
+            self.host_key.clone(),
+        )
+        .port(self.port)
+        .connect_timeout(timeout.as_secs() as u32);
 
-            let guard = session
-                .russh_handle()
-                .await
-                .map_err(|e| ExecError::Ssh(e.to_string()))?;
-            let mut channel = guard
-                .channel_open_session()
-                .await
-                .map_err(|e| ExecError::Ssh(e.to_string()))?;
-            channel
-                .exec(true, command.into_bytes())
-                .await
-                .map_err(|e| ExecError::Ssh(e.to_string()))?;
+        let ssh_cmd = builder.build_command("sh", &["-c".to_string(), command])
+            .map_err(|e| ExecError::Ssh(e.to_string()))?;
 
-            if send_sudo_password {
-                if let Some(password) = &self.sudo_password {
+        let mut tokio_command = ssh_cmd.command;
+        let _temp_key_file = ssh_cmd.temp_key_file;
+
+        tokio_command
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped());
+
+        let mut child = tokio_command.spawn()
+            .map_err(|e| ExecError::Ssh(e.to_string()))?;
+
+        if send_sudo_password {
+            if let Some(password) = &self.sudo_password {
+                if let Some(mut child_stdin) = child.stdin.take() {
                     let mut input = password.as_bytes().to_vec();
                     input.push(b'\n');
-                    channel
-                        .data(input.as_slice())
-                        .await
-                        .map_err(|e| ExecError::Ssh(e.to_string()))?;
+                    let _ = child_stdin.write_all(&input).await;
                 }
             }
-            channel
-                .eof()
-                .await
-                .map_err(|e| ExecError::Ssh(e.to_string()))?;
+        }
 
-            let mut exit = None;
-            while let Some(message) = channel.wait().await {
-                match message {
-                    ChannelMsg::ExitStatus { exit_status } => {
-                        exit = Some(exit_status);
-                        break;
-                    }
-                    ChannelMsg::ExitSignal { .. } => {
-                        let _ = channel.close().await;
-                        return Err(ExecError::Ssh(
-                            "remote cancel command terminated by a signal".into(),
-                        ));
-                    }
-                    ChannelMsg::Close => break,
-                    _ => {}
+        let res = tokio::time::timeout(timeout, child.wait()).await;
+        match res {
+            Ok(Ok(status)) => {
+                let code = status.code().unwrap_or(0);
+                if code == 255 {
+                    return Err(ExecError::Ssh("SSH connection/authentication failed".into()));
+                }
+                if code == 0 {
+                    Ok(())
+                } else {
+                    Err(ExecError::CommandFailed {
+                        code: Some(code),
+                        stderr: "remote cancel command failed".into(),
+                    })
                 }
             }
-            let _ = channel.close().await;
-            match exit {
-                Some(0) => Ok(()),
-                Some(code) => Err(ExecError::CommandFailed {
-                    code: Some(code as i32),
-                    stderr: "remote cancel command failed".into(),
-                }),
-                None => Err(ExecError::Ssh(
-                    "remote cancel command ended without an exit status".into(),
-                )),
+            Ok(Err(e)) => Err(ExecError::Ssh(e.to_string())),
+            Err(_) => {
+                let _ = child.kill().await;
+                Err(ExecError::Timeout {
+                    seconds: timeout.as_secs(),
+                })
             }
-        })
-            .await;
-
-        match result {
-            Ok(result) => result,
-            Err(_) => Err(ExecError::Timeout {
-                seconds: timeout.as_secs(),
-            }),
         }
     }
 }

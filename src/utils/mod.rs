@@ -11,5 +11,6 @@ pub mod provider;
 pub mod rclone;
 pub mod session;
 pub mod setup;
+pub mod ssh;
 pub mod traefik;
 pub mod zip;

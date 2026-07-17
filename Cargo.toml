@@ -34,7 +34,6 @@ tracing-subscriber = "0.3.23"
 uuid = { version = "1.2.2", features = ["v4", "serde"] }
 dashmap = "6.2.1"
 dotenvy = "0.15.7"
-russh-extra = { version = "0.1.7", default-features = false, features = ["full"] }
 poem-openapi = "5.1.16"
 tower-http = { version = "0.7", features = ["cors"] }
 futures = "0.3.32"

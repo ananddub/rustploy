@@ -16,6 +16,16 @@ pub struct CreateSshKeyDto {
 }
 
 #[derive(Debug, Validate, Deserialize, poem_openapi::Object)]
+pub struct GenerateSshKeyDto {
+    #[validate(length(min = 1, max = 255))]
+    pub name: String,
+    #[validate(length(max = 1_000))]
+    pub description: Option<String>,
+    #[validate(length(min = 1, max = 50))]
+    pub key_type: String, // "ed25519" or "rsa"
+}
+
+#[derive(Debug, Validate, Deserialize, poem_openapi::Object)]
 pub struct PatchSshKeyDto {
     #[validate(length(min = 1, max = 255))]
     pub name: Option<String>,

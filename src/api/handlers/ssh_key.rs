@@ -4,7 +4,7 @@ use auto_route::controller;
 use axum::{Json, extract::Path, http::StatusCode};
 
 use crate::{
-    api::dto::ssh_key::{CreateSshKeyDto, PatchSshKeyDto, SshKeyResponseDto},
+    api::dto::ssh_key::{CreateSshKeyDto, GenerateSshKeyDto, PatchSshKeyDto, SshKeyResponseDto},
     core::middleware::validator::ValidatedJson,
     services::ssh_key::SshKeyService,
     utils::jwt::claim::Claims,
@@ -54,6 +54,20 @@ impl SshKeyController {
     ) -> Result<(StatusCode, Json<SshKeyResponseDto>), ApiError> {
         self.service
             .create(body)
+            .await
+            .map(SshKeyResponseDto::from)
+            .map(|key| (StatusCode::CREATED, Json(key)))
+            .map_err(map_sqlx_error)
+    }
+
+    #[post("/generate")]
+    async fn generate(
+        &self,
+        _claims: Claims,
+        ValidatedJson(body): ValidatedJson<GenerateSshKeyDto>,
+    ) -> Result<(StatusCode, Json<SshKeyResponseDto>), ApiError> {
+        self.service
+            .generate(body.name, body.description, &body.key_type)
             .await
             .map(SshKeyResponseDto::from)
             .map(|key| (StatusCode::CREATED, Json(key)))
