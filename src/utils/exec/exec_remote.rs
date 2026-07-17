@@ -1,7 +1,6 @@
 use super::{
     ExecError, ExecExitStatus, ExecOutput, ExecResult, ExecStreamEvent, SshAuth, SshHostKey,
 };
-use crate::utils::session::SshSessionPool;
 use std::time::Duration;
 use std::{ffi::OsStr, sync::Arc};
 use tokio::{sync::mpsc, task::JoinHandle};
@@ -17,7 +16,6 @@ pub struct RemoteExecutor {
     auth: SshAuth,
     host_key: SshHostKey,
     sudo_password: Option<String>,
-    pool: Arc<SshSessionPool>,
     command_timeout: Duration,
     connect_timeout: Duration,
     job_pid_file: Option<String>,
@@ -59,7 +57,6 @@ impl RemoteExecutor {
             auth,
             host_key,
             sudo_password: None,
-            pool: SshSessionPool::new(4),
             command_timeout: Duration::from_secs(300),
             connect_timeout: Duration::from_secs(15),
             job_pid_file: None,
@@ -82,7 +79,6 @@ impl RemoteExecutor {
             SshAuth::key_pair(server.3, server.4),
             SshHostKey::InsecureAcceptAny,
         )
-            .with_pool_size(4)
             .with_sudo()
         )
     }
@@ -97,25 +93,6 @@ impl RemoteExecutor {
     pub fn with_sudo_password(mut self, password: impl Into<String>) -> Self {
         self.sudo_password = Some(password.into());
         self
-    }
-    pub fn with_pool_size(mut self, max_size: usize) -> Self {
-        self.pool = SshSessionPool::new(max_size);
-        self
-    }
-    pub fn with_pool_size_and_channels(
-        mut self,
-        max_size: usize,
-        max_channels_per_session: usize,
-    ) -> Self {
-        self.pool = SshSessionPool::new_with_channels(max_size, max_channels_per_session);
-        self
-    }
-    pub fn with_session_pool(mut self, pool: Arc<SshSessionPool>) -> Self {
-        self.pool = pool;
-        self
-    }
-    pub fn session_pool(&self) -> Arc<SshSessionPool> {
-        self.pool.clone()
     }
     pub fn with_command_timeout(mut self, timeout: Duration) -> Self {
         self.command_timeout = timeout;
@@ -152,6 +129,7 @@ impl RemoteExecutor {
 
         let mut tokio_command = ssh_cmd.command;
         let temp_key = ssh_cmd.temp_key_file;
+        let temp_askpass = ssh_cmd.temp_askpass_file;
 
         tokio_command
             .stdin(std::process::Stdio::piped())
@@ -171,7 +149,8 @@ impl RemoteExecutor {
         let task_cancel = cancel.clone();
 
         let task = tokio::spawn(async move {
-            let _keep_alive = temp_key;
+            let _keep_alive_key = temp_key;
+            let _keep_alive_askpass = temp_askpass;
             let mut stdout_buf = [0u8; 4096];
             let mut stderr_buf = [0u8; 4096];
             let mut stdout_done = false;
@@ -340,6 +319,7 @@ impl RemoteExecutor {
 
         let mut tokio_command = ssh_cmd.command;
         let _temp_key_file = ssh_cmd.temp_key_file;
+        let _temp_askpass_file = ssh_cmd.temp_askpass_file;
 
         tokio_command
             .stdin(std::process::Stdio::piped())

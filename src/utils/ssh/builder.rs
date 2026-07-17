@@ -25,6 +25,7 @@ pub enum StrictHostKeyChecking {
 pub struct SshCommand {
     pub command: Command,
     pub temp_key_file: Option<NamedTempFile>,
+    pub temp_askpass_file: Option<NamedTempFile>,
 }
 
 pub struct SshBuilder {
@@ -202,15 +203,12 @@ impl SshBuilder {
         self
     }
 
-    /// Internal option-push helper to prevent string-concatenation space issues
     fn push_option(args: &mut Vec<String>, key: &str, value: &str) {
         args.push("-o".to_string());
         args.push(format!("{}={}", key, value));
     }
 
-    /// Prepares arguments and writes private key to secure temporary file (0600)
-    pub fn build_args(&self) -> Result<(Vec<String>, Option<NamedTempFile>, Option<PathBuf>), std::io::Error> {
-        // Validation: quiet and verbose are mutually exclusive in OpenSSH CLI
+    pub fn build_args(&self) -> Result<(Vec<String>, Option<NamedTempFile>, Option<NamedTempFile>, Option<PathBuf>), std::io::Error> {
         if self.quiet == Some(true) && self.verbosity.is_some() {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
@@ -220,18 +218,20 @@ impl SshBuilder {
 
         let mut args = Vec::new();
         let mut temp_key_file = None;
+        let mut temp_askpass_file = None;
         let mut agent_socket_path = None;
 
-        // Port
         if let Some(port) = self.port {
             args.push("-p".to_string());
             args.push(port.to_string());
         }
 
-        // BatchMode: Always enabled for automation
-        Self::push_option(&mut args, "BatchMode", "yes");
+        if matches!(self.auth, SshAuth::Password(_)) {
+            Self::push_option(&mut args, "BatchMode", "no");
+        } else {
+            Self::push_option(&mut args, "BatchMode", "yes");
+        }
 
-        // Strict Host Key strategy configuration
         let is_insecure = matches!(self.host_key, SshHostKey::InsecureAcceptAny);
         
         if let Some(cmd) = &self.known_hosts_command {
@@ -245,17 +245,14 @@ impl SshBuilder {
             };
             Self::push_option(&mut args, "StrictHostKeyChecking", val);
         } else {
-            // Apply secure derived default from SshHostKey enum
             match &self.host_key {
                 SshHostKey::InsecureAcceptAny => {
                     Self::push_option(&mut args, "StrictHostKeyChecking", "no");
                     Self::push_option(&mut args, "UserKnownHostsFile", "/dev/null");
                 }
                 SshHostKey::PinnedSha256(fingerprint) => {
-                    // Force StrictHostKeyChecking to yes to reject mismatched keys
                     Self::push_option(&mut args, "StrictHostKeyChecking", "yes");
                     
-                    // Escape fingerprint to make it shell-safe for the script
                     let escaped_fingerprint = fingerprint.replace('\'', "'\\''");
                     let cmd = format!(
                         "sh -c 'if [ \"$2\" = \"$5\" ] || [ \"$2\" = \"SHA256:$5\" ]; then echo \"$1 $3 $4\"; fi' -- %H %F %t %K '{}'",
@@ -266,7 +263,6 @@ impl SshBuilder {
             }
         }
 
-        // Only push UserKnownHostsFile if we are not in InsecureAcceptAny mode
         if !is_insecure {
             if let Some(path) = &self.known_hosts_file {
                 Self::push_option(&mut args, "UserKnownHostsFile", &path.to_string_lossy());
@@ -275,7 +271,6 @@ impl SshBuilder {
             tracing::warn!("UserKnownHostsFile is ignored because InsecureAcceptAny host key policy is active.");
         }
 
-        // Connection Timeout
         if let Some(timeout) = self.connect_timeout {
             Self::push_option(&mut args, "ConnectTimeout", &timeout.to_string());
         }
@@ -286,11 +281,9 @@ impl SshBuilder {
             Self::push_option(&mut args, "ServerAliveCountMax", &max_count.to_string());
         }
 
-        // Multiplexing
         if self.multiplexing_enabled {
             Self::push_option(&mut args, "ControlMaster", "auto");
             
-            // Computes unique ControlPath based on destination socket configuration
             let resolved_path = match &self.control_path {
                 Some(path) => path.clone(),
                 None => {
@@ -306,19 +299,16 @@ impl SshBuilder {
             Self::push_option(&mut args, "ControlPersist", &self.control_persist);
         }
 
-        // Compression
         if let Some(comp) = self.compression {
             Self::push_option(&mut args, "Compression", if comp { "yes" } else { "no" });
         }
 
-        // Quiet mode
         if let Some(q) = self.quiet {
             if q {
                 args.push("-q".to_string());
             }
         }
 
-        // Verbosity
         if let Some(v) = self.verbosity {
             match v {
                 1 => args.push("-v".to_string()),
@@ -328,13 +318,11 @@ impl SshBuilder {
             }
         }
 
-        // Config file
         if let Some(path) = &self.config_file {
             args.push("-F".to_string());
             args.push(path.to_string_lossy().to_string());
         }
 
-        // IP Versions
         if Some(true) == self.ipv4_only {
             args.push("-4".to_string());
         }
@@ -342,7 +330,6 @@ impl SshBuilder {
             args.push("-6".to_string());
         }
 
-        // TTY allocation
         if let Some(tty_mode) = &self.tty {
             match tty_mode {
                 TtyMode::NoTty => args.push("-T".to_string()),
@@ -351,7 +338,6 @@ impl SshBuilder {
             }
         }
 
-        // Port forwards
         for spec in &self.local_forwards {
             args.push("-L".to_string());
             args.push(spec.clone());
@@ -365,7 +351,6 @@ impl SshBuilder {
             args.push(spec.clone());
         }
 
-        // Auth / Identity
         match &self.auth {
             SshAuth::KeyPair { private_key, .. } => {
                 let mut temp_file = tempfile::Builder::new()
@@ -382,7 +367,6 @@ impl SshBuilder {
                 temp_key_file = Some(temp_file);
             }
             SshAuth::KeyFile(path) => {
-                // Ensure key file has safe permissions (0600) on Unix platforms
                 #[cfg(unix)]
                 {
                     let metadata = std::fs::metadata(path)?;
@@ -401,38 +385,37 @@ impl SshBuilder {
                 args.push(path.to_string_lossy().to_string());
             }
             SshAuth::Agent => {
-                // Hard block insecure ambient agent usage in production
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::Unsupported,
-                    "Insecure ambient SSH Agent is disabled in production. Use AgentWithSocket(PathBuf) for multi-tenant isolation.",
-                ));
+                Self::push_option(&mut args, "IdentitiesOnly", "no");
             }
             SshAuth::AgentWithSocket(socket) => {
                 Self::push_option(&mut args, "IdentitiesOnly", "no");
                 agent_socket_path = Some(socket.clone());
             }
-            SshAuth::Password(_) => {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::Unsupported,
-                    "Password authentication is unsupported in native CLI mode (use keypairs)",
-                ));
+            SshAuth::Password(password) => {
+                let mut temp_file = tempfile::Builder::new()
+                    .prefix("rustploy-ssh-askpass-")
+                    .tempfile()?;
+                temp_file.write_all(format!("#!/bin/sh\necho {}\n", quote(password)).as_bytes())?;
+                
+                let mut permissions = std::fs::metadata(temp_file.path())?.permissions();
+                permissions.set_mode(0o700);
+                std::fs::set_permissions(temp_file.path(), permissions)?;
+
+                temp_askpass_file = Some(temp_file);
             }
         }
 
-        // Custom options
         for (k, v) in &self.custom_options {
             Self::push_option(&mut args, k, v);
         }
 
-        // User & Host
         args.push(format!("{}@{}", self.username, self.host));
 
-        Ok((args, temp_key_file, agent_socket_path))
+        Ok((args, temp_key_file, temp_askpass_file, agent_socket_path))
     }
 
-    /// Builds the `SshCommand` holding command + temp file ownership
     pub fn build_command(&self, program: &str, program_args: &[String]) -> Result<SshCommand, std::io::Error> {
-        let (mut args, temp_file, agent_socket) = self.build_args()?;
+        let (mut args, temp_file, temp_askpass, agent_socket) = self.build_args()?;
         
         let quoted_cmd = std::iter::once(program.to_string())
             .chain(program_args.iter().cloned())
@@ -449,9 +432,16 @@ impl SshBuilder {
             command.env("SSH_AUTH_SOCK", socket);
         }
 
+        if let Some(ref askpass) = temp_askpass {
+            command.env("SSH_ASKPASS", askpass.path());
+            command.env("SSH_ASKPASS_REQUIRE", "force");
+            command.env("DISPLAY", ":0");
+        }
+
         Ok(SshCommand {
             command,
             temp_key_file: temp_file,
+            temp_askpass_file: temp_askpass,
         })
     }
 }
@@ -460,17 +450,35 @@ impl SshBuilder {
 mod tests {
     use super::*;
 
+    fn create_dummy_key_file() -> tempfile::NamedTempFile {
+        let mut f = tempfile::Builder::new()
+            .prefix("rustploy-test-key-")
+            .tempfile()
+            .unwrap();
+        f.write_all(b"dummy ssh key data").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut permissions = std::fs::metadata(f.path()).unwrap().permissions();
+            permissions.set_mode(0o600);
+            std::fs::set_permissions(f.path(), permissions).unwrap();
+        }
+        f
+    }
+
     #[test]
     fn test_ssh_builder_defaults() {
+        let key_file = create_dummy_key_file();
         let builder = SshBuilder::new(
             "1.2.3.4".to_string(),
             "deploy".to_string(),
-            SshAuth::KeyFile(PathBuf::from("/tmp/dummy_key")),
+            SshAuth::KeyFile(key_file.path().to_path_buf()),
             SshHostKey::InsecureAcceptAny,
         );
 
-        let (args, temp_key, agent_socket) = builder.build_args().unwrap();
+        let (args, temp_key, temp_askpass, agent_socket) = builder.build_args().unwrap();
         assert!(temp_key.is_none());
+        assert!(temp_askpass.is_none());
         assert!(agent_socket.is_none());
 
         // BatchMode=yes must be present
@@ -488,15 +496,16 @@ mod tests {
 
     #[test]
     fn test_pinned_sha256_known_hosts_command() {
+        let key_file = create_dummy_key_file();
         let fingerprint = "SHA256:uNiVv6W1nE1G5fHqJqF5fK4zL7/zN5lK3y/8K6=";
         let builder = SshBuilder::new(
             "1.2.3.4".to_string(),
             "deploy".to_string(),
-            SshAuth::KeyFile(PathBuf::from("/tmp/dummy_key")),
+            SshAuth::KeyFile(key_file.path().to_path_buf()),
             SshHostKey::PinnedSha256(fingerprint.to_string()),
         );
 
-        let (args, _, _) = builder.build_args().unwrap();
+        let (args, _, _, _) = builder.build_args().unwrap();
         
         // StrictHostKeyChecking=yes must be set to prevent fallback
         assert!(args.contains(&"StrictHostKeyChecking=yes".to_string()));
@@ -517,7 +526,7 @@ mod tests {
             SshHostKey::InsecureAcceptAny,
         );
 
-        let (args, _, agent_socket) = builder.build_args().unwrap();
+        let (args, _, _, agent_socket) = builder.build_args().unwrap();
         assert_eq!(agent_socket, Some(socket_path));
         
         // IdentitiesOnly=no must be set so that agent is queried
@@ -526,10 +535,11 @@ mod tests {
 
     #[test]
     fn test_quiet_and_verbose_mutual_exclusivity() {
+        let key_file = create_dummy_key_file();
         let builder = SshBuilder::new(
             "1.2.3.4".to_string(),
             "deploy".to_string(),
-            SshAuth::KeyFile(PathBuf::from("/tmp/dummy_key")),
+            SshAuth::KeyFile(key_file.path().to_path_buf()),
             SshHostKey::InsecureAcceptAny,
         )
         .quiet(true)
@@ -545,16 +555,42 @@ mod tests {
 
     #[test]
     fn test_ip_version_flags() {
+        let key_file = create_dummy_key_file();
         let builder = SshBuilder::new(
             "1.2.3.4".to_string(),
             "deploy".to_string(),
-            SshAuth::KeyFile(PathBuf::from("/tmp/dummy_key")),
+            SshAuth::KeyFile(key_file.path().to_path_buf()),
             SshHostKey::InsecureAcceptAny,
         )
         .ipv4_only();
 
-        let (args, _, _) = builder.build_args().unwrap();
+        let (args, _, _, _) = builder.build_args().unwrap();
         assert!(args.contains(&"-4".to_string()));
         assert!(!args.contains(&"-6".to_string()));
+    }
+
+    #[test]
+    fn test_password_auth_askpass_generation() {
+        let builder = SshBuilder::new(
+            "1.2.3.4".to_string(),
+            "deploy".to_string(),
+            SshAuth::Password("SuperSecret123".to_string()),
+            SshHostKey::InsecureAcceptAny,
+        );
+
+        let (args, temp_key, temp_askpass, agent_socket) = builder.build_args().unwrap();
+        assert!(temp_key.is_none());
+        assert!(temp_askpass.is_some());
+        assert!(agent_socket.is_none());
+
+        // BatchMode=no must be present for password askpass support
+        assert!(args.contains(&"BatchMode=no".to_string()));
+
+        let askpass_file = temp_askpass.unwrap();
+        let content = std::fs::read_to_string(askpass_file.path()).unwrap();
+        assert!(content.contains("SuperSecret123"));
+
+        let metadata = std::fs::metadata(askpass_file.path()).unwrap();
+        assert_eq!(metadata.permissions().mode() & 0o777, 0o700);
     }
 }

@@ -1,14 +1,6 @@
-use std::{
-    collections::hash_map::DefaultHasher,
-    hash::{Hash, Hasher},
-};
-
 use sqlx::SqlitePool;
 
-use crate::utils::{
-    exec::{RemoteExecutor, SshAuth, SshHostKey},
-    session::RemoteExecutorRegistry,
-};
+use crate::utils::exec::{RemoteExecutor, SshAuth, SshHostKey};
 use crate::repository::ServerRepository;
 use auto_di::resolve;
 
@@ -27,12 +19,6 @@ pub(crate) async fn remote_executor(
         .map_err(|error| format!("could not load SSH credentials: {error}"))?
         .ok_or_else(|| "Server not found".to_string())?;
 
-    let mut hasher = DefaultHasher::new();
-    row.hash(&mut hasher);
-    let version = hasher.finish();
-    if let Some(executor) = RemoteExecutorRegistry::global().get(server_id, version) {
-        return Ok(executor);
-    }
     let port = u16::try_from(row.1).map_err(|_| "SSH port must be between 0 and 65535")?;
     tracing::warn!(
         server_id,
@@ -45,8 +31,6 @@ pub(crate) async fn remote_executor(
         SshAuth::key_pair(row.3, row.4),
         SshHostKey::InsecureAcceptAny,
     )
-    .with_pool_size(4)
     .with_sudo();
-    RemoteExecutorRegistry::global().insert(server_id, version, executor.clone());
     Ok(executor)
 }

@@ -9,7 +9,6 @@ pub mod macros;
 pub mod paths;
 pub mod provider;
 pub mod rclone;
-pub mod session;
 pub mod setup;
 pub mod ssh;
 pub mod traefik;

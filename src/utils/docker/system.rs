@@ -125,6 +125,5 @@ mod tests {
             .unwrap()
             .unwrap();
         assert!(!second.client.version.is_empty() || !second.server.version.is_empty());
-        assert_eq!(docker.session_pool().unwrap().idle_count().await, 1);
     }
 }

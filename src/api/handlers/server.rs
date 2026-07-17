@@ -7,17 +7,12 @@ use crate::{
     utils::{
         exec::{ExecError, RemoteExecutor, SshAuth, SshHostKey},
         jwt::claim::Claims,
-        session::RemoteExecutorRegistry,
         setup::{ServerSetup, SetupConfig},
     },
 };
 use auto_route::controller;
 use axum::{Json, extract::Path, http::StatusCode};
-use std::{
-    collections::hash_map::DefaultHasher,
-    hash::{Hash, Hasher},
-    sync::Arc,
-};
+use std::sync::Arc;
 
 type ApiError = (StatusCode, String);
 
@@ -55,14 +50,13 @@ impl ServerController {
             .touch_test_connection(id)
             .await
             .map_err(map_sqlx_error)?;
-        let pool = executor.session_pool();
         Ok(Json(ServerConnectionResponseDto {
             connected: true,
-            reused_sessions: pool.idle_count().await,
-            max_pool_size: pool.max_size(),
-            connections: pool.connection_count().await,
-            active_channels: pool.active_channel_count().await,
-            max_channels_per_session: pool.max_channels_per_session(),
+            reused_sessions: 0,
+            max_pool_size: 0,
+            connections: 0,
+            active_channels: 0,
+            max_channels_per_session: 0,
         }))
     }
 
@@ -135,32 +129,23 @@ impl ServerController {
         _claims: Claims,
         Path(id): Path<i64>,
     ) -> Result<Json<ServerConnectionResponseDto>, ApiError> {
-        let Some(executor) = RemoteExecutorRegistry::global().current(id) else {
-            return Ok(Json(ServerConnectionResponseDto {
-                connected: false,
-                reused_sessions: 0,
-                max_pool_size: 0,
-                connections: 0,
-                active_channels: 0,
-                max_channels_per_session: 0,
-            }));
-        };
-        let pool = executor.session_pool();
+        self.service
+            .connection_details(id)
+            .await
+            .map_err(map_sqlx_error)?;
+
         Ok(Json(ServerConnectionResponseDto {
-            connected: pool.connection_count().await > 0,
-            reused_sessions: pool.idle_count().await,
-            max_pool_size: pool.max_size(),
-            connections: pool.connection_count().await,
-            active_channels: pool.active_channel_count().await,
-            max_channels_per_session: pool.max_channels_per_session(),
+            connected: true,
+            reused_sessions: 0,
+            max_pool_size: 0,
+            connections: 0,
+            active_channels: 0,
+            max_channels_per_session: 0,
         }))
     }
 
     #[delete("/{id}/sessions")]
-    async fn clear_sessions(&self, _claims: Claims, Path(id): Path<i64>) -> StatusCode {
-        if let Some(executor) = RemoteExecutorRegistry::global().remove(id) {
-            executor.session_pool().clear().await;
-        }
+    async fn clear_sessions(&self, _claims: Claims, Path(_id): Path<i64>) -> StatusCode {
         StatusCode::NO_CONTENT
     }
 
@@ -169,7 +154,7 @@ impl ServerController {
         id: i64,
         host_key: &Option<String>,
         sudo_password: Option<&str>,
-        pool_size: Option<usize>,
+        _pool_size: Option<usize>,
         require_sudo: bool,
     ) -> Result<RemoteExecutor, ApiError> {
         let (server, key) = self
@@ -199,24 +184,9 @@ impl ServerController {
                 SshHostKey::InsecureAcceptAny
             }
         };
-        let mut hasher = DefaultHasher::new();
-        server.ip_address.hash(&mut hasher);
-        server.port.hash(&mut hasher);
-        server.username.hash(&mut hasher);
-        key.private_key.hash(&mut hasher);
-        key.public_key.hash(&mut hasher);
-        host_key.hash(&mut hasher);
-        sudo_password.hash(&mut hasher);
-        pool_size.hash(&mut hasher);
-        require_sudo.hash(&mut hasher);
-        let version = hasher.finish();
-        if let Some(executor) = RemoteExecutorRegistry::global().get(id, version) {
-            return Ok(executor);
-        }
         let auth = SshAuth::key_pair(key.private_key, key.public_key);
         let mut executor =
-            RemoteExecutor::new(server.ip_address, port, server.username, auth, host_policy)
-                .with_pool_size(pool_size.unwrap_or(4).clamp(1, 32));
+            RemoteExecutor::new(server.ip_address, port, server.username, auth, host_policy);
         executor = if let Some(password) = sudo_password {
             executor.with_sudo_password(password)
         } else if require_sudo {
@@ -224,7 +194,6 @@ impl ServerController {
         } else {
             executor
         };
-        RemoteExecutorRegistry::global().insert(id, version, executor.clone());
         Ok(executor)
     }
 }

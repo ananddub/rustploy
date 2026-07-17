@@ -180,7 +180,6 @@ async fn remote_executor_for(db: &SqlitePool, server_id: i64) -> Result<RemoteEx
         SshAuth::key_pair(row.3, row.4),
         SshHostKey::InsecureAcceptAny,
     )
-    .with_pool_size(2)
     .with_sudo())
 }
 

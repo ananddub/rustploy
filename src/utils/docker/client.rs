@@ -36,12 +36,7 @@ impl DockerCli {
             global_args: vec![],
         }
     }
-    pub fn session_pool(&self) -> Option<std::sync::Arc<crate::utils::session::SshSessionPool>> {
-        match &self.executor {
-            CommandExecutor::Remote(remote) => Some(remote.session_pool()),
-            CommandExecutor::Local(_) => None,
-        }
-    }
+
     pub fn with_executable(executable: impl Into<PathBuf>) -> Self {
         Self {
             executor: CommandExecutor::Local(LocalExecutor::new()),
