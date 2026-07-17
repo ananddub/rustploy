@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use tokio_util::sync::CancellationToken;
+use crate::utils::exec::{CommandExecutor, ExecOutput, ExecResult};
 use super::command::RcloneCommand;
 use super::target::RcloneTarget;
 
@@ -288,17 +290,17 @@ impl RcloneBuilder {
 
     pub async fn execute(
         self,
-        executor: &crate::utils::exec::CommandExecutor,
-    ) -> crate::utils::exec::ExecResult<crate::utils::exec::ExecOutput> {
+        executor: &CommandExecutor,
+    ) -> ExecResult<ExecOutput> {
         let cmd = self.to_command_string();
         executor.run("sh", &["-c", &cmd]).await
     }
 
     pub async fn execute_cancelled(
         self,
-        executor: &crate::utils::exec::CommandExecutor,
-        cancel: &tokio_util::sync::CancellationToken,
-    ) -> crate::utils::exec::ExecResult<crate::utils::exec::ExecOutput> {
+        executor: &CommandExecutor,
+        cancel: &CancellationToken,
+    ) -> ExecResult<ExecOutput> {
         let cmd = self.to_command_string();
         executor.run_cancelled("sh", &["-c", &cmd], cancel).await
     }

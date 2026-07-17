@@ -6,7 +6,7 @@ use crate::{
     repository::destinations::DestinationRepository,
 };
 use crate::utils::exec::{CommandExecutor, LocalExecutor};
-use crate::utils::rclone::{RcloneBuilder, RcloneCommand};
+use crate::utils::rclone::{RcloneBuilder, RcloneCommand, RcloneTarget};
 
 pub struct DestinationService {
     repo_dest: Arc<DestinationRepository>,
@@ -96,7 +96,7 @@ impl DestinationService {
         additional_flags: Option<&str>,
     ) -> Result<(), String> {
 
-        let target = crate::utils::rclone::RcloneTarget::S3 {
+        let target = RcloneTarget::S3 {
             provider: provider.to_string(),
             access_key_id: access_key.to_string(),
             secret_access_key: secret_access_key.to_string(),
