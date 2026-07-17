@@ -1,7 +1,6 @@
 use super::{client::ProviderClient, sync::ProviderSyncBuilder, types::{CloneProtocol, WebhookEvent}};
 use reqwest::Method;
 
-/// The main entry point for the GitHub API client.
 pub struct GithubClient {
     client: ProviderClient,
 }
@@ -13,7 +12,6 @@ impl GithubClient {
         }
     }
 
-    /// Access repository-specific endpoints.
     pub fn repository<'a>(&'a self, owner: &'a str, repo: &'a str) -> GithubRepoBuilder<'a> {
         GithubRepoBuilder {
             client: &self.client,
@@ -30,7 +28,6 @@ pub struct GithubRepoBuilder<'a> {
 }
 
 impl<'a> GithubRepoBuilder<'a> {
-    /// Get the clone URL for this repository based on the protocol
     pub fn clone_url(&self, protocol: CloneProtocol) -> String {
         match protocol {
             CloneProtocol::Https => format!("https://github.com/{}/{}.git", self.owner, self.repo),
@@ -38,12 +35,10 @@ impl<'a> GithubRepoBuilder<'a> {
         }
     }
 
-    /// Creates a sync builder to fetch or clone this repository into a local path.
     pub fn sync_into(&self, destination: &'a str, protocol: CloneProtocol) -> ProviderSyncBuilder<'a> {
         ProviderSyncBuilder::new(self.clone_url(protocol), destination)
     }
 
-    /// Retrieve repository info.
     pub async fn get(&self) -> Result<String, String> {
         let url = format!("https://api.github.com/repos/{}/{}", self.owner, self.repo);
         let req = self.client.authenticate(self.client.client.request(Method::GET, url));
@@ -56,7 +51,6 @@ impl<'a> GithubRepoBuilder<'a> {
             .map_err(|e| e.to_string())
     }
 
-    /// Access webhook-specific endpoints for this repository.
     pub fn webhooks(&self) -> GithubWebhookBuilder<'a> {
         GithubWebhookBuilder {
             client: self.client,
@@ -79,25 +73,21 @@ pub struct GithubWebhookBuilder<'a> {
 }
 
 impl<'a> GithubWebhookBuilder<'a> {
-    /// Provide the URL where GitHub should send webhook payloads.
     pub fn create(mut self, url: &'a str) -> Self {
         self.webhook_url = Some(url);
         self
     }
 
-    /// Specify the events the webhook should listen to.
     pub fn events(mut self, events: Vec<WebhookEvent>) -> Self {
         self.events = events;
         self
     }
 
-    /// Activate or deactivate the webhook.
     pub fn active(mut self, active: bool) -> Self {
         self.active = active;
         self
     }
 
-    /// Execute the creation of the webhook on GitHub.
     pub async fn run(self) -> Result<String, String> {
         let target_url = self.webhook_url.ok_or_else(|| "Webhook URL is required to create a webhook".to_string())?;
         

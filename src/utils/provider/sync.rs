@@ -6,7 +6,6 @@ use crate::utils::{
 use std::path::Path;
 use tokio_util::sync::CancellationToken;
 
-/// High-level orchestration builder for cloning or fetching Git repositories.
 pub struct ProviderSyncBuilder<'a> {
     url: String,
     destination: &'a str,
@@ -15,7 +14,6 @@ pub struct ProviderSyncBuilder<'a> {
     auth: Option<GitAuth>,
     submodules: bool,
     cancel: Option<&'a CancellationToken>,
-    // Optional ctx just for emitting events if available
     ctx: Option<&'a BuilderContext>,
 }
 
@@ -64,7 +62,6 @@ impl<'a> ProviderSyncBuilder<'a> {
         self
     }
 
-    /// Executes the sync operation (fetch + reset if exists, clone if not).
     pub async fn run(self) -> ExecResult<()> {
         let executor = self
             .executor
@@ -72,9 +69,20 @@ impl<'a> ProviderSyncBuilder<'a> {
         
         let git = GitCli::from_executor(executor.clone()).with_repository(self.destination);
         let git_dir = format!("{}/.git", self.destination);
-        let branch = self.branch.unwrap_or("main");
 
-        // Use the dummy cancellation token if none was provided
+        let resolved_branch: String = match self.branch {
+            Some(b) => b.to_string(),
+            None => {
+                let bare_git = GitCli::from_executor(executor.clone());
+                bare_git
+                    .queries()
+                    .remote_default_branch(&self.url, self.auth.clone())
+                    .await?
+                    .unwrap_or_else(|| "main".into())
+            }
+        };
+        let branch = resolved_branch.as_str();
+
         let dummy_cancel = CancellationToken::new();
         let cancel = self.cancel.unwrap_or(&dummy_cancel);
 

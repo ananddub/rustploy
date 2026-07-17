@@ -1,14 +1,12 @@
 use super::{client::ProviderClient, sync::ProviderSyncBuilder, types::{CloneProtocol, WebhookEvent}};
 use reqwest::Method;
 
-/// The main entry point for the Gitea API client.
 pub struct GiteaClient {
     client: ProviderClient,
     base_url: String,
 }
 
 impl GiteaClient {
-    /// Gitea requires the base URL of the instance since it's self-hosted.
     pub fn new(base_url: &str, token: Option<String>) -> Result<Self, String> {
         Ok(Self {
             client: ProviderClient::new(token),
@@ -16,7 +14,6 @@ impl GiteaClient {
         })
     }
 
-    /// Access repository-specific endpoints.
     pub fn repository<'a>(&'a self, owner: &'a str, repo: &'a str) -> GiteaRepoBuilder<'a> {
         GiteaRepoBuilder {
             client: &self.client,
@@ -35,9 +32,7 @@ pub struct GiteaRepoBuilder<'a> {
 }
 
 impl<'a> GiteaRepoBuilder<'a> {
-    /// Get the clone URL for this repository based on the protocol
     pub fn clone_url(&self, protocol: CloneProtocol) -> String {
-        // Gitea parsing logic for URL base
         let clean_base = self.base_url.trim_start_matches("https://").trim_start_matches("http://");
         match protocol {
             CloneProtocol::Https => format!("{}/{}/{}.git", self.base_url, self.owner, self.repo),
@@ -45,12 +40,10 @@ impl<'a> GiteaRepoBuilder<'a> {
         }
     }
 
-    /// Creates a sync builder to fetch or clone this repository into a local path.
     pub fn sync_into(&self, destination: &'a str, protocol: CloneProtocol) -> ProviderSyncBuilder<'a> {
         ProviderSyncBuilder::new(self.clone_url(protocol), destination)
     }
 
-    /// Retrieve repository info.
     pub async fn get(&self) -> Result<String, String> {
         let url = format!("{}/api/v1/repos/{}/{}", self.base_url, self.owner, self.repo);
         let req = self.client.authenticate(self.client.client.request(Method::GET, url));
@@ -63,7 +56,6 @@ impl<'a> GiteaRepoBuilder<'a> {
             .map_err(|e| e.to_string())
     }
 
-    /// Access webhook-specific endpoints for this repository.
     pub fn webhooks(&self) -> GiteaWebhookBuilder<'a> {
         GiteaWebhookBuilder {
             client: self.client,
@@ -88,25 +80,20 @@ pub struct GiteaWebhookBuilder<'a> {
 }
 
 impl<'a> GiteaWebhookBuilder<'a> {
-    /// Provide the URL where Gitea should send webhook payloads.
     pub fn create(mut self, url: &'a str) -> Self {
         self.webhook_url = Some(url);
         self
     }
-
-    /// Specify the events the webhook should listen to.
     pub fn events(mut self, events: Vec<WebhookEvent>) -> Self {
         self.events = events;
         self
     }
 
-    /// Activate or deactivate the webhook.
     pub fn active(mut self, active: bool) -> Self {
         self.active = active;
         self
     }
 
-    /// Execute the creation of the webhook on Gitea.
     pub async fn run(self) -> Result<String, String> {
         let target_url = self.webhook_url.ok_or_else(|| "Webhook URL is required to create a webhook".to_string())?;
         

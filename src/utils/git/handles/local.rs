@@ -3,7 +3,6 @@ use crate::utils::{
     git::{client::GitCli, types::GitAuth},
 };
 
-// ── AddBuilder ───────────────────────────────────────────────────────────────
 
 pub struct AddBuilder<'a> {
     cli: &'a GitCli,
@@ -29,7 +28,6 @@ impl<'a> AddBuilder<'a> {
     }
 }
 
-// ── CommitBuilder ────────────────────────────────────────────────────────────
 
 pub struct CommitBuilder<'a> {
     cli: &'a GitCli,
@@ -57,7 +55,6 @@ impl<'a> CommitBuilder<'a> {
     }
 }
 
-// ── CheckoutBuilder ──────────────────────────────────────────────────────────
 
 pub struct CheckoutBuilder<'a> {
     cli: &'a GitCli,
@@ -83,7 +80,6 @@ impl<'a> CheckoutBuilder<'a> {
     }
 }
 
-// ── WorktreeBuilder ──────────────────────────────────────────────────────────
 
 pub struct WorktreeBuilder<'a> {
     cli: &'a GitCli,
@@ -128,7 +124,6 @@ impl<'a> WorktreeAddBuilder<'a> {
     }
 }
 
-// ── RemoteBuilder ────────────────────────────────────────────────────────────
 
 pub struct RemoteBuilder<'a> {
     cli: &'a GitCli,
@@ -165,7 +160,6 @@ impl<'a> RemoteBuilder<'a> {
     }
 }
 
-// ── ResetBuilder ─────────────────────────────────────────────────────────────
 
 pub struct ResetBuilder<'a> {
     cli: &'a GitCli,
@@ -193,7 +187,6 @@ impl<'a> ResetBuilder<'a> {
     }
 }
 
-// ── SubmoduleBuilder ─────────────────────────────────────────────────────────
 
 pub struct SubmoduleBuilder<'a> {
     cli: &'a GitCli,
@@ -209,14 +202,8 @@ impl<'a> SubmoduleBuilder<'a> {
     pub fn init(mut self) -> Self { self.args.flag("--init"); self }
     pub fn recursive(mut self) -> Self { self.args.flag("--recursive"); self }
     pub fn auth(mut self, auth: GitAuth) -> Self {
-        match auth {
-            GitAuth::Token(token) => {
-                self.args.insert_pair(0, "-c", format!("http.extraHeader=AUTHORIZATION: bearer {}", token));
-            }
-            GitAuth::SshKey(key_path) => {
-                self.args.insert_pair(0, "-c", format!("core.sshCommand=ssh -i {} -o StrictHostKeyChecking=no", key_path));
-            }
-        }
+        let (k, v) = auth.to_config();
+        self.args.insert_pair(0, "-c", format!("{}={}", k, v));
         self
     }
     

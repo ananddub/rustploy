@@ -1,4 +1,3 @@
-use std::error::Error;
 use tokio::sync::broadcast;
 use tokio::sync::watch::Sender;
 use tokio_util::sync::CancellationToken;

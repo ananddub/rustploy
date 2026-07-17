@@ -34,5 +34,6 @@ pub mod crud;
 pub mod operations;
 pub mod queries;
 pub mod remote;
+pub mod rollback;
 pub mod source;
 pub mod types;

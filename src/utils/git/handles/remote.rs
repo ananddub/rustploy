@@ -5,7 +5,6 @@ use crate::utils::{
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
-// ── CloneBuilder ─────────────────────────────────────────────────────────────
 
 pub struct CloneBuilder<'a> {
     cli: &'a GitCli,
@@ -26,14 +25,8 @@ impl<'a> CloneBuilder<'a> {
 
     pub fn destination(mut self, path: impl Into<String>) -> Self { self.destination = Some(path.into()); self }
     pub fn auth(mut self, auth: GitAuth) -> Self {
-        match auth {
-            GitAuth::Token(token) => {
-                self.args.insert_pair(0, "-c", format!("http.extraHeader=AUTHORIZATION: bearer {}", token));
-            }
-            GitAuth::SshKey(key_path) => {
-                self.args.insert_pair(0, "-c", format!("core.sshCommand=ssh -i {} -o StrictHostKeyChecking=no", key_path));
-            }
-        }
+        let (k, v) = auth.to_config();
+        self.args.insert_pair(0, "-c", format!("{}={}", k, v));
         self
     }
     pub fn branch(mut self, name: impl Into<String>)      -> Self { self.args.pair("--branch", name.into()); self }
@@ -80,7 +73,6 @@ impl<'a> CloneBuilder<'a> {
     }
 }
 
-// ── FetchBuilder ─────────────────────────────────────────────────────────────
 
 pub struct FetchBuilder<'a> {
     cli: &'a GitCli,
@@ -94,14 +86,8 @@ impl<'a> FetchBuilder<'a> {
 
     pub fn remote(mut self, remote: impl Into<String>) -> Self { self.args.push(remote.into()); self }
     pub fn auth(mut self, auth: GitAuth) -> Self {
-        match auth {
-            GitAuth::Token(token) => {
-                self.args.insert_pair(0, "-c", format!("http.extraHeader=AUTHORIZATION: bearer {}", token));
-            }
-            GitAuth::SshKey(key_path) => {
-                self.args.insert_pair(0, "-c", format!("core.sshCommand=ssh -i {} -o StrictHostKeyChecking=no", key_path));
-            }
-        }
+        let (k, v) = auth.to_config();
+        self.args.insert_pair(0, "-c", format!("{}={}", k, v));
         self
     }
     pub fn all(mut self)                               -> Self { self.args.flag("--all"); self }
@@ -132,7 +118,6 @@ impl<'a> FetchBuilder<'a> {
     }
 }
 
-// ── PullBuilder ──────────────────────────────────────────────────────────────
 
 pub struct PullBuilder<'a> {
     cli: &'a GitCli,
@@ -146,6 +131,11 @@ impl<'a> PullBuilder<'a> {
 
     pub fn remote(mut self, remote: impl Into<String>) -> Self { self.args.push(remote.into()); self }
     pub fn branch(mut self, name: impl Into<String>)   -> Self { self.args.push(name.into()); self }
+    pub fn auth(mut self, auth: GitAuth) -> Self {
+        let (k, v) = auth.to_config();
+        self.args.insert_pair(0, "-c", format!("{}={}", k, v));
+        self
+    }
     pub fn rebase(mut self)                            -> Self { self.args.flag("--rebase"); self }
     pub fn no_rebase(mut self)                         -> Self { self.args.flag("--no-rebase"); self }
     pub fn ff_only(mut self)                           -> Self { self.args.flag("--ff-only"); self }
@@ -166,7 +156,6 @@ impl<'a> PullBuilder<'a> {
     }
 }
 
-// ── PushBuilder ──────────────────────────────────────────────────────────────
 
 pub struct PushBuilder<'a> {
     cli: &'a GitCli,

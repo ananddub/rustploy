@@ -80,6 +80,7 @@ impl ApplicationBuilder {
             &GitCli::from_executor(self.ctx.executor.clone()),
             url,
             branch_opt,
+            auth.clone(),
             cancel,
         )
         .await?;
@@ -101,12 +102,13 @@ async fn resolve_branch(
     git: &GitCli,
     url: &str,
     branch: &Option<String>,
+    auth: Option<crate::utils::git::types::GitAuth>,
     cancel: &CancellationToken,
 ) -> ExecResult<String> {
     if let Some(branch) = branch.as_deref().map(str::trim).filter(|v| !v.is_empty()) {
         return Ok(branch.to_owned());
     }
-    git.remote_default_branch_cancelled(url, cancel)
+    git.remote_default_branch_cancelled(url, auth, cancel)
         .await?
         .ok_or_else(|| ExecError::CommandFailed {
             code: None,

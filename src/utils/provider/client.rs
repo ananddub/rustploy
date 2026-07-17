@@ -17,10 +17,14 @@ impl ProviderClient {
         }
     }
 
-    /// Helper to inject bearer token if present
     pub fn authenticate(&self, mut req: RequestBuilder) -> RequestBuilder {
         if let Some(token) = &self.token {
-            req = req.bearer_auth(token);
+            if token.contains(':') {
+                let parts: Vec<&str> = token.splitn(2, ':').collect();
+                req = req.basic_auth(parts[0], Some(parts[1]));
+            } else {
+                req = req.bearer_auth(token);
+            }
         }
         req
     }

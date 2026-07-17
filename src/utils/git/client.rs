@@ -1,4 +1,4 @@
-use super::{GitBranch, GitStatusEntry};
+use super::{GitBranch, GitStatusEntry, types::GitAuth};
 use crate::utils::exec::{
     CommandExecutor, ExecExitStatus, ExecOutput, ExecResult, ExecStreamEvent, LocalExecutor,
     RemoteExecutor, SshAuth, SshHostKey,
@@ -196,8 +196,7 @@ impl GitCli {
             .await
     }
 
-    // ── DSL Handles ──────────────────────────────────────────────────────────────
-    
+
     pub fn queries(&self) -> super::handles::GitQueries<'_> {
         super::handles::GitQueries(self)
     }
@@ -443,18 +442,19 @@ impl GitCli {
             })
             .collect())
     }
-    pub async fn remote_branches(&self, repository_url: &str) -> ExecResult<Vec<GitBranch>> {
-        self.queries().remote_branches(repository_url).await
+    pub async fn remote_branches(&self, repository_url: &str, auth: Option<GitAuth>) -> ExecResult<Vec<GitBranch>> {
+        self.queries().remote_branches(repository_url, auth).await
     }
-    pub async fn remote_default_branch(&self, repository_url: &str) -> ExecResult<Option<String>> {
-        self.queries().remote_default_branch(repository_url).await
+    pub async fn remote_default_branch(&self, repository_url: &str, auth: Option<GitAuth>) -> ExecResult<Option<String>> {
+        self.queries().remote_default_branch(repository_url, auth).await
     }
     pub async fn remote_default_branch_cancelled(
         &self,
         repository_url: &str,
+        auth: Option<GitAuth>,
         cancel: &CancellationToken,
     ) -> ExecResult<Option<String>> {
-        self.queries().remote_default_branch_cancelled(repository_url, cancel).await
+        self.queries().remote_default_branch_cancelled(repository_url, auth, cancel).await
     }
     async fn prefixed(&self, prefix: &[&str], args: &[&str]) -> ExecResult<ExecOutput> {
         let mut command = prefix.to_vec();

@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-/// Fixed and safe webhook events that can be listened to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum WebhookEvent {
@@ -13,7 +12,6 @@ pub enum WebhookEvent {
 }
 
 impl WebhookEvent {
-    /// Convert the generic WebhookEvent into a GitHub-specific event string.
     pub fn as_github_event(&self) -> &'static str {
         match self {
             Self::Push => "push",
@@ -25,7 +23,6 @@ impl WebhookEvent {
         }
     }
 
-    /// Convert the generic WebhookEvent into a GitLab-specific event string.
     pub fn as_gitlab_event(&self) -> &'static str {
         match self {
             Self::Push => "push_events",
@@ -37,19 +34,17 @@ impl WebhookEvent {
         }
     }
 
-    /// Convert the generic WebhookEvent into a Bitbucket-specific event string.
     pub fn as_bitbucket_event(&self) -> &'static str {
         match self {
             Self::Push => "repo:push",
             Self::PullRequest => "pullrequest:created",
             Self::Issues => "issue:created",
-            Self::Release => "repo:push", // Bitbucket doesn't have a specific release event
-            Self::TagPush => "repo:push", // Tags are push events
+            Self::Release => "repo:push",
+            Self::TagPush => "repo:push",
             Self::IssueComment => "issue:comment_created",
         }
     }
 
-    /// Convert the generic WebhookEvent into a Gitea-specific event string.
     pub fn as_gitea_event(&self) -> &'static str {
         match self {
             Self::Push => "push",
@@ -62,7 +57,6 @@ impl WebhookEvent {
     }
 }
 
-/// The Git protocol to use when cloning a repository.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CloneProtocol {
     Https,

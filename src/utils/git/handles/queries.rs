@@ -1,6 +1,6 @@
 use crate::utils::{
     exec::{ArgBuilder, ExecOutput, ExecResult},
-    git::{client::GitCli, GitBranch},
+    git::{client::GitCli, GitBranch, types::GitAuth},
 };
 use tokio_util::sync::CancellationToken;
 
@@ -21,14 +21,15 @@ impl<'a> LsRemoteBuilder<'a> {
         }
     }
 
-    /// Limit to only refs/heads
     pub fn heads(mut self) -> Self { self.args.flag("--heads"); self }
-    /// Limit to only refs/tags
     pub fn tags(mut self) -> Self { self.args.flag("--tags"); self }
-    /// Show the underlying ref instead of object id for symrefs
     pub fn symref(mut self) -> Self { self.args.flag("--symref"); self }
-    /// Only show refs that match the pattern
     pub fn ref_pattern(mut self, pattern: impl Into<String>) -> Self { self.args.push(pattern.into()); self }
+    pub fn auth(mut self, auth: GitAuth) -> Self {
+        let (k, v) = auth.to_config();
+        self.args.insert_pair(0, "-c", format!("{}={}", k, v));
+        self
+    }
 
     pub fn print(&self) -> String {
         let mut a = self.args.clone();
@@ -53,7 +54,6 @@ impl<'a> LsRemoteBuilder<'a> {
     }
 }
 
-// ── GitQueries (High level wrappers) ──────────────────────────────────────────
 
 pub struct GitQueries<'a>(pub(crate) &'a GitCli);
 
@@ -62,29 +62,39 @@ impl<'a> GitQueries<'a> {
         LsRemoteBuilder::new(self.0, repository)
     }
 
-    /// Retrieve all remote branches (heads) without cloning.
-    pub async fn remote_branches(&self, repository_url: &str) -> ExecResult<Vec<GitBranch>> {
-        let out = self.ls_remote(repository_url).heads().output().await?;
+    pub async fn remote_branches(&self, repository_url: &str, auth: Option<GitAuth>) -> ExecResult<Vec<GitBranch>> {
+        let mut builder = self.ls_remote(repository_url).heads();
+        if let Some(a) = auth {
+            builder = builder.auth(a);
+        }
+        let out = builder.output().await?;
         parse_remote_branches(&out.stdout)
     }
 
-    /// Retrieve the default branch name (usually `main` or `master`) without cloning.
-    pub async fn remote_default_branch(&self, repository_url: &str) -> ExecResult<Option<String>> {
-        let out = self.ls_remote(repository_url).symref().ref_pattern("HEAD").output().await?;
+    pub async fn remote_default_branch(&self, repository_url: &str, auth: Option<GitAuth>) -> ExecResult<Option<String>> {
+        let mut builder = self.ls_remote(repository_url).symref().ref_pattern("HEAD");
+        if let Some(a) = auth {
+            builder = builder.auth(a);
+        }
+        let out = builder.output().await?;
         Ok(parse_remote_default_branch(&out.stdout))
     }
 
     pub async fn remote_default_branch_cancelled(
         &self,
         repository_url: &str,
+        auth: Option<GitAuth>,
         cancel: &CancellationToken,
     ) -> ExecResult<Option<String>> {
-        let out = self.ls_remote(repository_url).symref().ref_pattern("HEAD").output_cancelled(cancel).await?;
+        let mut builder = self.ls_remote(repository_url).symref().ref_pattern("HEAD");
+        if let Some(a) = auth {
+            builder = builder.auth(a);
+        }
+        let out = builder.output_cancelled(cancel).await?;
         Ok(parse_remote_default_branch(&out.stdout))
     }
 }
 
-// ── Parsing Helpers ──────────────────────────────────────────────────────────
 
 fn parse_remote_default_branch(output: &str) -> Option<String> {
     output.lines().find_map(|line| {

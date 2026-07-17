@@ -4,6 +4,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{
     core::config::Config,
+    db::models::rollbacks::Rollback,
     services::{
         application::ApplicationOperation,
         compose::remote::{deployment_pid_file, remote_executor},
@@ -105,7 +106,6 @@ impl BuilderQueue {
         let mut mem_limit = mem_limit_str.as_deref().and_then(parse_memory_limit);
         let mut cpu_limit = cpu_limit_str.as_deref().and_then(parse_cpu_limit);
 
-        // Fallback: Dynamic system resource parsing (Target RAM / 2, Target CPU / 2)
         if mem_limit.is_none() {
             if let Some(total_kb) = get_total_memory_kb(&executor).await {
                 mem_limit = Some(MemoryLimit::KB(total_kb / 2));
@@ -118,7 +118,6 @@ impl BuilderQueue {
             }
         }
 
-        // Secondary Fallback: Application config defaults
         if mem_limit.is_none() {
             mem_limit = parse_memory_limit(&config.build_memory_limit);
         }
@@ -147,10 +146,13 @@ impl BuilderQueue {
         let (events_tx, events_rx) = mpsc::channel(6);
         tokio::spawn(super::deployment_log::record_builder_events(deployment_id, events_rx, "app"));
 
+        let spec_snapshot = spec.clone();
+
         let events_tx_clone = events_tx.clone();
         let cgroup_clone = cgroup.clone();
+        let executor_clone = executor.clone();
         let build_future = async move {
-            let mut builder = ApplicationBuilder::new(executor)
+            let mut builder = ApplicationBuilder::new(executor_clone)
                 .with_state(state, app_key)
                 .with_events(events_tx);
                 
@@ -161,12 +163,110 @@ impl BuilderQueue {
             builder
                 .deploy(&spec, &cancel)
                 .await
-                .map(|_| ())
                 .map_err(|e| BuilderError::Execution(e.to_string()))
         };
 
-        super::deployment_log::DEPLOYMENT_SENDER
+        let deploy_result = super::deployment_log::DEPLOYMENT_SENDER
             .scope(events_tx_clone, build_future)
-            .await
+            .await?;
+
+        self.create_rollback_snapshot(
+            application_id,
+            deployment_id,
+            &deploy_result.image,
+            &spec_snapshot,
+            &executor,
+        )
+        .await;
+
+        Ok(())
+    }
+
+    async fn create_rollback_snapshot(
+        &self,
+        application_id: i64,
+        deployment_id: i64,
+        image: &str,
+        spec: &crate::utils::builder::spec::ApplicationSpec,
+        executor: &CommandExecutor,
+    ) {
+        let rollback_repo = match resolve::<crate::repository::RollbackRepository>().await {
+            Ok(r) => r,
+            Err(e) => {
+                tracing::warn!(error = %e, "rollback: could not resolve RollbackRepository, skipping snapshot");
+                return;
+            }
+        };
+
+        let version = match rollback_repo.get_next_version_for_application(application_id).await {
+            Ok(v) => v,
+            Err(e) => {
+                tracing::warn!(error = %e, "rollback: could not determine next version, skipping snapshot");
+                return;
+            }
+        };
+
+        // Tag image: myapp:latest → myapp:v{version}
+        let versioned_image = format_versioned_image(image, version);
+        let docker = crate::utils::docker::DockerCli::from_executor(executor.clone());
+        if let Err(e) = docker.images().tag(image, &versioned_image).run().await {
+            tracing::warn!(
+                error = %e,
+                source_image = image,
+                target_image = %versioned_image,
+                "rollback: failed to tag image, skipping snapshot"
+            );
+            return;
+        }
+
+        tracing::info!(
+            source_image = image,
+            versioned_image = %versioned_image,
+            version,
+            deployment_id,
+            "rollback: tagged image for rollback"
+        );
+
+        // Serialize the full ApplicationSpec as the rollback context
+        let full_context = match serde_json::to_string(spec) {
+            Ok(json) => Some(json),
+            Err(e) => {
+                tracing::warn!(error = %e, "rollback: could not serialize spec, saving without context");
+                None
+            }
+        };
+
+
+        let rollback = Rollback {
+            id: None,
+            deployment_id,
+            version,
+            image: Some(versioned_image),
+            full_context,
+            created_at: chrono::Utc::now().timestamp(),
+        };
+
+        match rollback_repo.create(&rollback).await {
+            Ok(id) => {
+                tracing::info!(rollback_id = id, version, deployment_id, "rollback: snapshot saved");
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, deployment_id, "rollback: failed to save snapshot");
+            }
+        }
     }
 }
+
+fn format_versioned_image(image: &str, version: i64) -> String {
+    let base = if let Some(colon_pos) = image.rfind(':') {
+        if image[colon_pos..].contains('/') {
+            image
+        } else {
+            &image[..colon_pos]
+        }
+    } else {
+        image
+    };
+    format!("{}:v{}", base, version)
+}
+
