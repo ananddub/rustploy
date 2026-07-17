@@ -13,6 +13,7 @@ pub enum ComposeSource {
         protocol: crate::utils::provider::CloneProtocol,
         auth: Option<crate::utils::git::types::GitAuth>,
     },
+    Drop,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -40,7 +41,7 @@ impl ComposeSpec {
     pub fn compose_file_path(&self) -> String {
         match self.source {
             ComposeSource::Raw { .. } => self.compose_path.clone(),
-            ComposeSource::Git { .. } => format!(
+            ComposeSource::Git { .. } | ComposeSource::Drop => format!(
                 "{}/{}",
                 self.work_directory.trim_end_matches('/'),
                 self.compose_path

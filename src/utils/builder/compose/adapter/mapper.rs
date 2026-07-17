@@ -94,6 +94,7 @@ fn source(compose: &ComposeRow) -> Result<ComposeSource, AdapterError> {
         SourceType::Raw => Ok(ComposeSource::Raw {
             content: compose.compose_file.clone(),
         }),
+        SourceType::Drop => Ok(ComposeSource::Drop),
         _ => {
             let provider = GitProviderBuilder::new(source_type)
                 .github(compose.owner.as_deref(), compose.repository.as_deref())

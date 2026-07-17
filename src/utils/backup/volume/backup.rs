@@ -142,17 +142,7 @@ impl<'a> VolumeBackupRunner<'a> {
             }
         }
 
-        let (rclone_args, envs) = builder.build();
-        let env_string = envs.into_iter()
-            .map(|(k, v)| format!("{}={}", k, shell_single_quote(&v)))
-            .collect::<Vec<String>>()
-            .join(" ");
-
-        let rclone_cmd = if env_string.is_empty() {
-            format!("rclone {}", rclone_args.join(" "))
-        } else {
-            format!("{} rclone {}", env_string, rclone_args.join(" "))
-        };
+        let rclone_cmd = builder.to_command_string();
 
         let pipeline = format!(
             "set -eo pipefail; docker run --rm -v {vol}:/volume_data ubuntu tar cf - -C /volume_data . | {rclone}",
@@ -183,17 +173,7 @@ impl<'a> VolumeBackupRunner<'a> {
             }
         }
 
-        let (rclone_args, envs) = builder.build();
-        let env_string = envs.into_iter()
-            .map(|(k, v)| format!("{}={}", k, shell_single_quote(&v)))
-            .collect::<Vec<String>>()
-            .join(" ");
-
-        let rclone_cmd = if env_string.is_empty() {
-            format!("rclone {}", rclone_args.join(" "))
-        } else {
-            format!("{} rclone {}", env_string, rclone_args.join(" "))
-        };
+        let rclone_cmd = builder.to_command_string();
 
         let pipeline = format!(
             "set -eo pipefail; {rclone} | docker run -i --rm -v {vol}:/volume_data ubuntu tar xf - -C /volume_data",
@@ -269,8 +249,4 @@ impl<'a> VolumeBackupRunner<'a> {
 
         result
     }
-}
-
-fn shell_single_quote(s: &str) -> String {
-    format!("'{}'", s.replace('\'', "'\\''"))
 }

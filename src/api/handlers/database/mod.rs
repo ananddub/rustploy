@@ -1,9 +1,3 @@
-pub mod postgres;
-pub mod mysql;
-pub mod mariadb;
-pub mod mongo;
-pub mod redis;
-pub mod libsql;
 
 use axum::http::StatusCode;
 use axum::Json;
@@ -45,3 +39,10 @@ pub async fn run_operation(
         .map(|response| (StatusCode::ACCEPTED, Json(response)))
         .map_err(map_sqlx_error)
 }
+
+pub mod libsql;
+pub mod mariadb;
+pub mod mongo;
+pub mod mysql;
+pub mod postgres;
+pub mod redis;

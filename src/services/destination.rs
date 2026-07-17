@@ -5,6 +5,8 @@ use crate::{
     db::models::destinations::Destination,
     repository::destinations::DestinationRepository,
 };
+use crate::utils::exec::{CommandExecutor, LocalExecutor};
+use crate::utils::rclone::{RcloneBuilder, RcloneCommand};
 
 pub struct DestinationService {
     repo_dest: Arc<DestinationRepository>,
@@ -66,7 +68,6 @@ impl DestinationService {
 
     pub async fn delete(&self, id: &str) -> sqlx::Result<()> {
         let id_i64 = id.parse::<i64>().map_err(|_| sqlx::Error::RowNotFound)?;
-        // Check existence
         self.repo_dest.get_by_id(id_i64).await?.ok_or(sqlx::Error::RowNotFound)?;
         self.repo_dest.delete(id_i64).await
     }
@@ -94,6 +95,7 @@ impl DestinationService {
         endpoint: &str,
         additional_flags: Option<&str>,
     ) -> Result<(), String> {
+
         let target = crate::utils::rclone::RcloneTarget::S3 {
             provider: provider.to_string(),
             access_key_id: access_key.to_string(),
@@ -106,7 +108,7 @@ impl DestinationService {
             no_check_bucket: true,
         };
 
-        let mut builder = crate::utils::rclone::RcloneBuilder::new(crate::utils::rclone::RcloneCommand::Lsf)
+        let mut builder = RcloneBuilder::new(RcloneCommand::Lsf)
             .source(target)
             .timeout("10s")
             .connect_timeout("5s")
@@ -118,20 +120,8 @@ impl DestinationService {
             }
         }
 
-        let (args, envs) = builder.build();
-        let env_string = envs.into_iter()
-            .map(|(k, v)| format!("{}={}", k, shell_single_quote(&v)))
-            .collect::<Vec<String>>()
-            .join(" ");
-
-        let cmd = if env_string.is_empty() {
-            format!("rclone {}", args.join(" "))
-        } else {
-            format!("{} rclone {}", env_string, args.join(" "))
-        };
-
-        let executor = crate::utils::exec::CommandExecutor::Local(crate::utils::exec::LocalExecutor::new());
-        let out = executor.run("sh", &["-c", &cmd]).await.map_err(|e| e.to_string())?;
+        let executor = CommandExecutor::Local(LocalExecutor::new());
+        let out = builder.execute(&executor).await.map_err(|e| e.to_string())?;
 
         if !out.success() {
             return Err(format!("Connection test failed: {}", out.stderr));
@@ -139,8 +129,4 @@ impl DestinationService {
 
         Ok(())
     }
-}
-
-fn shell_single_quote(s: &str) -> String {
-    format!("'{}'", s.replace('\'', "'\\''"))
 }

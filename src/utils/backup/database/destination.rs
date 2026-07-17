@@ -1,3 +1,5 @@
+use crate::utils::rclone::RcloneTarget;
+
 #[derive(Debug, Clone)]
 pub struct S3Destination {
     pub access_key: String,
@@ -10,8 +12,8 @@ pub struct S3Destination {
 }
 
 impl S3Destination {
-    pub fn to_rclone_target(&self, path: &str) -> crate::utils::rclone::RcloneTarget {
-        crate::utils::rclone::RcloneTarget::S3 {
+    pub fn to_rclone_target(&self, path: &str) -> RcloneTarget {
+        RcloneTarget::S3 {
             provider: self.provider.clone().unwrap_or_else(|| "AWS".to_string()),
             access_key_id: self.access_key.clone(),
             secret_access_key: self.secret_key.clone(),

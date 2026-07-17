@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use auto_route::controller;
-use axum::{Json, extract::Path, http::StatusCode};
+use axum::{Json, extract::{Multipart, Path}, http::StatusCode};
 
 use crate::{
     api::dto::compose::{
@@ -16,6 +16,8 @@ use crate::{
 };
 
 type ApiError = (StatusCode, String);
+
+
 
 pub struct ComposeController {
     service: Arc<ComposeService>,
@@ -172,6 +174,21 @@ impl ComposeController {
             .map(ComposeResponseDto::from)
             .map(Json)
             .map_err(map_sqlx_error)
+    }
+
+    #[post("/{id}/source/drop/upload")]
+    async fn upload_drop_source(
+        &self,
+        _claims: Claims,
+        Path(id): Path<i64>,
+        multipart: Multipart,
+    ) -> Result<Json<ComposeResponseDto>, ApiError> {
+        self.service
+            .upload_drop_source(id, multipart)
+            .await
+            .map(ComposeResponseDto::from)
+            .map(Json)
+            .map_err(|e| (StatusCode::BAD_REQUEST, e))
     }
 
     #[post("/{id}/deploy")]

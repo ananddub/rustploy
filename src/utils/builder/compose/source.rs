@@ -25,6 +25,7 @@ impl ComposeBuilder {
             } => {
                 self.fetch_git_repository(spec, url, branch, *submodules, protocol.clone(), auth.clone(), cancel).await
             }
+            ComposeSource::Drop => Ok(()),
         }
     }
 

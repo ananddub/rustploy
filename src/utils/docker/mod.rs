@@ -4,9 +4,9 @@ pub use error::{DockerError, DockerExitStatus, DockerOutput, DockerResult, Docke
 pub use query::DockerQuery;
 pub use types::*;
 
-pub mod client;
 #[macro_use]
-pub mod macros;
+
+pub mod client;
 pub mod compose;
 pub mod container;
 pub mod core;
@@ -14,6 +14,7 @@ pub mod error;
 pub mod expand;
 pub mod handles;
 pub mod image;
+pub mod macros;
 pub mod query;
 pub mod resource;
 pub mod swarm;

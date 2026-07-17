@@ -2,10 +2,7 @@ use std::error::Error;
 use tokio::sync::broadcast;
 use tokio::sync::watch::Sender;
 use tokio_util::sync::CancellationToken;
-use tower::util::BoxCloneService;
 
-pub type DynError = Box<dyn Error + Send + Sync + 'static>;
-pub type DynService<Req, Res> = BoxCloneService<Req, Res, DynError>;
 
 #[derive(Debug, Clone)]
 pub struct AppDeploy {

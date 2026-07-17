@@ -22,7 +22,7 @@ axum-extra = { version = "0.12.6", features = ["typed-header"] }
 serde_json = "1.0"
 serde_yaml = "0.9"
 validator = { version = "0.20", features = ["derive"] }
-axum = "0.8.9"
+axum = { version = "0.8.9", features = ["multipart", "macros"] }
 sqlx = { version = "0.9.0", features = ["runtime-tokio", "sqlite", "macros", "chrono", "uuid"] }
 sqlx-gen = { version = "0.5.8", default-features = false }
 chrono = { version = "0.4.45", features = ["serde"] }
@@ -37,16 +37,15 @@ dotenvy = "0.15.7"
 russh-extra = { version = "0.1.7", default-features = false, features = ["full"] }
 poem-openapi = "5.1.16"
 tower-http = { version = "0.7", features = ["cors"] }
-tower = { version = "0.5.3", features = ["full"] }
 futures = "0.3.32"
 thiserror = "2.0.18"
 tempfile = "3.27.0"
-minijinja = "2.21.0"
 tokio-util = "0.7.11"
 tokio-cron-scheduler = "0.13"
 paste = "1.0"
 reqwest = { version = "0.13.4", features = ["json"] }
 notify = "8.1.0"
+minijinja = "2.21.0"
 
 
 [profile.release]

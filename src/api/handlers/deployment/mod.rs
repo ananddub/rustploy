@@ -17,7 +17,6 @@ use crate::{
     utils::builder::custom_type::IdType,
 };
 
-pub mod stream;
 
 use stream::{
     deployment_event_stream, deployment_log_stream, docker_stats_stream, docker_stream,
@@ -383,3 +382,5 @@ fn compose_log_args(query: ComposeLogQuery) -> Vec<String> {
 
     args
 }
+
+pub mod stream;

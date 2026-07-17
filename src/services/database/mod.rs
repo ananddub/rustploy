@@ -1,7 +1,3 @@
-pub mod types;
-pub mod queries;
-pub mod crud;
-pub mod operations;
 
 pub use types::{DatabaseKind, DatabaseRecord, DatabaseOperation, DatabaseOperationResult};
 
@@ -49,3 +45,8 @@ impl DatabaseService {
         }
     }
 }
+
+pub mod crud;
+pub mod operations;
+pub mod queries;
+pub mod types;

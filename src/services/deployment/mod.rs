@@ -7,8 +7,6 @@ use crate::db::models::deployments::Deployment;
 use crate::utils::builder::custom_type::IdType;
 use crate::repository::{DeploymentRepository, ApplicationRepository, ComposeProjectRepository};
 
-pub mod docker;
-pub mod log;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CancelDeploymentResult {
@@ -149,3 +147,6 @@ fn normalize_filter_text(value: Option<String>) -> Option<String> {
         .map(|value| value.trim().to_ascii_uppercase())
         .filter(|value| !value.is_empty())
 }
+
+pub mod docker;
+pub mod log;

@@ -427,6 +427,23 @@ impl ComposeProjectRepository {
         Ok(())
     }
 
+    pub async fn set_drop_source(&self, id: i64) -> Result<(), sqlx::Error> {
+        sqlx::query!(
+            r#"UPDATE compose_projects SET source_type = 'DROP',
+               repository = NULL, owner = NULL, branch = NULL, gitlab_project_id = NULL, gitlab_repository = NULL,
+               gitlab_owner = NULL, gitlab_branch = NULL, gitlab_path_namespace = NULL,
+               gitea_repository = NULL, gitea_owner = NULL, gitea_branch = NULL,
+               bitbucket_repository = NULL, bitbucket_repository_slug = NULL, bitbucket_owner = NULL,
+               bitbucket_branch = NULL, custom_git_url = NULL, custom_git_branch = NULL,
+               custom_git_ssh_key_id = NULL
+               WHERE id = ?"#,
+            id
+        )
+        .execute(self.pool.as_ref())
+        .await?;
+        Ok(())
+    }
+
     pub async fn get_spec_row(&self, compose_id: i64) -> Result<ComposeRow, sqlx::Error> {
         sqlx::query_as::<_, ComposeRow>(
             r#"SELECT

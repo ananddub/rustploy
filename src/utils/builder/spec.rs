@@ -14,6 +14,7 @@ string_enum! {
         Bitbucket => "BITBUCKET",
         Gitea => "GITEA",
         Raw => "RAW",
+        Drop => "DROP",
     }
 }
 
@@ -52,7 +53,7 @@ string_enum! {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum SourceSpec {
     Docker {
         image: String,
@@ -66,13 +67,13 @@ pub enum SourceSpec {
         auth: Option<crate::utils::git::types::GitAuth>,
     },
 }
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RegistryAuth {
     pub registry: String,
     pub username: String,
     pub password: String,
 }
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum BuildStrategy {
     Dockerfile {
         dockerfile: String,
@@ -126,7 +127,7 @@ pub struct MountSpec {
     pub content: Option<String>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DomainSpec {
     pub key: String,
     pub host: String,
@@ -142,7 +143,7 @@ pub struct DomainSpec {
     pub middlewares: Vec<String>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ApplicationSpec {
     pub app_name: String,
     pub stack_name: String,

@@ -29,8 +29,10 @@ pub struct GitBranch {
     pub current: bool,
 }
 
+use serde::{Serialize, Deserialize};
+
 /// Authentication strategies for Git operations.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum GitAuth {
     /// Use an OAuth/Personal Access Token for HTTPS cloning.
     Token(String),

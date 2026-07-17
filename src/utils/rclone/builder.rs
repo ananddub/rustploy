@@ -270,4 +270,40 @@ impl RcloneBuilder {
 
         (args, envs)
     }
+
+    pub fn to_command_string(self) -> String {
+        let (args, envs) = self.build();
+        let env_string = envs
+            .into_iter()
+            .map(|(k, v)| format!("{}={}", k, shell_single_quote(&v)))
+            .collect::<Vec<String>>()
+            .join(" ");
+
+        if env_string.is_empty() {
+            format!("rclone {}", args.join(" "))
+        } else {
+            format!("{} rclone {}", env_string, args.join(" "))
+        }
+    }
+
+    pub async fn execute(
+        self,
+        executor: &crate::utils::exec::CommandExecutor,
+    ) -> crate::utils::exec::ExecResult<crate::utils::exec::ExecOutput> {
+        let cmd = self.to_command_string();
+        executor.run("sh", &["-c", &cmd]).await
+    }
+
+    pub async fn execute_cancelled(
+        self,
+        executor: &crate::utils::exec::CommandExecutor,
+        cancel: &tokio_util::sync::CancellationToken,
+    ) -> crate::utils::exec::ExecResult<crate::utils::exec::ExecOutput> {
+        let cmd = self.to_command_string();
+        executor.run_cancelled("sh", &["-c", &cmd], cancel).await
+    }
+}
+
+fn shell_single_quote(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "'\\''"))
 }
