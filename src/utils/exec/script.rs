@@ -468,7 +468,6 @@ mod tests {
         let pipeline = ScriptPipeline::new()
             .cmd("echo 'starting rclone'")
             .cmd(rclone)
-
             .cmd("echo 'finished rclone'");
 
         let script = pipeline.compile();
@@ -624,8 +623,12 @@ mod tests {
 
         let pipeline = ScriptPipeline::new()
             .if_condition(cond)
-                .then(|p| p.cmd("echo 'deploying'").cmd("cargo build"))
-                .otherwise(|p| p.cmd("echo 'skipping'"))
+                .then(|p|
+                    p.cmd("echo 'deploying'").cmd("cargo build")
+                )
+                .otherwise(|p|
+                    p.cmd("echo 'skipping'")
+                )
             .cmd("echo 'done'");
 
         let script = pipeline.compile();
