@@ -3,7 +3,7 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
-use tempfile::NamedTempFile;
+use tempfile::TempPath;
 use tokio::process::Command;
 use crate::utils::exec::{SshAuth, SshHostKey};
 
@@ -24,8 +24,8 @@ pub enum StrictHostKeyChecking {
 
 pub struct SshCommand {
     pub command: Command,
-    pub temp_key_file: Option<NamedTempFile>,
-    pub temp_askpass_file: Option<NamedTempFile>,
+    pub temp_key_file: Option<TempPath>,
+    pub temp_askpass_file: Option<TempPath>,
 }
 
 pub struct SshBuilder {
@@ -208,7 +208,7 @@ impl SshBuilder {
         args.push(format!("{}={}", key, value));
     }
 
-    pub fn build_args(&self) -> Result<(Vec<String>, Option<NamedTempFile>, Option<NamedTempFile>, Option<PathBuf>), std::io::Error> {
+    pub fn build_args(&self) -> Result<(Vec<String>, Option<TempPath>, Option<TempPath>, Option<PathBuf>), std::io::Error> {
         if self.quiet == Some(true) && self.verbosity.is_some() {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
@@ -364,7 +364,7 @@ impl SshBuilder {
 
                 args.push("-i".to_string());
                 args.push(temp_file.path().to_string_lossy().to_string());
-                temp_key_file = Some(temp_file);
+                temp_key_file = Some(temp_file.into_temp_path());
             }
             SshAuth::KeyFile(path) => {
                 #[cfg(unix)]
@@ -401,7 +401,7 @@ impl SshBuilder {
                 permissions.set_mode(0o700);
                 std::fs::set_permissions(temp_file.path(), permissions)?;
 
-                temp_askpass_file = Some(temp_file);
+                temp_askpass_file = Some(temp_file.into_temp_path());
             }
         }
 
@@ -433,7 +433,7 @@ impl SshBuilder {
         }
 
         if let Some(ref askpass) = temp_askpass {
-            command.env("SSH_ASKPASS", askpass.path());
+            command.env("SSH_ASKPASS", askpass.as_os_str());
             command.env("SSH_ASKPASS_REQUIRE", "force");
             command.env("DISPLAY", ":0");
         }
@@ -448,6 +448,8 @@ impl SshBuilder {
 
 #[cfg(test)]
 mod tests {
+    use crate::utils::exec::{CommandExecutor, LocalExecutor, RemoteExecutor};
+    use crate::utils::rclone::{RcloneBuilder, RcloneCommand};
     use super::*;
 
     fn create_dummy_key_file() -> tempfile::NamedTempFile {
@@ -464,6 +466,36 @@ mod tests {
             std::fs::set_permissions(f.path(), permissions).unwrap();
         }
         f
+    }
+
+    #[tokio::test]
+    async fn test_ssh(){
+         let  ssh   = RemoteExecutor::new(
+                "lima".to_string(),
+                22,
+                "das".to_string(),
+                SshAuth::Password("1".to_string()),
+                SshHostKey::InsecureAcceptAny
+         );
+        let cmd = CommandExecutor::Local(LocalExecutor::new());
+
+
+
+        RcloneBuilder::new(RcloneCommand::Lsf)
+            .
+            .execute(&cmd).await;
+
+        match ssh.run("ls", &["-a"]).await {
+            Ok(v) =>{
+                println!("stdout={:?},err={:?},status={:?}", v.stdout,v.stderr,v.status);
+            },
+            Err(e) => {
+                println!("Error: {:?}", e);
+                assert_eq!(e.to_string(), "Failed to spawn SSH process: No such file or directory (os error 2)");
+            }
+
+        }
+
     }
 
     #[test]
@@ -587,10 +619,10 @@ mod tests {
         assert!(args.contains(&"BatchMode=no".to_string()));
 
         let askpass_file = temp_askpass.unwrap();
-        let content = std::fs::read_to_string(askpass_file.path()).unwrap();
+        let content = std::fs::read_to_string(&askpass_file).unwrap();
         assert!(content.contains("SuperSecret123"));
 
-        let metadata = std::fs::metadata(askpass_file.path()).unwrap();
+        let metadata = std::fs::metadata(&askpass_file).unwrap();
         assert_eq!(metadata.permissions().mode() & 0o777, 0o700);
     }
 }
