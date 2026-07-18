@@ -7,6 +7,7 @@ use crate::{
     db::models::ssh_keys::SshKey,
     repository::SshKeyRepository,
 };
+use crate::utils::ssh;
 
 pub struct SshKeyService {
     repo_ssh: Arc<SshKeyRepository>,
@@ -45,8 +46,7 @@ impl SshKeyService {
                 "Invalid key type. Supported types are 'ed25519' and 'rsa'".into()
             ));
         }
-        let (private_key, public_key) = crate::utils::ssh::generate_keypair(&kt)
-            .map_err(|e| sqlx::Error::Configuration(e.into()))?;
+        let (private_key, public_key) = ssh::generate_keypair(&kt).map_err(|e| sqlx::Error::Configuration(e.into()))?;
 
         self.repo_ssh.create_and_return(
             name,
