@@ -95,13 +95,14 @@ mod tests {
     #[test]
     fn default_paths_are_namespaced_and_complete() {
         let config = SetupConfig::default();
-        assert_eq!(config.paths.base, "/etc/rustploy");
+        let expected_base = crate::utils::paths::rustploy_paths().base;
+        assert_eq!(config.paths.base, expected_base);
         assert_eq!(config.paths.all().len(), 14);
         assert!(
             config
                 .paths
                 .certificates
-                .starts_with("/etc/rustploy/traefik/dynamic")
+                .starts_with(&format!("{expected_base}/traefik/dynamic"))
         );
         assert_eq!(config.network_name, "rustploy-network");
     }

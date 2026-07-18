@@ -151,3 +151,9 @@ impl<'a> RailpackPrepareBuilder<'a> {
             .await
     }
 }
+
+impl crate::utils::exec::pipeline::IntoCommand for RailpackPrepareBuilder<'_> {
+    fn build_str(&self) -> String {
+        format!("railpack {}", self.args.build_string())
+    }
+}

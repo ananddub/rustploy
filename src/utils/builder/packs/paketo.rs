@@ -152,11 +152,17 @@ impl<'a> PackBuildBuilder<'a> {
 
     pub async fn run_in_cgroup(
         self,
-        cgroup_path: Option<&str>,
+        self_cgroup_path: Option<&str>,
         cancel: &CancellationToken,
     ) -> ExecResult<ExecOutput> {
         self.executor
-            .run_cancelled_in_cgroup(cgroup_path, "pack", self.args.build(), cancel)
+            .run_cancelled_in_cgroup(self_cgroup_path, "pack", self.args.build(), cancel)
             .await
+    }
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for PackBuildBuilder<'_> {
+    fn build_str(&self) -> String {
+        format!("pack {}", self.args.build_string())
     }
 }

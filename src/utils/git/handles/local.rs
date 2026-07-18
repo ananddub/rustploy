@@ -217,3 +217,48 @@ impl<'a> SubmoduleBuilder<'a> {
         self.cli.run(&refs).await
     }
 }
+
+impl crate::utils::exec::pipeline::IntoCommand for AddBuilder<'_> {
+    fn build_str(&self) -> String {
+        self.cli.compile_command(&self.args.clone().build())
+    }
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for CommitBuilder<'_> {
+    fn build_str(&self) -> String {
+        self.cli.compile_command(&self.args.clone().build())
+    }
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for CheckoutBuilder<'_> {
+    fn build_str(&self) -> String {
+        self.cli.compile_command(&self.args.clone().build())
+    }
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for WorktreeAddBuilder<'_> {
+    fn build_str(&self) -> String {
+        let mut a = self.args.clone();
+        a.push(&self.path);
+        a.push(&self.branch);
+        self.cli.compile_command(&a.build())
+    }
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for RemoteBuilder<'_> {
+    fn build_str(&self) -> String {
+        self.cli.compile_command(&self.args.clone().build())
+    }
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for ResetBuilder<'_> {
+    fn build_str(&self) -> String {
+        self.cli.compile_command(&self.args.clone().build())
+    }
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for SubmoduleBuilder<'_> {
+    fn build_str(&self) -> String {
+        self.cli.compile_command(&self.args.clone().build())
+    }
+}

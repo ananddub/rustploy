@@ -197,6 +197,20 @@ impl GitCli {
     }
 
 
+    pub fn compile_command(&self, args: &[String]) -> String {
+        let mut full_args = Vec::new();
+        if let Some(ref repository) = self.repository {
+            full_args.extend(["-c".into(), format!("safe.directory={repository}")]);
+            full_args.extend(["-C".into(), repository.clone()]);
+        }
+        full_args.extend(args.iter().cloned());
+        format!("{} {}", self.executable, full_args.join(" "))
+    }
+
+    pub fn compile_command_raw(&self, args: &[String]) -> String {
+        format!("{} {}", self.executable, args.join(" "))
+    }
+
     pub fn queries(&self) -> super::handles::GitQueries<'_> {
         super::handles::GitQueries(self)
     }

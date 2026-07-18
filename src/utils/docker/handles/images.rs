@@ -207,6 +207,79 @@ impl<'a> ImageImportBuilder<'a> {
 }
 crate::impl_builder_opts!(ImageImportBuilder);
 
+impl crate::utils::exec::pipeline::IntoCommand for BuildBuilder<'_> {
+    fn build_str(&self) -> String {
+        let mut a = ArgBuilder::cmd(&["image", "build"]);
+        a.push_all(self.args.clone().build());
+        a.push(&self.context);
+        a.preview()
+    }
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for PullBuilder<'_> {
+    fn build_str(&self) -> String {
+        let mut a = ArgBuilder::cmd(&["image", "pull"]);
+        a.push_all(self.args.clone().build());
+        a.push(&self.image);
+        a.preview()
+    }
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for ImagePushBuilder<'_> {
+    fn build_str(&self) -> String {
+        let mut a = self.args.clone();
+        a.push(&self.image);
+        a.preview()
+    }
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for ImageRmBuilder<'_> {
+    fn build_str(&self) -> String {
+        let mut a = self.args.clone();
+        a.push(&self.image);
+        a.preview()
+    }
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for ImageTagBuilder<'_> {
+    fn build_str(&self) -> String {
+        let mut a = self.args.clone();
+        a.push(&self.source);
+        a.push(&self.target);
+        a.preview()
+    }
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for ImageHistoryBuilder<'_> {
+    fn build_str(&self) -> String {
+        let mut a = self.args.clone();
+        a.push(&self.image);
+        a.preview()
+    }
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for ImageSaveBuilder<'_> {
+    fn build_str(&self) -> String {
+        let mut a = self.args.clone();
+        a.push(&self.image);
+        a.preview()
+    }
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for ImageLoadBuilder<'_> {
+    fn build_str(&self) -> String {
+        self.args.preview()
+    }
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for ImageImportBuilder<'_> {
+    fn build_str(&self) -> String {
+        let mut a = self.args.clone();
+        a.push(&self.source);
+        a.preview()
+    }
+}
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]

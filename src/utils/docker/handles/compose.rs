@@ -377,3 +377,91 @@ impl<'a> ComposeConfigBuilder<'a> {
 crate::impl_builder_opts!(ComposeConfigBuilder);
 crate::impl_compose_opts!(ComposeConfigBuilder);
 
+impl crate::utils::exec::pipeline::IntoCommand for UpBuilder<'_> {
+    fn build_str(&self) -> String {
+        self.args.preview()
+    }
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for DownBuilder<'_> {
+    fn build_str(&self) -> String {
+        self.args.preview()
+    }
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for ComposeLogsBuilder<'_> {
+    fn build_str(&self) -> String {
+        self.args.preview()
+    }
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for ComposePsBuilder<'_> {
+    fn build_str(&self) -> String {
+        self.args.preview()
+    }
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for ComposeRestartBuilder<'_> {
+    fn build_str(&self) -> String {
+        self.args.preview()
+    }
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for ComposeBuildBuilder<'_> {
+    fn build_str(&self) -> String {
+        self.args.preview()
+    }
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for ComposePullBuilder<'_> {
+    fn build_str(&self) -> String {
+        self.args.preview()
+    }
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for ComposePushBuilder<'_> {
+    fn build_str(&self) -> String {
+        self.args.preview()
+    }
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for ComposeExecBuilder<'_> {
+    fn build_str(&self) -> String {
+        let mut a = self.args.clone();
+        a.push(&self.service);
+        a.preview()
+    }
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for ComposeRunBuilder<'_> {
+    fn build_str(&self) -> String {
+        let mut a = self.args.clone();
+        a.push(&self.service);
+        a.preview()
+    }
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for ComposeStartBuilder<'_> {
+    fn build_str(&self) -> String {
+        self.args.preview()
+    }
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for ComposeStopBuilder<'_> {
+    fn build_str(&self) -> String {
+        self.args.preview()
+    }
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for ComposeRmBuilder<'_> {
+    fn build_str(&self) -> String {
+        self.args.preview()
+    }
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for ComposeConfigBuilder<'_> {
+    fn build_str(&self) -> String {
+        self.args.preview()
+    }
+}
+

@@ -274,3 +274,63 @@ impl<'a> ServiceRollbackBuilder<'a> {
     }
 }
 crate::impl_builder_opts!(ServiceRollbackBuilder);
+
+impl crate::utils::exec::pipeline::IntoCommand for ServiceListBuilder<'_> {
+    fn build_str(&self) -> String {
+        self.args.preview()
+    }
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for ServiceUpdateBuilder<'_> {
+    fn build_str(&self) -> String {
+        let mut a = self.args.clone();
+        a.push(&self.name);
+        a.preview()
+    }
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for ServiceCreateBuilder<'_> {
+    fn build_str(&self) -> String {
+        let mut a = self.args.clone();
+        a.push(&self.image);
+        a.preview()
+    }
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for ServiceRemoveBuilder<'_> {
+    fn build_str(&self) -> String {
+        let mut a = self.args.clone();
+        a.push(&self.name);
+        a.preview()
+    }
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for ServicePsBuilder<'_> {
+    fn build_str(&self) -> String {
+        let mut a = self.args.clone();
+        a.push(&self.name);
+        a.preview()
+    }
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for ServiceLogsBuilder<'_> {
+    fn build_str(&self) -> String {
+        let mut a = self.args.clone();
+        a.push(&self.name);
+        a.preview()
+    }
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for ServiceScaleBuilder<'_> {
+    fn build_str(&self) -> String {
+        self.args.preview()
+    }
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for ServiceRollbackBuilder<'_> {
+    fn build_str(&self) -> String {
+        let mut a = self.args.clone();
+        a.push(&self.name);
+        a.preview()
+    }
+}

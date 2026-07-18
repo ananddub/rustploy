@@ -106,6 +106,11 @@ impl ArgBuilder {
             .collect::<Vec<_>>()
             .join(" ")
     }
+
+    /// Render arguments joined by space without any command prefix.
+    pub fn build_string(&self) -> String {
+        self.args.join(" ")
+    }
 }
 
 #[cfg(test)]

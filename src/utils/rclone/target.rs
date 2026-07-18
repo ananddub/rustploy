@@ -118,7 +118,7 @@ impl RcloneTarget {
                     envs.insert(format!("RCLONE_CONFIG_{}_PORT", name.to_uppercase()), p.to_string());
                 }
                 if let Some(ps) = pass {
-                    envs.insert(format!("RCLONE_CONFIG_{}_PASS", name.to_uppercase()), ps.clone());
+                    envs.insert(format!("RCLONE_CONFIG_{}_PASS", name.to_uppercase()), obscure_password(ps));
                 }
                 if let Some(kf) = key_file {
                     envs.insert(format!("RCLONE_CONFIG_{}_KEY_FILE", name.to_uppercase()), kf.clone());
@@ -140,7 +140,7 @@ impl RcloneTarget {
                 envs.insert(format!("RCLONE_CONFIG_{}_TYPE", name.to_uppercase()), "ftp".to_string());
                 envs.insert(format!("RCLONE_CONFIG_{}_HOST", name.to_uppercase()), host.clone());
                 envs.insert(format!("RCLONE_CONFIG_{}_USER", name.to_uppercase()), user.clone());
-                envs.insert(format!("RCLONE_CONFIG_{}_PASS", name.to_uppercase()), pass.clone());
+                envs.insert(format!("RCLONE_CONFIG_{}_PASS", name.to_uppercase()), obscure_password(pass));
                 if let Some(p) = port {
                     envs.insert(format!("RCLONE_CONFIG_{}_PORT", name.to_uppercase()), p.to_string());
                 }
@@ -200,7 +200,7 @@ impl RcloneTarget {
                 envs.insert(format!("RCLONE_CONFIG_{}_TYPE", name.to_uppercase()), "webdav".to_string());
                 envs.insert(format!("RCLONE_CONFIG_{}_URL", name.to_uppercase()), url.clone());
                 envs.insert(format!("RCLONE_CONFIG_{}_USER", name.to_uppercase()), user.clone());
-                envs.insert(format!("RCLONE_CONFIG_{}_PASS", name.to_uppercase()), pass.clone());
+                envs.insert(format!("RCLONE_CONFIG_{}_PASS", name.to_uppercase()), obscure_password(pass));
                 if let Some(v) = vendor {
                     envs.insert(format!("RCLONE_CONFIG_{}_VENDOR", name.to_uppercase()), v.clone());
                 }
@@ -231,4 +231,17 @@ impl RcloneTarget {
             }
         }
     }
+}
+
+fn obscure_password(password: &str) -> String {
+    if let Ok(output) = std::process::Command::new("rclone")
+        .args(&["obscure", password])
+        .output()
+    {
+        if output.status.success() {
+            let obscured = String::from_utf8_lossy(&output.stdout);
+            return obscured.trim().to_string();
+        }
+    }
+    password.to_string()
 }

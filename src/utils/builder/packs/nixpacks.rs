@@ -178,3 +178,9 @@ impl<'a> NixpacksBuildBuilder<'a> {
             .await
     }
 }
+
+impl crate::utils::exec::pipeline::IntoCommand for NixpacksBuildBuilder<'_> {
+    fn build_str(&self) -> String {
+        format!("nixpacks {}", self.args.build_string())
+    }
+}

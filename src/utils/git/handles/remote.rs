@@ -189,3 +189,27 @@ impl<'a> PushBuilder<'a> {
         self.cli.run_stream(&refs, sender).await
     }
 }
+
+impl crate::utils::exec::pipeline::IntoCommand for CloneBuilder<'_> {
+    fn build_str(&self) -> String {
+        self.cli.compile_command_raw(&self.finalize().build())
+    }
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for FetchBuilder<'_> {
+    fn build_str(&self) -> String {
+        self.cli.compile_command(&self.args.clone().build())
+    }
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for PullBuilder<'_> {
+    fn build_str(&self) -> String {
+        self.cli.compile_command(&self.args.clone().build())
+    }
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for PushBuilder<'_> {
+    fn build_str(&self) -> String {
+        self.cli.compile_command(&self.args.clone().build())
+    }
+}

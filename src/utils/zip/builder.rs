@@ -186,4 +186,90 @@ impl<'e> ZipBuilder<'e> {
         }
         Ok(())
     }
+
+    pub fn to_zip_command(&self) -> Result<ZipCommand, ZipError> {
+        let source = self.source.as_ref().ok_or(ZipError::MissingSource)?;
+        let dest   = self.destination.as_ref().ok_or(ZipError::MissingDestination)?;
+
+        let mut args: Vec<String> = Vec::new();
+        if self.recurse    { args.push("-r".into()); }
+        if self.junk_paths { args.push("-j".into()); }
+        args.push(self.compression.flag().into());
+        for pat in &self.excludes {
+            args.push("-x".into());
+            args.push(pat.clone());
+        }
+        args.extend(self.extra_args.iter().cloned());
+        args.push(dest.to_string_lossy().into_owned());
+        args.push(source.to_string_lossy().into_owned());
+
+        Ok(ZipCommand { args })
+    }
+
+    pub fn to_unzip_command(&self) -> Result<UnzipCommand, ZipError> {
+        let source = self.source.as_ref().ok_or(ZipError::MissingSource)?;
+
+        let mut args: Vec<String> = Vec::new();
+        if self.overwrite  { args.push("-o".into()); }
+        if self.list_only  { args.push("-l".into()); }
+        args.extend(self.extra_args.iter().cloned());
+        args.push(source.to_string_lossy().into_owned());
+        args.extend(self.only_files.iter().cloned());
+        if let Some(ref dest) = self.destination {
+            args.push("-d".into());
+            args.push(dest.to_string_lossy().into_owned());
+        }
+
+        Ok(UnzipCommand { args })
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct ZipCommand {
+    args: Vec<String>,
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for ZipCommand {
+    fn build_str(&self) -> String {
+        format!("zip {}", self.args.join(" "))
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct UnzipCommand {
+    args: Vec<String>,
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for UnzipCommand {
+    fn build_str(&self) -> String {
+        format!("unzip {}", self.args.join(" "))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::exec::{CommandExecutor, LocalExecutor};
+    use crate::utils::exec::pipeline::IntoCommand;
+
+    #[test]
+    fn test_zip_pipeline_commands() {
+        let executor = CommandExecutor::Local(LocalExecutor::new());
+        let builder = ZipBuilder::new(&executor)
+            .source("src")
+            .destination("dest.zip")
+            .recurse()
+            .exclude("*.log");
+
+        let zip_cmd = builder.to_zip_command().unwrap();
+        assert_eq!(zip_cmd.build_str(), "zip -r -6 -x *.log dest.zip src");
+
+        let unzip_builder = ZipBuilder::new(&executor)
+            .source("dest.zip")
+            .destination("extracted")
+            .overwrite();
+
+        let unzip_cmd = unzip_builder.to_unzip_command().unwrap();
+        assert_eq!(unzip_cmd.build_str(), "unzip -o dest.zip -d extracted");
+    }
 }

@@ -4,6 +4,7 @@ use crate::utils::exec::{CommandExecutor, ExecOutput, ExecResult};
 use super::command::RcloneCommand;
 use super::target::RcloneTarget;
 
+#[derive(Clone)]
 pub struct RcloneBuilder {
     command: RcloneCommand,
     source: Option<RcloneTarget>,
@@ -308,4 +309,48 @@ impl RcloneBuilder {
 
 fn shell_single_quote(s: &str) -> String {
     format!("'{}'", s.replace('\'', "'\\''"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_rclone_sftp_upload() {
+        let src = RcloneTarget::Local {
+            path: "/tmp/source.txt".to_string(),
+        };
+        let dest = RcloneTarget::Sftp {
+            host: "100.117.217.5".to_string(),
+            port: Some(22),
+            user: "das".to_string(),
+            pass: None,
+            key_file: Some("/home/das/.ssh/id_ed25519".to_string()),
+            key_use_agent: false,
+            path: "/home/das/dest.txt".to_string(),
+        };
+
+        let builder = RcloneBuilder::new(RcloneCommand::Copyto)
+            .source(src)
+            .destination(dest)
+            .transfers(4)
+            .connect_timeout("10s")
+            .ignore_errors();
+
+        let cmd_str = builder.to_command_string();
+
+        // Check that the generated environment variables are present
+        assert!(cmd_str.contains("RCLONE_CONFIG_DEST_SFTP_TYPE='sftp'"));
+        assert!(cmd_str.contains("RCLONE_CONFIG_DEST_SFTP_HOST='100.117.217.5'"));
+        assert!(cmd_str.contains("RCLONE_CONFIG_DEST_SFTP_USER='das'"));
+        assert!(cmd_str.contains("RCLONE_CONFIG_DEST_SFTP_PORT='22'"));
+        assert!(cmd_str.contains("RCLONE_CONFIG_DEST_SFTP_KEY_FILE='/home/das/.ssh/id_ed25519'"));
+
+        // Check that rclone flags and targets are correct
+        assert!(cmd_str.contains("rclone copyto"));
+        assert!(cmd_str.contains("--transfers=4"));
+        assert!(cmd_str.contains("--contimeout=10s"));
+        assert!(cmd_str.contains("--ignore-errors"));
+        assert!(cmd_str.contains("/tmp/source.txt dest_sftp:/home/das/dest.txt"));
+    }
 }

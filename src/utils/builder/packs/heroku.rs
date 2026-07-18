@@ -156,3 +156,9 @@ impl<'a> HerokuBuildBuilder<'a> {
             .await
     }
 }
+
+impl crate::utils::exec::pipeline::IntoCommand for HerokuBuildBuilder<'_> {
+    fn build_str(&self) -> String {
+        format!("pack {}", self.args.build_string())
+    }
+}

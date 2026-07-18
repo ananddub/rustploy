@@ -191,3 +191,49 @@ impl<'a> StackConfigBuilder<'a> {
     }
 }
 crate::impl_builder_opts!(StackConfigBuilder);
+
+impl crate::utils::exec::pipeline::IntoCommand for StackDeployBuilder<'_> {
+    fn build_str(&self) -> String {
+        let mut a = self.args.clone();
+        a.push(&self.stack_name);
+        a.preview()
+    }
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for StackRemoveBuilder<'_> {
+    fn build_str(&self) -> String {
+        let mut a = self.args.clone();
+        a.push(&self.stack_name);
+        a.preview()
+    }
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for StackListBuilder<'_> {
+    fn build_str(&self) -> String {
+        self.args.preview()
+    }
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for StackPsBuilder<'_> {
+    fn build_str(&self) -> String {
+        let mut a = self.args.clone();
+        a.push(&self.stack_name);
+        a.preview()
+    }
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for StackServicesBuilder<'_> {
+    fn build_str(&self) -> String {
+        let mut a = self.args.clone();
+        a.push(&self.stack_name);
+        a.preview()
+    }
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for StackConfigBuilder<'_> {
+    fn build_str(&self) -> String {
+        let mut a = self.args.clone();
+        a.push(&self.stack_name);
+        a.preview()
+    }
+}

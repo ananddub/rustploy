@@ -449,10 +449,17 @@ impl SshBuilder {
 #[cfg(test)]
 mod tests {
     use crate::utils::exec::{CommandExecutor, LocalExecutor, RemoteExecutor};
-    use crate::utils::rclone::{RcloneBuilder, RcloneCommand};
+    use crate::utils::rclone::{RcloneBuilder, RcloneCommand, RcloneTarget};
     use super::*;
 
     fn create_dummy_key_file() -> tempfile::NamedTempFile {
+        if let Ok(td) = std::env::var("TMPDIR") {
+            if !std::path::Path::new(&td).exists() {
+                unsafe {
+                    std::env::set_var("TMPDIR", "/tmp");
+                }
+            }
+        }
         let mut f = tempfile::Builder::new()
             .prefix("rustploy-test-key-")
             .tempfile()
@@ -470,32 +477,65 @@ mod tests {
 
     #[tokio::test]
     async fn test_ssh(){
-         let  ssh   = RemoteExecutor::new(
+         let ssh = RemoteExecutor::new(
                 "lima".to_string(),
                 22,
                 "das".to_string(),
                 SshAuth::Password("1".to_string()),
                 SshHostKey::InsecureAcceptAny
          );
-        let cmd = CommandExecutor::Local(LocalExecutor::new());
 
+        // 1. Create a dummy local file to transfer
+        let test_file_path = "/tmp/rustploy-test-rclone.txt";
+        std::fs::write(test_file_path, "Hello from rustploy via rclone!").unwrap();
 
+        // 2. Define source (local file) and destination (remote SFTP server via SSH auth)
+        let src = RcloneTarget::Local {
+            path: test_file_path.to_string(),
+        };
+        let dest = RcloneTarget::Sftp {
+            host: "lima".to_string(),
+            port: Some(22),
+            user: "das".to_string(),
+            pass: Some("1".to_string()), // SFTP password
+            key_file: None,
+            key_use_agent: false,
+            path: "/tmp/rclone-uploaded.txt".to_string(),
+        };
 
-        RcloneBuilder::new(RcloneCommand::Lsf)
-            .
-            .execute(&cmd).await;
+        // 3. Build Rclone command to copy the file
+        let rclone = RcloneBuilder::new(RcloneCommand::Copyto)
+            .source(src)
+            .destination(dest);
 
-        match ssh.run("ls", &["-a"]).await {
-            Ok(v) =>{
-                println!("stdout={:?},err={:?},status={:?}", v.stdout,v.stderr,v.status);
-            },
-            Err(e) => {
-                println!("Error: {:?}", e);
-                assert_eq!(e.to_string(), "Failed to spawn SSH process: No such file or directory (os error 2)");
+        // 4. Run Rclone locally to transfer the file
+        let local_executor = CommandExecutor::Local(LocalExecutor::new());
+        match rclone.execute(&local_executor).await {
+            Ok(out) => {
+                assert!(out.status.success(), "Rclone command failed: {:?}", out.stderr);
+                println!("Rclone upload success: stdout={:?}, stderr={:?}", out.stdout, out.stderr);
             }
-
+            Err(e) => {
+                assert!(false, "Rclone upload execution attempt finished with: {:?}", e);
+            }
         }
 
+        // 5. Verify the file exists and has correct content on the remote server
+        match ssh.run("cat", &["/tmp/rclone-uploaded.txt"]).await {
+            Ok(v) => {
+                assert_eq!(v.stdout.trim(), "Hello from rustploy via rclone!");
+                println!("Remote file verification: stdout={:?}, err={:?}, status={:?}", v.stdout, v.stderr, v.status);
+            },
+            Err(e) => {
+                assert!(false, "Remote verification failed: {:?}", e);
+            }
+        }
+
+        // Clean up remote file
+        let _ = ssh.run("rm", &["-f", "/tmp/rclone-uploaded.txt"]).await;
+
+        // Clean up local file
+        let _ = std::fs::remove_file(test_file_path);
     }
 
     #[test]

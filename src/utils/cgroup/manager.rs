@@ -260,6 +260,132 @@ impl Cgroup {
         Ok(())
     }
 
+    pub fn to_apply_commands(&self) -> Result<Vec<String>, CgroupError> {
+        self.validate()?;
+        let mut cmds = Vec::new();
+        let path = self.cgroup_path();
+
+        // 1. Create the cgroup directory
+        cmds.push(format!("mkdir -p {}", shell_single_quote(&path)));
+
+        // 2. Enable subtree controls in parent directories if nested
+        let parts: Vec<&str> = self.name.split('/').filter(|s| !s.is_empty()).collect();
+        if parts.len() > 1 {
+            let mut current_path = String::new();
+            for i in 0..(parts.len() - 1) {
+                if !current_path.is_empty() {
+                    current_path.push('/');
+                }
+                current_path.push_str(parts[i]);
+
+                let parent_dir = format!("{}/{}", self.base_path, current_path);
+                cmds.push(format!("mkdir -p {}", shell_single_quote(&parent_dir)));
+
+                // Write enabled controllers to subtree_control
+                let parent_controllers = format!("{}/cgroup.controllers", parent_dir);
+                let parent_subtree = format!("{}/cgroup.subtree_control", parent_dir);
+                cmds.push(format!(
+                    "if [ -f {0} ]; then for ctrl in cpu memory pids io cpuset; do if grep -q \"$ctrl\" {0}; then echo \"+$ctrl\" > {1}; fi; done; fi",
+                    shell_single_quote(&parent_controllers),
+                    shell_single_quote(&parent_subtree)
+                ));
+            }
+        }
+
+        // 3. Write limits conditionally (checking if control files exist)
+        if let Some(ref max) = self.memory_limit {
+            let filepath = format!("{}/memory.max", path);
+            cmds.push(format!(
+                "if [ -f {0} ]; then echo {1} > {0}; fi",
+                shell_single_quote(&filepath),
+                shell_single_quote(&max.to_cgroup_value())
+            ));
+        }
+        if let Some(ref high) = self.memory_high {
+            let filepath = format!("{}/memory.high", path);
+            cmds.push(format!(
+                "if [ -f {0} ]; then echo {1} > {0}; fi",
+                shell_single_quote(&filepath),
+                shell_single_quote(&high.to_cgroup_value())
+            ));
+        }
+        if let Some(ref low) = self.memory_low {
+            let filepath = format!("{}/memory.low", path);
+            cmds.push(format!(
+                "if [ -f {0} ]; then echo {1} > {0}; fi",
+                shell_single_quote(&filepath),
+                shell_single_quote(&low.to_cgroup_value())
+            ));
+        }
+        if let Some(ref swap) = self.memory_swap {
+            let filepath = format!("{}/memory.swap.max", path);
+            cmds.push(format!(
+                "if [ -f {0} ]; then echo {1} > {0}; fi",
+                shell_single_quote(&filepath),
+                shell_single_quote(&swap.to_cgroup_value())
+            ));
+        }
+
+        if let Some(ref limit) = self.cpu_limit {
+            let filepath = format!("{}/cpu.max", path);
+            cmds.push(format!(
+                "if [ -f {0} ]; then echo {1} > {0}; fi",
+                shell_single_quote(&filepath),
+                shell_single_quote(&limit.to_cgroup_value())
+            ));
+        }
+        if let Some(weight) = self.cpu_weight {
+            let filepath = format!("{}/cpu.weight", path);
+            cmds.push(format!(
+                "if [ -f {0} ]; then echo {1} > {0}; fi",
+                shell_single_quote(&filepath),
+                shell_single_quote(&weight.to_string())
+            ));
+        }
+
+        if let Some(ref cpuset) = self.cpuset {
+            let filepath = format!("{}/cpuset.cpus", path);
+            cmds.push(format!(
+                "if [ -f {0} ]; then echo {1} > {0}; fi",
+                shell_single_quote(&filepath),
+                shell_single_quote(cpuset.to_cgroup_value())
+            ));
+        }
+
+        if let Some(ref limit) = self.pids_limit {
+            let filepath = format!("{}/pids.max", path);
+            cmds.push(format!(
+                "if [ -f {0} ]; then echo {1} > {0}; fi",
+                shell_single_quote(&filepath),
+                shell_single_quote(&limit.to_cgroup_value())
+            ));
+        }
+
+        if let Some(ref limit) = self.io_limit {
+            let filepath = format!("{}/io.max", path);
+            cmds.push(format!(
+                "if [ -f {0} ]; then echo {1} > {0}; fi",
+                shell_single_quote(&filepath),
+                shell_single_quote(limit.to_cgroup_value())
+            ));
+        }
+
+        Ok(cmds)
+    }
+
+    pub fn to_add_process_command(&self, pid: &str) -> String {
+        let filepath = format!("{}/cgroup.procs", self.cgroup_path());
+        format!(
+            "if [ -f {0} ]; then echo {1} > {0}; fi",
+            shell_single_quote(&filepath),
+            shell_single_quote(pid)
+        )
+    }
+
+    pub fn to_add_current_process_command(&self) -> String {
+        self.to_add_process_command("$$")
+    }
+
     pub async fn add_process(&self, pid: u32) -> Result<(), CgroupError> {
         self.add_processes(&[pid]).await
     }
@@ -564,4 +690,29 @@ mod tests {
             assert!(res.unwrap().is_ok());
         }
     }
+
+    #[test]
+    fn test_cgroup_apply_commands_compilation() {
+        let executor = CommandExecutor::Local(LocalExecutor::new());
+        let cg = CgroupBuilder::new("project/api", executor)
+            .with_base_path("/sys/fs/cgroup")
+            .memory(MemoryLimit::MB(512))
+            .cpu(CpuLimit::Cores(2.0))
+            .build();
+
+        let cmds = cg.to_apply_commands().unwrap();
+        let script = cmds.join("\n");
+        assert!(script.contains("mkdir -p '/sys/fs/cgroup/project/api'"));
+        assert!(script.contains("mkdir -p '/sys/fs/cgroup/project'"));
+        assert!(script.contains("memory.max"));
+        assert!(script.contains("cpu.max"));
+
+        let add_proc = cg.to_add_current_process_command();
+        assert!(add_proc.contains("cgroup.procs"));
+        assert!(add_proc.contains("$$"));
+    }
+}
+
+fn shell_single_quote(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "'\\''"))
 }

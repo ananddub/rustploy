@@ -467,3 +467,41 @@ mod tests {
         assert!(q.print().contains("status=running"));
     }
 }
+
+impl crate::utils::exec::pipeline::IntoCommand for ContainerCreate<'_> {
+    fn build_str(&self) -> String {
+        self.print_run()
+    }
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for ContainerStartBuilder<'_> {
+    fn build_str(&self) -> String {
+        let mut a = self.args.clone();
+        a.push(&self.id);
+        a.preview()
+    }
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for ContainerStopBuilder<'_> {
+    fn build_str(&self) -> String {
+        let mut a = self.args.clone();
+        a.push(&self.id);
+        a.preview()
+    }
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for ContainerRestartBuilder<'_> {
+    fn build_str(&self) -> String {
+        let mut a = self.args.clone();
+        a.push(&self.id);
+        a.preview()
+    }
+}
+
+impl crate::utils::exec::pipeline::IntoCommand for ContainerRmBuilder<'_> {
+    fn build_str(&self) -> String {
+        let mut a = self.args.clone();
+        a.push(&self.id);
+        a.preview()
+    }
+}

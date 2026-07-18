@@ -437,7 +437,6 @@ impl fmt::Display for TaskFilter {
 
 #[cfg(test)]
 mod tests {
-    use crate::utils::docker::DockerCli;
     use super::*;
 
     #[test]

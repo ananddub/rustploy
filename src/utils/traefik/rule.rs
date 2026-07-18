@@ -1,11 +1,5 @@
 use std::fmt;
 
-/// A Traefik routing rule expression.
-///
-/// Rules can be combined with `.and()` / `.or()`, or negated with `!rule`
-/// (via `std::ops::Not`), mirroring Traefik's `&&`, `||`, and `!` operators.
-/// `Display` renders the exact string Traefik expects, e.g.:
-/// `Host(\`example.com\`) && PathPrefix(\`/api\`)`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Rule {
     Host(String),
@@ -54,27 +48,22 @@ impl Rule {
         Rule::ClientIP(cidr.into())
     }
 
-    /// Combine two rules with a logical AND (`&&`).
     pub fn and(self, other: Rule) -> Self {
         Rule::And(Box::new(self), Box::new(other))
     }
 
-    /// Combine two rules with a logical OR (`||`).
     pub fn or(self, other: Rule) -> Self {
         Rule::Or(Box::new(self), Box::new(other))
     }
 
-    /// Negate a rule (`!`). Same as `!rule`.
     pub fn negate(self) -> Self {
         Rule::Not(Box::new(self))
     }
 
-    /// Whether this rule needs parens when nested as a side of a
-    /// parent combinator, based on Traefik's precedence (`!` > `&&` > `||`).
     fn needs_parens_within(&self, parent_is_and: bool) -> bool {
         match self {
-            Rule::Or(_, _) => true,            // || nested anywhere: always parenthesize for clarity
-            Rule::And(_, _) => !parent_is_and, // && nested inside || needs parens; inside && it doesn't
+            Rule::Or(_, _) => true,           
+            Rule::And(_, _) => !parent_is_and,
             _ => false,
         }
     }
