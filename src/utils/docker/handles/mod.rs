@@ -1,10 +1,23 @@
-
 pub use compose::ComposeHandle;
 pub use configs::ConfigsHandle;
-pub use containers::{ContainerHandle, ContainerCreate, ContainerQuery, ExecBuilder, LogsBuilder, RestartPolicy, StatsBuilder};
-pub use images::{BuildBuilder, ImageHandle, ImageQuery, PullBuilder};
+pub use containers::{
+    ContainerCreate, ContainerHandle, ContainerQuery, ExecBuilder, LogsBuilder, RestartPolicy,
+    StatsBuilder, ContainerPrune, ContainerStartBuilder, ContainerStopBuilder, ContainerRestartBuilder,
+    ContainerPauseBuilder, ContainerUnpauseBuilder, ContainerKillBuilder, ContainerWaitBuilder,
+    ContainerPortBuilder, ContainerTopBuilder, ContainerRmBuilder, ContainerRenameBuilder,
+    ContainerUpdateBuilder,
+};
+pub use images::{
+    BuildBuilder, ImageHandle, ImageQuery, PullBuilder, ImagePrune,
+    ImagePushBuilder, ImageRmBuilder, ImageTagBuilder, ImageHistoryBuilder,
+    ImageSaveBuilder, ImageLoadBuilder, ImageImportBuilder,
+};
 pub use nodes::NodesHandle;
-pub use resources::{NetworkCreate, NetworkHandle, NetworkQuery, VolumeCreate, VolumeHandle, VolumeQuery};
+pub use resources::{
+    NetworkCreate, NetworkHandle, NetworkQuery, VolumeCreate, VolumeHandle, VolumeQuery,
+    NetworkPrune, NetworkRmBuilder, NetworkConnectBuilder, NetworkDisconnectBuilder,
+    VolumePrune, VolumeRmBuilder,
+};
 pub use secrets::SecretsHandle;
 pub use services::ServicesHandle;
 pub use stacks::StacksHandle;

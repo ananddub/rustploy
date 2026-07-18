@@ -7,13 +7,14 @@ pub use types::{
 pub use arg_builder::ArgBuilder;
 pub use script::{ScriptPipeline, IntoCommand, Condition, IfBuilder, IfThenBuilder};
 
-pub mod arg_builder;
-pub mod error;
-pub mod exec_local;
-pub mod exec_remote;
-pub mod types;
-pub mod script;
 
 pub mod pipeline {
     pub use super::script::{ScriptPipeline, IntoCommand, Condition, IfBuilder, IfThenBuilder};
 }
+
+pub mod arg_builder;
+pub mod error;
+pub mod exec_local;
+pub mod exec_remote;
+pub mod script;
+pub mod types;

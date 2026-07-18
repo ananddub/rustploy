@@ -16,7 +16,5 @@ pub mod handles;
 pub mod image;
 pub mod macros;
 pub mod query;
-pub mod resource;
-pub mod swarm;
 pub mod system;
 pub mod types;

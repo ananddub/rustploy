@@ -21,39 +21,11 @@ macro_rules! impl_builder_opts {
             }
 
             /// Escape hatch to pass multiple raw, custom arguments directly to the Docker CLI.
-            pub fn custom_args(mut self, args: impl IntoIterator<Item = impl Into<String>>) -> Self {
+            pub fn custom_args(
+                mut self,
+                args: impl IntoIterator<Item = impl Into<String>>,
+            ) -> Self {
                 self.args.push_all(args);
-                self
-            }
-        }
-    };
-}
-
-#[macro_export]
-macro_rules! impl_compose_opts {
-    ($builder:ident) => {
-        impl<'a> $builder<'a> {
-            /// Specify an alternate compose file
-            pub fn file(mut self, f: impl Into<String>) -> Self {
-                self.args.insert_pair(1, "--file", f.into());
-                self
-            }
-
-            /// Specify an alternate environment file
-            pub fn env_file(mut self, f: impl Into<String>) -> Self {
-                self.args.insert_pair(1, "--env-file", f.into());
-                self
-            }
-
-            /// Specify an alternate project name
-            pub fn project(mut self, p: impl Into<String>) -> Self {
-                self.args.insert_pair(1, "--project-name", p.into());
-                self
-            }
-            
-            /// Specify a profile to enable
-            pub fn profile(mut self, p: impl Into<String>) -> Self {
-                self.args.insert_pair(1, "--profile", p.into());
                 self
             }
         }
