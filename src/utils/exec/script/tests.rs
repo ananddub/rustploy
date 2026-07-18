@@ -1,14 +1,14 @@
-use crate::utils::exec::ScriptPipeline;
 use crate::utils::exec::Condition;
+use crate::utils::exec::ScriptPipeline;
 use crate::utils::exec::script::shell_single_quote;
 
 use super::*;
-use crate::utils::exec::{CommandExecutor, LocalExecutor};
-use crate::utils::rclone::{RcloneBuilder, RcloneCommand, RcloneTarget};
-use tokio_util::sync::CancellationToken;
 use crate::pipeline;
 use crate::utils::builder::spec::BuildStrategy::Nixpacks;
+use crate::utils::exec::{CommandExecutor, LocalExecutor};
 use crate::utils::git::GitCli;
+use crate::utils::rclone::{RcloneBuilder, RcloneCommand, RcloneTarget};
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test]
 async fn test_pipeline_execution() {
@@ -61,7 +61,8 @@ async fn test_pipeline_with_various_builders() {
     let stacks_handle = cli.stacks();
 
     // 1. ContainerCreate builder
-    let container = containers_handle.create("alpine:latest")
+    let container = containers_handle
+        .create("alpine:latest")
         .name("test-pipeline-container")
         .tty(true);
 
@@ -82,7 +83,9 @@ async fn test_pipeline_with_various_builders() {
     let svc_create = services_handle.create("nginx:latest").name("my-service");
 
     // 7. Stack DeployBuilder
-    let stack_deploy = stacks_handle.deploy("my-stack").compose_file("docker-compose.yml");
+    let stack_deploy = stacks_handle
+        .deploy("my-stack")
+        .compose_file("docker-compose.yml");
 
     // Pipeline combining all
     let pipeline = ScriptPipeline::new()
@@ -95,7 +98,9 @@ async fn test_pipeline_with_various_builders() {
         .cmd(stack_deploy);
 
     let script = pipeline.compile();
-    assert!(script.contains("docker container run --name test-pipeline-container --tty alpine:latest"));
+    assert!(
+        script.contains("docker container run --name test-pipeline-container --tty alpine:latest")
+    );
     assert!(script.contains("docker container start test-pipeline-container"));
     assert!(script.contains("nixpacks build /path/to/project --name my-app"));
     assert!(script.contains("docker image build --tag my-image:latest /path/to/ctx"));
@@ -134,8 +139,8 @@ async fn test_pipeline_if_else() {
         .cmd("echo 'directory does not exist'")
         .cmd("mkdir -p /tmp/test-dir");
 
-    let pipeline = ScriptPipeline::new()
-        .if_else("[ -d /tmp/test-dir ]", then_branch, Some(else_branch));
+    let pipeline =
+        ScriptPipeline::new().if_else("[ -d /tmp/test-dir ]", then_branch, Some(else_branch));
 
     let script = pipeline.compile();
     assert!(script.contains("if [ -d /tmp/test-dir ]; then"));
@@ -149,22 +154,22 @@ async fn test_pipeline_if_else() {
 
 #[tokio::test]
 async fn test_pipeline_git_builders() {
-    let git_cli = crate::utils::git::client::GitCli::new_local()
-        .with_repository("/tmp/repo");
+    let git_cli = crate::utils::git::client::GitCli::new_local().with_repository("/tmp/repo");
 
-    let clone = git_cli.clone("https://github.com/test/repo.git").destination("/tmp/repo");
+    let clone = git_cli
+        .clone("https://github.com/test/repo.git")
+        .destination("/tmp/repo");
     let fetch = git_cli.fetch().all();
     let reset = git_cli.reset().hard().commit("origin/main");
 
-    let pipeline = ScriptPipeline::new()
-        .cmd(clone)
-        .cmd(fetch)
-        .cmd(reset);
+    let pipeline = ScriptPipeline::new().cmd(clone).cmd(fetch).cmd(reset);
 
     let script = pipeline.compile();
     assert!(script.contains("git clone https://github.com/test/repo.git /tmp/repo"));
     assert!(script.contains("git -c safe.directory=/tmp/repo -C /tmp/repo fetch --all"));
-    assert!(script.contains("git -c safe.directory=/tmp/repo -C /tmp/repo reset --hard origin/main"));
+    assert!(
+        script.contains("git -c safe.directory=/tmp/repo -C /tmp/repo reset --hard origin/main")
+    );
 }
 
 #[tokio::test]
@@ -173,8 +178,16 @@ async fn test_pipeline_convenience_conditions() {
     let else_branch = ScriptPipeline::new().cmd("echo 'else'");
 
     let pipeline = ScriptPipeline::new()
-        .if_dir_exists("/tmp/test-dir", then_branch.clone(), Some(else_branch.clone()))
-        .if_file_exists("/tmp/test-file", then_branch.clone(), Some(else_branch.clone()))
+        .if_dir_exists(
+            "/tmp/test-dir",
+            then_branch.clone(),
+            Some(else_branch.clone()),
+        )
+        .if_file_exists(
+            "/tmp/test-file",
+            then_branch.clone(),
+            Some(else_branch.clone()),
+        )
         .if_cmd_succeeds("git status", then_branch.clone(), Some(else_branch.clone()))
         .if_env_set("MY_VAR", then_branch, Some(else_branch));
 
@@ -194,8 +207,8 @@ async fn test_pipeline_condition_enum_and_fluent_api() {
 
     let pipeline = ScriptPipeline::new()
         .if_condition(cond)
-            .then(|p| p.cmd("echo 'deploying'").cmd("cargo build"))
-            .otherwise(|p| p.cmd("echo 'skipping'"))
+        .then(|p| p.cmd("echo 'deploying'").cmd("cargo build"))
+        .otherwise(|p| p.cmd("echo 'skipping'"))
         .cmd("echo 'done'");
     let script = pipeline.compile();
     assert!(script.contains("if ([ -d '/tmp/repo' ] && [ -f '/tmp/repo/config.json' ] && git status) || ! [ -n \"${FORCE_DEPLOY}\" ]; then"));
@@ -210,6 +223,7 @@ async fn test_pipeline_condition_enum_and_fluent_api() {
 async fn test_pipeline_condition_enum_and_fluent_macros() {
     let executor = CommandExecutor::Local(LocalExecutor::new());
     let nixpacks_cli = crate::utils::builder::packs::nixpacks::NixpacksCli::new(&executor);
+    let git_cli = crate::utils::git::client::GitCli::new_local().with_repository("/tmp/repo");
 
     let pipeline = pipeline! {
         if (dir("/tmp/repo") && file("/tmp/repo/config.json")&& cmd("git status")|| !env("FORCE_DEPLOY")) {
@@ -217,6 +231,7 @@ async fn test_pipeline_condition_enum_and_fluent_macros() {
             cargo("build");
         } else {
             nixpacks_cli.build("/path/to/project").name("my-app");
+            git_cli.clone("").destination("/tmp/repo");
             echo("skipping");
         }
         echo("done");

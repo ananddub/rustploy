@@ -219,7 +219,7 @@ macro_rules! __pipeline_munch {
 #[macro_export]
 macro_rules! pipeline {
     ($($tt:tt)*) => {{
-        let mut __pipeline = $crate::ScriptPipeline::new();
+        let mut __pipeline = $crate::utils::exec::ScriptPipeline::new();
         $crate::__pipeline_munch!(__pipeline, $($tt)*);
         __pipeline
     }};
