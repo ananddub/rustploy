@@ -175,7 +175,7 @@ mod tests {
         let c = (Condition::dir_exists("/a") & Condition::file_exists("/b"))
             | Condition::env_set("X");
         let bash = c.to_bash();
-        assert_eq!(c.to_bash(), "([ -d '/a' ] && [ -f '/b' ]) || [ -n \"${X}\" ]");
+        assert_eq!(bash, "([ -d '/a' ] && [ -f '/b' ]) || [ -n \"${X}\" ]");
     }
 
     #[test]

@@ -2709,6 +2709,7 @@ dependencies = [
  "paste",
  "poem-openapi",
  "reqwest",
+ "rustploy_sh_macros",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -2725,6 +2726,16 @@ dependencies = [
  "tracing-subscriber",
  "uuid",
  "validator",
+]
+
+[[package]]
+name = "rustploy_sh_macros"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "regex",
+ "syn",
 ]
 
 [[package]]

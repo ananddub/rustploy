@@ -9,6 +9,7 @@ members = [
     "auto_route_macros",
     "auto_socket",
     "auto_route",
+    "rustploy_sh_macros",
 ]
 
 
@@ -16,6 +17,7 @@ members = [
 tokio = { version = "1", features = ["full"] }
 auto-di = "0.6.0"
 auto_route = { version = "0.2.1", path = "auto_route" }
+rustploy_sh_macros = { path = "rustploy_sh_macros" }
 auto_socket = "0.1.0"
 serde = { version = "1.0", features = ["derive"] }
 axum-extra = { version = "0.12.6", features = ["typed-header"] }

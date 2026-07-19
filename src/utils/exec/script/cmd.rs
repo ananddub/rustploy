@@ -125,3 +125,39 @@ impl<const N: usize> IntoCommand for &[&str; N] {
             .join(" ")
     }
 }
+
+impl IntoCommand for i32 {
+    fn build_str(&self) -> String {
+        self.to_string()
+    }
+}
+
+impl IntoCommand for u16 {
+    fn build_str(&self) -> String {
+        self.to_string()
+    }
+}
+
+impl IntoCommand for u32 {
+    fn build_str(&self) -> String {
+        self.to_string()
+    }
+}
+
+impl IntoCommand for usize {
+    fn build_str(&self) -> String {
+        self.to_string()
+    }
+}
+
+impl IntoCommand for i64 {
+    fn build_str(&self) -> String {
+        self.to_string()
+    }
+}
+
+impl IntoCommand for u64 {
+    fn build_str(&self) -> String {
+        self.to_string()
+    }
+}
