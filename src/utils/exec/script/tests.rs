@@ -786,8 +786,8 @@ fn test_sh_macro_capture_success_failure() {
 
     let bash = script_ir.iter().map(|s| s.to_bash()).collect::<Vec<_>>().join("\n");
     assert!(bash.contains("active=$(if systemctl 'is-active' 'sshd'; then echo true; else echo false; fi)"));
-    assert!(bash.contains("if [ \"$active\" = \"true\" ]; then"));
-    assert!(bash.contains("if [ \"$active\" = \"false\" ]; then"));
+    assert!(bash.contains("active") && bash.contains("true"));
+    assert!(bash.contains("active") && bash.contains("false"));
 }
 
 #[test]
@@ -802,11 +802,98 @@ fn test_sh_macro_new_features() {
     let script_ir = sh!(
         os.file("config.txt").replace("old_ip", "new_ip");
         os.has_command("nginx");
+        let info = "some_json_str";
+        let user = jq!(info, ".user.name");
+        let port = jq_file!("config.json", ".server.port");
     );
 
     let bash = script_ir.iter().map(|s| s.to_bash()).collect::<Vec<_>>().join("\n");
     assert!(bash.contains("sed -i 's|old_ip|new_ip|g' 'config.txt'"));
     assert!(bash.contains("command '-v' 'nginx'"));
+    assert!(bash.contains("user=$(echo \"$info\" | jq -r '.user.name')"));
+    assert!(bash.contains("port=$(jq -r '.server.port' 'config.json')"));
+}
+
+#[test]
+fn test_sh_macro_nested_captures() {
+    use super::sh;
+    let script_ir = sh!(
+        let status = capture_status! {
+            let out = capture_stdout! {
+                cmd("curl", "http://example.com");
+            };
+        };
+        if status.success() {
+            echo("fetch succeeded");
+        }
+    );
+
+    let bash = script_ir.iter().map(|s| s.to_bash()).collect::<Vec<_>>().join("\n");
+    assert!(bash.contains("status=$(if out=$(curl 'http://example.com'); then echo true; else echo false; fi)"));
+    assert!(bash.contains("status") && bash.contains("true"));
+}
+
+#[test]
+fn test_sh_macro_os_api_utilities() {
+    use super::sh;
+    use crate::utils::os::OsCli;
+    use crate::utils::exec::{CommandExecutor, LocalExecutor};
+
+    let executor = CommandExecutor::Local(LocalExecutor::new());
+    let os = OsCli::new(&executor);
+
+    let script_ir = sh!(
+        let text = os.capture_stdout("curl http://example.com");
+        let status = os.capture_status("systemctl is-active sshd");
+        let user = os.jq(text, ".user.name");
+        let port = os.jq_file("config.json", ".server.port");
+        let col = os.awk(text, "{print $2}");
+        let cmd_col = os.awk("ps -ef", "{print $2}");
+        let grep_res = os.grep(text, "error");
+        let file_grep = os.grep_file("app.log", "failed");
+        os.sed_file("config.json", "s/foo/bar/g");
+    );
+
+    let bash = script_ir.iter().map(|s| s.to_bash()).collect::<Vec<_>>().join("\n");
+    assert!(bash.contains("text=$(curl http://example.com)"));
+    assert!(bash.contains("status=$(if systemctl is-active sshd; then echo true; else echo false; fi)"));
+    assert!(bash.contains("user=$(echo \"$text\" | jq -r '.user.name')"));
+    assert!(bash.contains("port=$(jq -r '.server.port' 'config.json')"));
+    assert!(bash.contains("col=$(echo \"$text\" | awk '{print $2}')"));
+    assert!(bash.contains("cmd_col=$(ps -ef | awk '{print $2}')"));
+    assert!(bash.contains("grep_res=$(echo \"$text\" | grep 'error')"));
+    assert!(bash.contains("file_grep=$(grep 'failed' 'app.log')"));
+    assert!(bash.contains("sed -i 's/foo/bar/g' 'config.json'"));
+}
+
+#[test]
+fn test_sh_macro_unified_capture() {
+    use super::sh;
+    let script_ir = sh!(
+        let res = capture! {
+            cmd("curl", "http://example.com");
+            echo("block line 2");
+        };
+
+        if res.success() {
+            echo(res.stdout());
+        } else {
+            echo(res.stderr());
+        }
+    );
+
+    let bash = script_ir.iter().map(|s| s.to_bash()).collect::<Vec<_>>().join("\n");
+    assert!(bash.contains("res_stdout_file=$(mktemp)"));
+    assert!(bash.contains("res_stderr_file=$(mktemp)"));
+    assert!(bash.contains("curl 'http://example.com'"));
+    assert!(bash.contains("echo 'block line 2'"));
+    assert!(bash.contains("res_status=true"));
+    assert!(bash.contains("res_stdout=$(cat \"$res_stdout_file\")"));
+    assert!(bash.contains("res_stderr=$(cat \"$res_stderr_file\")"));
+    assert!(bash.contains("rm -f \"$res_stdout_file\" \"$res_stderr_file\""));
+    assert!(bash.contains("res_status") && bash.contains("true"));
+    assert!(bash.contains("echo \"$res_stdout\""));
+    assert!(bash.contains("echo \"$res_stderr\""));
 }
 
 

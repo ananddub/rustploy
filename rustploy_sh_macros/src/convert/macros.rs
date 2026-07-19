@@ -71,6 +71,20 @@ pub fn convert_macro(mac: &syn::Macro) -> Result<proc_macro2::TokenStream, syn::
         });
     }
 
+    if macro_name == "capture" {
+        let parser = ShInput::parse;
+        let inner_input = mac.parse_body_with(parser)?;
+        let mut inner_stmts = Vec::new();
+        for stmt in inner_input.stmts {
+            inner_stmts.push(convert_stmt(&stmt)?);
+        }
+        return Ok(quote! {
+            (crate::utils::exec::script::dsl::ShellIR::CaptureBlock(
+                vec![ #( #inner_stmts ),* ]
+            ))
+        });
+    }
+
     if macro_name == "capture_stdout" {
         let parser = ShInput::parse;
         let inner_input = mac.parse_body_with(parser)?;
@@ -246,6 +260,82 @@ pub fn convert_macro(mac: &syn::Macro) -> Result<proc_macro2::TokenStream, syn::
                             }
                         )
                     ))
+                )
+            ))
+        });
+    }
+
+    if macro_name == "jq" {
+        struct JqInput {
+            target: syn::Expr,
+            _comma: syn::Token![,],
+            query: syn::Expr,
+        }
+        impl syn::parse::Parse for JqInput {
+            fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+                Ok(JqInput {
+                    target: input.parse()?,
+                    _comma: input.parse()?,
+                    query: input.parse()?,
+                })
+            }
+        }
+        let parsed = mac.parse_body_with(JqInput::parse)?;
+        let target_tokens = convert_expr(&parsed.target)?;
+        let query_tokens = convert_expr(&parsed.query)?;
+
+        return Ok(quote! {
+            (crate::utils::exec::script::dsl::ShellIR::Raw(
+                format!("$(echo \"${}\" | jq -r {})", 
+                    match #target_tokens {
+                        crate::utils::exec::script::dsl::ShellIR::Expr(crate::utils::exec::script::dsl::Expr::Variable(ref v)) => v,
+                        _ => panic!("jq! target must be a variable"),
+                    },
+                    match #query_tokens {
+                        crate::utils::exec::script::dsl::ShellIR::Expr(crate::utils::exec::script::dsl::Expr::Literal(ref l)) => {
+                            crate::utils::exec::script::shell_single_quote(l)
+                        }
+                        _ => panic!("jq! query must be a string literal"),
+                    }
+                )
+            ))
+        });
+    }
+
+    if macro_name == "jq_file" {
+        struct JqFileInput {
+            file: syn::Expr,
+            _comma: syn::Token![,],
+            query: syn::Expr,
+        }
+        impl syn::parse::Parse for JqFileInput {
+            fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+                Ok(JqFileInput {
+                    file: input.parse()?,
+                    _comma: input.parse()?,
+                    query: input.parse()?,
+                })
+            }
+        }
+        let parsed = mac.parse_body_with(JqFileInput::parse)?;
+        let file_tokens = convert_expr(&parsed.file)?;
+        let query_tokens = convert_expr(&parsed.query)?;
+
+        return Ok(quote! {
+            (crate::utils::exec::script::dsl::ShellIR::Raw(
+                format!("$(jq -r {} {})", 
+                    match #query_tokens {
+                        crate::utils::exec::script::dsl::ShellIR::Expr(crate::utils::exec::script::dsl::Expr::Literal(ref l)) => {
+                            crate::utils::exec::script::shell_single_quote(l)
+                        }
+                        _ => panic!("jq_file! query must be a string literal"),
+                    },
+                    match #file_tokens {
+                        crate::utils::exec::script::dsl::ShellIR::Expr(crate::utils::exec::script::dsl::Expr::Literal(ref l)) => {
+                            crate::utils::exec::script::shell_single_quote(l)
+                        }
+                        _ => panic!("jq_file! file path must be a string literal"),
+                    }
                 )
             ))
         });

@@ -42,6 +42,7 @@ pub enum ShellIR {
         count: Box<ShellIR>,
         body: Vec<ShellIR>,
     },
+    CaptureBlock(Vec<ShellIR>),
 }
 
 #[derive(Debug, Clone)]
@@ -160,6 +161,10 @@ impl ShellIR {
                     indent(&body_str)
                 )
             }
+            ShellIR::CaptureBlock(body) => {
+                let body_str = body.iter().map(|s| s.to_bash()).collect::<Vec<_>>().join("\n");
+                format!("(\n{}\n)", indent(&body_str))
+            }
             ShellIR::Expr(expr) => expr.to_bash(),
             ShellIR::Statement(stmt) => stmt.to_bash(),
         }
@@ -231,11 +236,12 @@ impl ShellIR {
     pub fn success(self) -> Self {
         match self {
             ShellIR::Expr(Expr::Variable(v)) => {
-                ShellIR::Raw(format!("[ \"${}\" = \"true\" ]", v))
+                ShellIR::Raw(format!("[ \"${{_status:-}}\" = \"true\" ] 2>/dev/null || [ \"${{{}_status:-}}\" = \"true\" ] || [ \"${{{}:-}}\" = \"true\" ]", v, v))
             }
             ShellIR::Raw(s) => {
                 if s.starts_with('$') {
-                    ShellIR::Raw(format!("[ \"{}\" = \"true\" ]", s))
+                    let clean = s.trim_start_matches('$').trim_matches('"').trim_matches('{').trim_matches('}');
+                    ShellIR::Raw(format!("[ \"${{{}_status:-}}\" = \"true\" ] || [ \"{}\" = \"true\" ]", clean, s))
                 } else {
                     ShellIR::Raw(s)
                 }
@@ -251,11 +257,12 @@ impl ShellIR {
     pub fn failure(self) -> Self {
         match self {
             ShellIR::Expr(Expr::Variable(v)) => {
-                ShellIR::Raw(format!("[ \"${}\" = \"false\" ]", v))
+                ShellIR::Raw(format!("[ \"${{_status:-}}\" = \"false\" ] 2>/dev/null || [ \"${{{}_status:-}}\" = \"false\" ] || [ \"${{{}:-}}\" = \"false\" ]", v, v))
             }
             ShellIR::Raw(s) => {
                 if s.starts_with('$') {
-                    ShellIR::Raw(format!("[ \"{}\" = \"false\" ]", s))
+                    let clean = s.trim_start_matches('$').trim_matches('"').trim_matches('{').trim_matches('}');
+                    ShellIR::Raw(format!("[ \"${{{}_status:-}}\" = \"false\" ] || [ \"{}\" = \"false\" ]", clean, s))
                 } else {
                     ShellIR::Raw(format!("! {}", s))
                 }
@@ -287,11 +294,35 @@ impl Statement {
     pub fn to_bash(&self) -> String {
         match self {
             Statement::VarAssign { name, val, default } => {
-                let mut assign = format!("{}={}", name, val.to_bash());
-                if let Some(def) = default {
-                    assign.push_str(&format!("\n[ -z \"${}\" ] && {}={}", name, name, shell_single_quote(def)));
+                match &**val {
+                    ShellIR::CaptureBlock(body) => {
+                        let body_str = body.iter().map(|s| s.to_bash()).collect::<Vec<_>>().join("\n");
+                        let indent_body = indent(&body_str);
+                        format!(
+                            "{name}_stdout_file=$(mktemp)\n\
+                             {name}_stderr_file=$(mktemp)\n\
+                             if (\n\
+                             {indent_body}\n\
+                             ) > \"${name}_stdout_file\" 2> \"${name}_stderr_file\"; then\n\
+                             {name}_status=true\n\
+                             else\n\
+                             {name}_status=false\n\
+                             fi\n\
+                             {name}_stdout=$(cat \"${name}_stdout_file\")\n\
+                             {name}_stderr=$(cat \"${name}_stderr_file\")\n\
+                             rm -f \"${name}_stdout_file\" \"${name}_stderr_file\"",
+                            name = name,
+                            indent_body = indent_body
+                        )
+                    }
+                    _ => {
+                        let mut assign = format!("{}={}", name, val.to_bash());
+                        if let Some(def) = default {
+                            assign.push_str(&format!("\n[ -z \"${}\" ] && {}={}", name, name, shell_single_quote(def)));
+                        }
+                        assign
+                    }
                 }
-                assign
             }
             Statement::Echo(val) => {
                 format!("echo {}", val.to_bash())

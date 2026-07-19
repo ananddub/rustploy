@@ -58,6 +58,132 @@ impl<'a> OsCli<'a> {
     pub fn has_command(&self, bin: impl IntoCommand) -> system::SystemCommandBuilder<'a> {
         system::SystemCommandBuilder::new(self.executor, "command", vec!["-v".to_string(), bin.build_str()])
     }
+
+    pub fn capture_stdout(&self, cmd: impl IntoCommand) -> CaptureStdoutBuilder<'a> {
+        CaptureStdoutBuilder { _executor: self.executor, cmd: cmd.build_str() }
+    }
+
+    pub fn capture_status(&self, cmd: impl IntoCommand) -> CaptureStatusBuilder<'a> {
+        CaptureStatusBuilder { _executor: self.executor, cmd: cmd.build_str() }
+    }
+
+    pub fn jq(&self, var: impl IntoCommand, query: impl IntoCommand) -> JqBuilder<'a> {
+        JqBuilder { _executor: self.executor, var: var.build_str(), query: query.build_str() }
+    }
+
+    pub fn jq_file(&self, file: impl IntoCommand, query: impl IntoCommand) -> JqFileBuilder<'a> {
+        JqFileBuilder { _executor: self.executor, file: file.build_str(), query: query.build_str() }
+    }
+
+    pub fn awk(&self, target: impl IntoCommand, expr: impl IntoCommand) -> AwkBuilder<'a> {
+        AwkBuilder { _executor: self.executor, target: target.build_str(), expr: expr.build_str() }
+    }
+
+    pub fn sed_file(&self, file: impl IntoCommand, pattern: impl IntoCommand) -> SedFileBuilder<'a> {
+        SedFileBuilder { _executor: self.executor, file: file.build_str(), pattern: pattern.build_str() }
+    }
+
+    pub fn grep(&self, target: impl IntoCommand, pattern: impl IntoCommand) -> GrepBuilder<'a> {
+        GrepBuilder { _executor: self.executor, target: target.build_str(), pattern: pattern.build_str() }
+    }
+
+    pub fn grep_file(&self, file: impl IntoCommand, pattern: impl IntoCommand) -> GrepFileBuilder<'a> {
+        GrepFileBuilder { _executor: self.executor, file: file.build_str(), pattern: pattern.build_str() }
+    }
+}
+
+pub struct CaptureStdoutBuilder<'a> {
+    _executor: &'a CommandExecutor,
+    cmd: String,
+}
+impl<'a> IntoCommand for CaptureStdoutBuilder<'a> {
+    fn build_str(&self) -> String {
+        format!("$({})", self.cmd)
+    }
+}
+
+pub struct CaptureStatusBuilder<'a> {
+    _executor: &'a CommandExecutor,
+    cmd: String,
+}
+impl<'a> IntoCommand for CaptureStatusBuilder<'a> {
+    fn build_str(&self) -> String {
+        format!("$(if {}; then echo true; else echo false; fi)", self.cmd)
+    }
+}
+
+pub struct JqBuilder<'a> {
+    _executor: &'a CommandExecutor,
+    var: String,
+    query: String,
+}
+impl<'a> IntoCommand for JqBuilder<'a> {
+    fn build_str(&self) -> String {
+        format!("$(echo {} | jq -r {})", self.var, escape_arg(&self.query))
+    }
+}
+
+pub struct JqFileBuilder<'a> {
+    _executor: &'a CommandExecutor,
+    file: String,
+    query: String,
+}
+impl<'a> IntoCommand for JqFileBuilder<'a> {
+    fn build_str(&self) -> String {
+        format!("$(jq -r {} {})", escape_arg(&self.query), escape_arg(&self.file))
+    }
+}
+
+pub struct AwkBuilder<'a> {
+    _executor: &'a CommandExecutor,
+    target: String,
+    expr: String,
+}
+impl<'a> IntoCommand for AwkBuilder<'a> {
+    fn build_str(&self) -> String {
+        if self.target.starts_with('$') || (!self.target.contains(' ') && !self.target.contains('|')) {
+            format!("$(echo {} | awk {})", self.target, escape_arg(&self.expr))
+        } else {
+            format!("$({} | awk {})", self.target, escape_arg(&self.expr))
+        }
+    }
+}
+
+pub struct SedFileBuilder<'a> {
+    _executor: &'a CommandExecutor,
+    file: String,
+    pattern: String,
+}
+impl<'a> IntoCommand for SedFileBuilder<'a> {
+    fn build_str(&self) -> String {
+        format!("sed -i {} {}", escape_arg(&self.pattern), escape_arg(&self.file))
+    }
+}
+
+pub struct GrepBuilder<'a> {
+    _executor: &'a CommandExecutor,
+    target: String,
+    pattern: String,
+}
+impl<'a> IntoCommand for GrepBuilder<'a> {
+    fn build_str(&self) -> String {
+        if self.target.starts_with('$') || (!self.target.contains(' ') && !self.target.contains('|')) {
+            format!("$(echo {} | grep {})", self.target, escape_arg(&self.pattern))
+        } else {
+            format!("$({} | grep {})", self.target, escape_arg(&self.pattern))
+        }
+    }
+}
+
+pub struct GrepFileBuilder<'a> {
+    _executor: &'a CommandExecutor,
+    file: String,
+    pattern: String,
+}
+impl<'a> IntoCommand for GrepFileBuilder<'a> {
+    fn build_str(&self) -> String {
+        format!("$(grep {} {})", escape_arg(&self.pattern), escape_arg(&self.file))
+    }
 }
 
 pub(crate) fn escape_arg(c: impl AsRef<str>) -> String {
