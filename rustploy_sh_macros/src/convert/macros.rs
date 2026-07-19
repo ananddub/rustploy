@@ -78,15 +78,23 @@ pub fn convert_macro(mac: &syn::Macro) -> Result<proc_macro2::TokenStream, syn::
         for stmt in inner_input.stmts {
             inner_stmts.push(convert_stmt(&stmt)?);
         }
-        return Ok(quote! {
-            (crate::utils::exec::script::dsl::ShellIR::Capture {
-                cmd: Box::new((crate::utils::exec::script::dsl::ShellIR::If {
+        let cmd_tokens = if inner_stmts.len() == 1 {
+            let stmt = &inner_stmts[0];
+            quote! { Box::new(#stmt) }
+        } else {
+            quote! {
+                Box::new((crate::utils::exec::script::dsl::ShellIR::If {
                     cond: Box::new((crate::utils::exec::script::dsl::ShellIR::Command(
                         crate::utils::exec::script::dsl::Command { name: "true".to_string(), args: vec![] }
                     ))),
                     then_branch: vec![ #( #inner_stmts ),* ],
                     else_branch: None,
-                })),
+                }))
+            }
+        };
+        return Ok(quote! {
+            (crate::utils::exec::script::dsl::ShellIR::Capture {
+                cmd: #cmd_tokens,
                 source: crate::utils::exec::script::dsl::CaptureSource::Stdout,
             })
         });
@@ -99,17 +107,34 @@ pub fn convert_macro(mac: &syn::Macro) -> Result<proc_macro2::TokenStream, syn::
         for stmt in inner_input.stmts {
             inner_stmts.push(convert_stmt(&stmt)?);
         }
-        return Ok(quote! {
-            (crate::utils::exec::script::dsl::ShellIR::Capture {
-                cmd: Box::new((crate::utils::exec::script::dsl::ShellIR::If {
+        let cmd_tokens = if inner_stmts.len() == 1 {
+            let stmt = &inner_stmts[0];
+            quote! { Box::new(#stmt) }
+        } else {
+            quote! {
+                Box::new((crate::utils::exec::script::dsl::ShellIR::If {
                     cond: Box::new((crate::utils::exec::script::dsl::ShellIR::Command(
                         crate::utils::exec::script::dsl::Command { name: "true".to_string(), args: vec![] }
                     ))),
                     then_branch: vec![ #( #inner_stmts ),* ],
                     else_branch: None,
-                })),
+                }))
+            }
+        };
+        return Ok(quote! {
+            (crate::utils::exec::script::dsl::ShellIR::Capture {
+                cmd: #cmd_tokens,
                 source: crate::utils::exec::script::dsl::CaptureSource::Status,
             })
+        });
+    }
+
+    if macro_name == "sudo" {
+        let parser = syn::Expr::parse;
+        let expr = mac.parse_body_with(parser)?;
+        let expr_tokens = convert_expr(&expr)?;
+        return Ok(quote! {
+            (#expr_tokens).sudo()
         });
     }
 

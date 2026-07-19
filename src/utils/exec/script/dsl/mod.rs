@@ -110,7 +110,7 @@ impl ShellIR {
             ShellIR::Capture { cmd, source } => {
                 match source {
                     CaptureSource::Status => {
-                        format!("if {}; then echo true; else echo false; fi", cmd.to_bash())
+                        format!("$(if {}; then echo true; else echo false; fi)", cmd.to_bash())
                     }
                     _ => format!("$({})", cmd.to_bash()),
                 }
@@ -225,6 +225,45 @@ impl ShellIR {
                 })
             }
             other => other,
+        }
+    }
+
+    pub fn success(self) -> Self {
+        match self {
+            ShellIR::Expr(Expr::Variable(v)) => {
+                ShellIR::Raw(format!("[ \"${}\" = \"true\" ]", v))
+            }
+            ShellIR::Raw(s) => {
+                if s.starts_with('$') {
+                    ShellIR::Raw(format!("[ \"{}\" = \"true\" ]", s))
+                } else {
+                    ShellIR::Raw(s)
+                }
+            }
+            other => other,
+        }
+    }
+
+    pub fn ok(self) -> Self {
+        self.success()
+    }
+
+    pub fn failure(self) -> Self {
+        match self {
+            ShellIR::Expr(Expr::Variable(v)) => {
+                ShellIR::Raw(format!("[ \"${}\" = \"false\" ]", v))
+            }
+            ShellIR::Raw(s) => {
+                if s.starts_with('$') {
+                    ShellIR::Raw(format!("[ \"{}\" = \"false\" ]", s))
+                } else {
+                    ShellIR::Raw(format!("! {}", s))
+                }
+            }
+            other => {
+                let bash_str = other.to_bash();
+                ShellIR::Raw(format!("! {}", bash_str))
+            }
         }
     }
 }

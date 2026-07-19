@@ -300,7 +300,7 @@ fn test_shell_ir_compilation() {
 
     assert_eq!(
         assign.to_bash(),
-        "active=if systemctl 'is-active' 'sshd'; then echo true; else echo false; fi"
+        "active=$(if systemctl 'is-active' 'sshd'; then echo true; else echo false; fi)"
     );
 }
 
@@ -746,6 +746,48 @@ fn test_sh_macro_binary_and_unary_conditions() {
     assert!(bash.contains("if systemctl 'is-active' '--quiet' 'sshd' || systemctl 'is-active' '--quiet' 'ssh'; then"));
     assert!(bash.contains("if ! test '-f' '/etc/sshd_config'; then"));
     assert!(bash.contains("if test -f '/etc/passwd' || grep '-q' 'root' '/etc/passwd'; then"));
+}
+
+#[test]
+fn test_sh_macro_sudo() {
+    use super::sh;
+    use crate::utils::os::OsCli;
+    use crate::utils::exec::{CommandExecutor, LocalExecutor};
+
+    let executor = CommandExecutor::Local(LocalExecutor::new());
+    let os = OsCli::new(&executor);
+
+    let script_ir = sh!(
+        sudo!(systemctl!("restart", "nginx"));
+        sudo!(os.file("/etc/shadow").read());
+        sudo!(cmd("apt-get", "update"));
+    );
+
+    let bash = script_ir.iter().map(|s| s.to_bash()).collect::<Vec<_>>().join("\n");
+    assert!(bash.contains("sudo 'systemctl' 'restart' 'nginx'"));
+    assert!(bash.contains("sudo cat '/etc/shadow'"));
+    assert!(bash.contains("sudo 'apt-get' 'update'"));
+}
+
+#[test]
+fn test_sh_macro_capture_success_failure() {
+    use super::sh;
+    let script_ir = sh!(
+        let active = capture_status! {
+            systemctl!("is-active", "sshd");
+        };
+        if active.success() {
+            echo("sshd is up");
+        }
+        if active.failure() {
+            echo("sshd is down");
+        }
+    );
+
+    let bash = script_ir.iter().map(|s| s.to_bash()).collect::<Vec<_>>().join("\n");
+    assert!(bash.contains("active=$(if systemctl 'is-active' 'sshd'; then echo true; else echo false; fi)"));
+    assert!(bash.contains("if [ \"$active\" = \"true\" ]; then"));
+    assert!(bash.contains("if [ \"$active\" = \"false\" ]; then"));
 }
 
 

@@ -37,6 +37,18 @@ pub fn convert_method_call(method_call: &ExprMethodCall) -> Result<proc_macro2::
         });
     }
 
+    if method_name == "success" {
+        return Ok(quote! {
+            (#receiver_tokens).success()
+        });
+    }
+
+    if method_name == "failure" {
+        return Ok(quote! {
+            (#receiver_tokens).failure()
+        });
+    }
+
     if method_name == "ok" {
         return Ok(quote! {
             (#receiver_tokens).ok()
