@@ -37,6 +37,9 @@ impl<'a> SystemCli<'a> {
     pub fn which(&self, bin: impl IntoCommand) -> SystemCommandBuilder<'a> {
         SystemCommandBuilder::new(self.executor, "which", vec![bin.build_str()])
     }
+    pub fn has_command(&self, bin: impl IntoCommand) -> SystemCommandBuilder<'a> {
+        SystemCommandBuilder::new(self.executor, "command", vec!["-v".to_string(), bin.build_str()])
+    }
     pub fn timezone(&self) -> SystemCommandBuilder<'a> {
         SystemCommandBuilder::new(self.executor, "timedatectl", vec!["show".to_string(), "--property=Timezone".to_string()])
     }

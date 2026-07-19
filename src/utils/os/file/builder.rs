@@ -2,7 +2,7 @@ use crate::utils::exec::CommandExecutor;
 use crate::utils::exec::script::IntoCommand;
 use super::{
     FileReadBuilder, FileWriteBuilder, FileExistsBuilder, FileDeleteBuilder,
-    FileChmodBuilder, FileChownBuilder,
+    FileChmodBuilder, FileChownBuilder, FileReplaceBuilder,
 };
 
 pub struct FileBuilder<'a> {
@@ -37,5 +37,8 @@ impl<'a> FileBuilder<'a> {
     }
     pub fn chown(self, owner: impl IntoCommand) -> FileChownBuilder<'a> {
         FileChownBuilder::new(self.executor, self.path, owner)
+    }
+    pub fn replace(self, old: impl IntoCommand, new: impl IntoCommand) -> FileReplaceBuilder<'a> {
+        FileReplaceBuilder::new(self.executor, self.path, old, new)
     }
 }

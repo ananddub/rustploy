@@ -55,6 +55,9 @@ impl<'a> OsCli<'a> {
     pub fn symlink_ref(&self, link: impl IntoCommand) -> symlink::SymlinkBuilder<'a> {
         symlink::SymlinkBuilder::new(self.executor, None, link.build_str())
     }
+    pub fn has_command(&self, bin: impl IntoCommand) -> system::SystemCommandBuilder<'a> {
+        system::SystemCommandBuilder::new(self.executor, "command", vec!["-v".to_string(), bin.build_str()])
+    }
 }
 
 pub(crate) fn escape_arg(c: impl AsRef<str>) -> String {

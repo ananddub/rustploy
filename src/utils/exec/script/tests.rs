@@ -790,6 +790,25 @@ fn test_sh_macro_capture_success_failure() {
     assert!(bash.contains("if [ \"$active\" = \"false\" ]; then"));
 }
 
+#[test]
+fn test_sh_macro_new_features() {
+    use super::sh;
+    use crate::utils::os::OsCli;
+    use crate::utils::exec::{CommandExecutor, LocalExecutor};
+
+    let executor = CommandExecutor::Local(LocalExecutor::new());
+    let os = OsCli::new(&executor);
+
+    let script_ir = sh!(
+        os.file("config.txt").replace("old_ip", "new_ip");
+        os.has_command("nginx");
+    );
+
+    let bash = script_ir.iter().map(|s| s.to_bash()).collect::<Vec<_>>().join("\n");
+    assert!(bash.contains("sed -i 's|old_ip|new_ip|g' 'config.txt'"));
+    assert!(bash.contains("command '-v' 'nginx'"));
+}
+
 
 
 
