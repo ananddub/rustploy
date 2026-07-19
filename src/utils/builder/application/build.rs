@@ -4,6 +4,7 @@ use crate::utils::{
     exec::{ExecError, ExecResult},
 };
 use tokio_util::sync::CancellationToken;
+use crate::pipeline;
 use crate::utils::builder::packs::{nixpacks::NixpacksCli, paketo::{PackCli, PaketoBuilderImage}, railpack::RailpackCli, heroku::{HerokuCli, HerokuBuilderImage}};
 
 impl ApplicationBuilder {
@@ -47,8 +48,10 @@ impl ApplicationBuilder {
                 for (k, v) in &spec.build_args {
                     builder = builder.env(k, v);
                 }
-                let cgroup_path = self.ctx.cgroup.as_ref().map(|cg| cg.cgroup_path());
-                builder.run_in_cgroup(cgroup_path.as_deref(), cancel).await?;
+                let pipeline = pipeline! { builder; };
+                self.ctx.apply_cgroup(pipeline)?
+                    .execute_cancelled(&self.ctx.executor, cancel)
+                    .await?;
             }
             BuildStrategy::Paketo => {
                 self.ctx.emit(BuilderEvent::Message(format!(
@@ -65,8 +68,10 @@ impl ApplicationBuilder {
                 for (k, v) in &spec.build_args {
                     builder = builder.env(k, v);
                 }
-                let cgroup_path = self.ctx.cgroup.as_ref().map(|cg| cg.cgroup_path());
-                builder.run_in_cgroup(cgroup_path.as_deref(), cancel).await?;
+                let pipeline = pipeline! { builder; };
+                self.ctx.apply_cgroup(pipeline)?
+                    .execute_cancelled(&self.ctx.executor, cancel)
+                    .await?;
             }
             BuildStrategy::Heroku => {
                 self.ctx.emit(BuilderEvent::Message(format!(
@@ -83,8 +88,10 @@ impl ApplicationBuilder {
                 for (k, v) in &spec.build_args {
                     builder = builder.env(k, v);
                 }
-                let cgroup_path = self.ctx.cgroup.as_ref().map(|cg| cg.cgroup_path());
-                builder.run_in_cgroup(cgroup_path.as_deref(), cancel).await?;
+                let pipeline = pipeline! { builder; };
+                self.ctx.apply_cgroup(pipeline)?
+                    .execute_cancelled(&self.ctx.executor, cancel)
+                    .await?;
             }
             BuildStrategy::Railpack { version } => {
                 self.ctx.emit(BuilderEvent::Message(format!(
@@ -93,6 +100,13 @@ impl ApplicationBuilder {
                 )))
                 .await;
                 let plan = format!("{}/railpack-plan.json", spec.work_directory);
+                
+                let timestamp = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_millis();
+                let name = format!("rustploy_buildkit_{}_{}", spec.app_name, timestamp);
+
                 let cli = RailpackCli::new(&self.ctx.executor);
                 cli.if_not_exist_install().await?;
                 let mut builder = cli
@@ -101,14 +115,34 @@ impl ApplicationBuilder {
                 for (k, v) in &spec.build_args {
                     builder = builder.env(k, v);
                 }
-                let cgroup_path = self.ctx.cgroup.as_ref().map(|cg| cg.cgroup_path());
-                builder.run_in_cgroup(cgroup_path.as_deref(), cancel).await?;
-                let _ = self.ctx.docker.images().build(&spec.work_directory)
+
+                let images = self.ctx.docker.images();
+                let docker_build = images.build(&spec.work_directory)
                     .tag(spec.image.clone())
                     .dockerfile(&plan)
                     .build_arg("BUILDKIT_SYNTAX", format!("ghcr.io/railwayapp/railpack-frontend:v{version}"))
-                    .cancel_with(cancel.clone())
-                    .build()
+                    .cancel_with(cancel.clone());
+
+                let trap_cmd = format!(
+                    "trap 'docker container stop {0} && docker container rm -f {0}' EXIT",
+                    crate::utils::exec::script::shell_single_quote(&name)
+                );
+
+                let containers = self.ctx.docker.containers();
+                let run_buildkit_cmd = containers
+                    .create("moby/buildkit")
+                    .name(name.clone())
+                    .detach()
+                    .privileged();
+
+                let pipeline = pipeline! {
+                    trap_cmd;
+                    run_buildkit_cmd;
+                    builder;
+                    docker_build;
+                };
+                self.ctx.apply_cgroup(pipeline)?
+                    .execute_cancelled(&self.ctx.executor, cancel)
                     .await?;
             }
             BuildStrategy::Static {
@@ -175,17 +209,16 @@ impl ApplicationBuilder {
         let print_args = builder.print();
         tracing::info!(image = %spec.image, command = %print_args, "running docker image build");
         
-        let result = builder
-            .cancel_with(cancel.clone())
-            .build()
+        let build_cmd = builder.cancel_with(cancel.clone());
+
+        let pipeline = pipeline! { build_cmd; };
+        let result = self.ctx.apply_cgroup(pipeline)?
+            .execute_cancelled(&self.ctx.executor, cancel)
             .await;
             
         let _ = self.ctx.executor.run("rm", ["-rf", secret_dir.as_str()]).await;
         
-        result.map(|_| ()).map_err(|e| ExecError::CommandFailed {
-            code: None,
-            stderr: e.to_string(),
-        })
+        result.map(|_| ())
     }
 
     async fn build_static(
@@ -218,13 +251,17 @@ impl ApplicationBuilder {
             )
             .await?;
         }
-        self.ctx.docker.images().build(spec.work_directory.clone())
+        let images = self.ctx.docker.images();
+        let build_cmd = images.build(spec.work_directory.clone())
             .tag(spec.image.clone())
             .dockerfile(format!("{}/Dockerfile.rustploy", spec.work_directory))
-            .cancel_with(cancel.clone())
-            .build()
-            .await
-            .map(|_| ())
+            .cancel_with(cancel.clone());
+
+        let pipeline = pipeline! { build_cmd; };
+        self.ctx.apply_cgroup(pipeline)?
+            .execute_cancelled(&self.ctx.executor, cancel)
+            .await?;
+        Ok(())
     }
 }
 

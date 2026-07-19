@@ -1,6 +1,7 @@
 use std::fmt;
 
 // ── RestartPolicy ─────────────────────────────────────────────────────────────
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RestartPolicy {
     No,
@@ -39,4 +40,23 @@ impl fmt::Display for Protocol {
             Self::Sctp => "sctp",
         })
     }
+}
+
+// ── Internal helpers ──────────────────────────────────────────────────────────
+
+pub(crate) struct PortBinding {
+    pub host: u16,
+    pub container: u16,
+    pub proto: Protocol,
+}
+pub(crate) struct Mount {
+    pub source: String,
+    pub target: String,
+    pub read_only: bool,
+    pub kind: MountKind,
+}
+pub(crate) enum MountKind {
+    Volume,
+    Bind,
+    Tmpfs,
 }

@@ -1,30 +1,8 @@
-use crate::utils::docker::query::filter::ContainerFilter;
 use crate::utils::docker::{
-    ContainerSummary, DockerCli, DockerExitStatus, DockerOutput, DockerResult, DockerStreamEvent,
+    DockerCli, DockerExitStatus, DockerOutput, DockerResult, DockerStreamEvent,
 };
-use super::policy::{Protocol, RestartPolicy};
-use std::fmt;
+use super::types::{PortBinding, Mount, MountKind, RestartPolicy, Protocol};
 use tokio::sync::mpsc;
-// ── Internal helpers ──────────────────────────────────────────────────────────
-
-struct PortBinding {
-    host: u16,
-    container: u16,
-    proto: Protocol,
-}
-struct Mount {
-    source: String,
-    target: String,
-    read_only: bool,
-    kind: MountKind,
-}
-enum MountKind {
-    Volume,
-    Bind,
-    Tmpfs,
-}
-
-// ── ContainerCreate ───────────────────────────────────────────────────────────
 
 /// Fluent builder for `docker container create` / `docker container run`.
 ///
@@ -47,8 +25,6 @@ pub struct ContainerCreate<'a> {
     workdir: Option<String>,
     user: Option<String>,
     platform: Option<String>,
-    /// Whether to allocate a pseudo-TTY (`-t`). Pass `true` if the caller's
-    /// stdin is a terminal (e.g. `std::io::IsTerminal::is_terminal`).
     tty: bool,
     interactive: bool,
     detach: bool,
@@ -67,7 +43,7 @@ pub struct ContainerCreate<'a> {
 }
 
 impl<'a> ContainerCreate<'a> {
-    pub(super) fn new(cli: &'a DockerCli, image: impl Into<String>) -> Self {
+    pub(crate) fn new(cli: &'a DockerCli, image: impl Into<String>) -> Self {
         Self {
             cli,
             image: image.into(),
@@ -239,10 +215,6 @@ impl<'a> ContainerCreate<'a> {
     }
 
     /// Allocate a pseudo-TTY (`-t`).
-    ///
-    /// Pass the result of [`std::io::IsTerminal::is_terminal`] (or a runtime
-    /// flag from the calling context) to let the caller decide whether the
-    /// current process has a terminal.
     pub fn tty(mut self, enabled: bool) -> Self {
         self.tty = enabled;
         self
@@ -311,9 +283,7 @@ impl<'a> ContainerCreate<'a> {
         self
     }
 
-    // ── arg building ─────────────────────────────────────────────────────────
-
-    fn build_opts(&self) -> Vec<String> {
+    pub(crate) fn build_opts(&self) -> Vec<String> {
         let mut a: Vec<String> = vec![];
 
         if let Some(n) = &self.name {
@@ -436,8 +406,6 @@ impl<'a> ContainerCreate<'a> {
         a.extend(self.command.clone());
         a
     }
-
-    // ── terminals ────────────────────────────────────────────────────────────
 
     /// `docker container create …` — returns the new container ID.
     pub async fn create(self) -> DockerResult<String> {

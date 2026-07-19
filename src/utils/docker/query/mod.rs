@@ -11,7 +11,6 @@ pub use volume::{VolumeCreate, VolumeQuery};
 
 pub mod builder;
 pub mod container;
-pub mod containerer;
 pub mod filter;
 pub mod image;
 pub mod network;

@@ -1,16 +1,17 @@
-use tokio::fs;
 use super::{
     labels::write_labeled_compose,
     spec::{ComposeDeploymentResult, ComposeRuntime, ComposeSpec},
     validation::validate_spec,
 };
+use crate::pipeline;
+use crate::utils::exec::script::IntoCommand;
 use crate::utils::{
     builder::{
         shared::BuilderContext,
         spec::BuilderEvent,
         swarm::{ensure_overlay_network, ensure_swarm_manager, RUSTPLOY_NETWORK},
     },
-    exec::{CommandExecutor, ExecError, ExecResult},
+    exec::{CommandExecutor, ExecResult},
 };
 use tokio_util::sync::CancellationToken;
 use crate::utils::docker::core::types::ResolveImage;
@@ -43,6 +44,11 @@ impl ComposeBuilder {
 
     pub fn with_health_timeout(mut self, timeout: tokio::time::Duration) -> Self {
         self.ctx = self.ctx.with_health_timeout(timeout);
+        self
+    }
+
+    pub fn with_cgroup(mut self, cg: crate::utils::cgroup::Cgroup) -> Self {
+        self.ctx = self.ctx.with_cgroup(cg);
         self
     }
 
@@ -115,33 +121,45 @@ impl ComposeBuilder {
             spec.compose_file_path()
         )))
         .await;
-        self.ctx.docker.compose()
+
+        let compose = self.ctx.docker.compose();
+        let build_cmd = compose
             .build()
             .project(&spec.stack_name)
             .env_file(&spec.env_file)
             .file(&spec.compose_file_path())
             .retry(3)
-            .cancel_with(cancel.clone())
-            .run()
-            .await?;
-        let f = self.ctx.docker.compose()
-            .config()
-            .env_file(&spec.env_file)
-            .file(&spec.compose_file_path())
-            .retry(3)
-            .cancel_with(cancel.clone())
-            .run()
-            .await?;
-        fs::write(&spec.rendered_stack_file, f.stdout).await.map_err(ExecError::Io)?;
-        self.ctx.docker.stacks().deploy(&spec.stack_name)
+            .cancel_with(cancel.clone());
+
+        let config_cmd = format!(
+            "{} > {}",
+            compose
+                .config()
+                .env_file(&spec.env_file)
+                .file(&spec.compose_file_path())
+                .retry(3)
+                .cancel_with(cancel.clone())
+                .build_str(),
+            crate::utils::exec::script::shell_single_quote(&spec.rendered_stack_file)
+        );
+
+        let stacks = self.ctx.docker.stacks();
+        let deploy_cmd = stacks.deploy(&spec.stack_name)
             .compose_file(&spec.rendered_stack_file)
             .with_registry_auth()
             .resolve_image(ResolveImage::Never)
             .retry(3)
-            .cancel_with(cancel.clone())
-            .run()
-            .await?;
+            .cancel_with(cancel.clone());
 
+        let pipeline = pipeline! {
+            build_cmd;
+            config_cmd;
+            deploy_cmd;
+        };
+
+        self.ctx.apply_cgroup(pipeline)?
+            .execute_cancelled(&self.ctx.executor, cancel)
+            .await?;
         Ok(())
     }
 
@@ -151,41 +169,43 @@ impl ComposeBuilder {
         cancel: &CancellationToken,
     ) -> ExecResult<()> {
         self.ctx.emit(BuilderEvent::Message(format!(
-            "docker compose build project {} file {}",
+            "docker compose build and up project {} file {}",
             spec.stack_name,
             spec.compose_file_path()
         )))
         .await;
-        self.ctx.docker.compose()
+
+        let compose = self.ctx.docker.compose();
+        let build_cmd = compose
             .build()
             .project(&spec.stack_name)
             .env_file(&spec.env_file)
             .file(&spec.compose_file_path())
             .retry(3)
-            .cancel_with(cancel.clone())
-            .run()
-            .await?;
-        self.ctx.emit(BuilderEvent::Message(format!(
-            "docker compose up project {} file {}",
-            spec.stack_name,
-            spec.compose_file_path()
-        )))
-        .await;
-        self.ctx.docker.compose()
+            .cancel_with(cancel.clone());
+
+        let up_cmd = compose
             .up()
             .project(&spec.stack_name)
             .env_file(&spec.env_file)
             .file(&spec.compose_file_path())
             .detach()
             .retry(3)
-            .cancel_with(cancel.clone())
-            .run()
-            .await.map_err(|e| {
-                tracing::error!(error = %e, "docker compose up failed");
+            .cancel_with(cancel.clone());
+
+        let pipeline = pipeline! {
+            build_cmd;
+            up_cmd;
+        };
+
+        self.ctx.apply_cgroup(pipeline)?
+            .execute_cancelled(&self.ctx.executor, cancel)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "docker compose deploy failed");
                 e
             })?;
         Ok(())
-
     }
 
     async fn cleanup_failed_deploy(&self, spec: &ComposeSpec) {

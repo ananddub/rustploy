@@ -2,6 +2,7 @@ use crate::utils::builder::application::{stack::stack_spec, validation::validate
 use crate::utils::builder::shared::BuilderContext;
 use crate::utils::builder::spec::{ApplicationSpec, BuilderEvent, DeploymentResult};
 use crate::utils::builder::swarm::{ensure_overlay_network, ensure_swarm_manager};
+use crate::pipeline;
 use crate::utils::{
     exec::{CommandExecutor, ExecResult},
     paths::rustploy_paths,
@@ -64,9 +65,6 @@ impl ApplicationBuilder {
         self.ctx.cancelled(cancel)?;
         let paths = rustploy_paths();
         let app_dir = paths.application_dir(&spec.app_name);
-        self.ctx.executor
-            .run_cancelled("mkdir", ["-p", app_dir.as_str()], cancel)
-            .await?;
 
         self.prepare_file_mounts(spec, cancel).await?;
         ensure_swarm_manager(&self.ctx.executor, &self.ctx.docker, cancel).await?;
@@ -76,17 +74,28 @@ impl ApplicationBuilder {
         let stack_yaml = serde_yaml::to_string(&stack_spec(spec))
             .map_err(|e| crate::utils::exec::ExecError::Json(serde_json::Error::io(std::io::Error::other(e))))?;
 
-        self.ctx.write_file_cancelled(&stack_file, stack_yaml.as_bytes(), cancel)
-            .await?;
-
         self.ctx.emit(BuilderEvent::Deploying).await;
-        if let Err(error) = self.ctx.docker.stacks().deploy(spec.stack_name.clone())
+
+        let mkdir_cmd = format!("mkdir -p {}", crate::utils::exec::script::shell_single_quote(&app_dir));
+        let write_yaml_cmd = format!(
+            "cat << 'EOF' > {}\n{}\nEOF",
+            crate::utils::exec::script::shell_single_quote(&stack_file),
+            stack_yaml
+        );
+
+        let stacks = self.ctx.docker.stacks();
+        let deploy_cmd = stacks.deploy(spec.stack_name.clone())
             .with_registry_auth()
-            .compose_file(stack_file.as_str())
-            .cancel_with(cancel.clone())
-            .run()
-            .await
-        {
+            .compose_file(&stack_file)
+            .cancel_with(cancel.clone());
+
+        let pipeline = pipeline! {
+            mkdir_cmd;
+            write_yaml_cmd;
+            deploy_cmd;
+        };
+
+        if let Err(error) = pipeline.execute_cancelled(&self.ctx.executor, cancel).await {
             self.ctx.docker.services().rollback(spec.service_name().as_str()).run().await?;
             self.ctx.emit(BuilderEvent::Failed(error.to_string())).await;
             return Err(error);

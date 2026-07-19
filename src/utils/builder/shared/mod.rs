@@ -109,6 +109,16 @@ impl BuilderContext {
             }
         }
     }
+
+    pub fn apply_cgroup(&self, mut pipeline: crate::utils::exec::ScriptPipeline) -> ExecResult<crate::utils::exec::ScriptPipeline> {
+        if let Some(ref cg) = self.cgroup {
+            for cmd in cg.to_apply_commands().map_err(|e| ExecError::CommandFailed { code: None, stderr: e.to_string() })? {
+                pipeline = pipeline.cmd(cmd);
+            }
+            pipeline = pipeline.cmd(cg.to_add_current_process_command());
+        }
+        Ok(pipeline)
+    }
 }
 
 // ── Shared Validation Helpers ───────────────────────────────────────────────

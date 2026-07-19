@@ -3,6 +3,7 @@ use crate::utils::exec::{CommandExecutor, ExecResult, ExecError};
 use crate::utils::builder::spec::BuilderEvent;
 use crate::repository::MountRepository;
 use crate::services::database::DatabaseKind;
+use crate::pipeline;
 use serde::Serialize;
 use std::collections::BTreeMap;
 use tokio_util::sync::CancellationToken;
@@ -219,12 +220,7 @@ impl DatabaseBuilder {
 
         // 2. Prepare workspace & write stack compose file
         let db_dir = format!("/tmp/rustploy-db-{}", app_name);
-        self.ctx.executor
-            .run_cancelled("mkdir", ["-p", &db_dir], cancel)
-            .await?;
-
         let stack_file_path = format!("{}/stack.yml", db_dir);
-        self.ctx.write_file_cancelled(&stack_file_path, stack_file_content.as_bytes(), cancel).await?;
 
         // 3. Ensure Swarm and Network
         super::super::swarm::ensure_swarm_manager(&self.ctx.executor, &self.ctx.docker, cancel).await?;
@@ -233,14 +229,27 @@ impl DatabaseBuilder {
         self.ctx.emit(BuilderEvent::Deploying).await;
         self.ctx.cancelled(cancel)?;
 
-        // Deploy Stack
-        let deploy_result = self.ctx.docker.stacks().deploy(app_name.clone())
+        self.ctx.executor
+            .run_cancelled("mkdir", ["-p", db_dir.as_str()], cancel)
+            .await?;
+        self.ctx
+            .write_file_cancelled(&stack_file_path, stack_file_content.as_bytes(), cancel)
+            .await?;
+
+        let stacks = self.ctx.docker.stacks();
+        let deploy_cmd = stacks.deploy(app_name.clone())
             .compose_file(&stack_file_path)
-            .cancel_with(cancel.clone())
-            .run()
+            .cancel_with(cancel.clone());
+
+        let pipeline = pipeline! {
+            deploy_cmd;
+        };
+
+        let result = self.ctx.apply_cgroup(pipeline)?
+            .execute_cancelled(&self.ctx.executor, cancel)
             .await;
 
-        if let Err(error) = deploy_result {
+        if let Err(error) = result {
             self.ctx.emit(BuilderEvent::Failed(error.to_string())).await;
             return Err(error);
         }
