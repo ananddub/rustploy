@@ -110,14 +110,38 @@ impl BuilderContext {
         }
     }
 
-    pub fn apply_cgroup(&self, mut pipeline: crate::utils::exec::ScriptPipeline) -> ExecResult<crate::utils::exec::ScriptPipeline> {
+    pub fn apply_cgroup<T: CgroupApplier>(&self, target: T) -> ExecResult<T> {
         if let Some(ref cg) = self.cgroup {
-            for cmd in cg.to_apply_commands().map_err(|e| ExecError::CommandFailed { code: None, stderr: e.to_string() })? {
-                pipeline = pipeline.cmd(cmd);
-            }
-            pipeline = pipeline.cmd(cg.to_add_current_process_command());
+            target.apply_cgroup(cg)
+        } else {
+            Ok(target)
         }
-        Ok(pipeline)
+    }
+}
+
+pub trait CgroupApplier {
+    fn apply_cgroup(self, cg: &Cgroup) -> ExecResult<Self> where Self: Sized;
+}
+
+impl CgroupApplier for crate::utils::exec::ScriptPipeline {
+    fn apply_cgroup(mut self, cg: &Cgroup) -> ExecResult<Self> {
+        for cmd in cg.to_apply_commands().map_err(|e| ExecError::CommandFailed { code: None, stderr: e.to_string() })? {
+            self = self.cmd(cmd);
+        }
+        self = self.cmd(cg.to_add_current_process_command());
+        Ok(self)
+    }
+}
+
+impl CgroupApplier for Vec<crate::utils::exec::script::dsl::ShellIR> {
+    fn apply_cgroup(self, cg: &Cgroup) -> ExecResult<Self> {
+        let mut prefix = Vec::new();
+        for cmd in cg.to_apply_commands().map_err(|e| ExecError::CommandFailed { code: None, stderr: e.to_string() })? {
+            prefix.push(crate::utils::exec::script::dsl::ShellIR::Raw(cmd));
+        }
+        prefix.push(crate::utils::exec::script::dsl::ShellIR::Raw(cg.to_add_current_process_command()));
+        prefix.extend(self);
+        Ok(prefix)
     }
 }
 
@@ -157,3 +181,32 @@ pub mod mapper;
 pub mod mounts;
 pub mod source;
 pub mod traefik;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::exec::LocalExecutor;
+    use crate::utils::cgroup::builder::CgroupBuilder;
+    use crate::utils::exec::script::sh;
+
+    #[test]
+    fn test_cgroup_applier_sh_dsl() {
+        let executor = CommandExecutor::Local(LocalExecutor::new());
+        let cg = CgroupBuilder::new("test/cgroup", executor.clone())
+            .with_base_path("/tmp/cgroup")
+            .build();
+
+        let ctx = BuilderContext::new(executor).with_cgroup(cg);
+
+        let script = sh!(
+            echo("hello inside cgroup");
+        );
+
+        let cgrouped_script = ctx.apply_cgroup(script).unwrap();
+        let bash = cgrouped_script.iter().map(|s| s.to_bash()).collect::<Vec<_>>().join("\n");
+
+        assert!(bash.contains("mkdir -p '/tmp/cgroup/test/cgroup'"));
+        assert!(bash.contains("cgroup.procs"));
+        assert!(bash.contains("hello inside cgroup"));
+    }
+}

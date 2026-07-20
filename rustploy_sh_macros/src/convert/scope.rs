@@ -3,12 +3,16 @@ use syn::{Expr, Pat, Stmt};
 
 pub struct ScopeTracker {
     scopes: Vec<HashSet<String>>,
+    /// Every name ever declared — survives scope pops.
+    /// Used by substitute_sh_vars to distinguish sh!-local vars from outer Rust vars.
+    all_declared: HashSet<String>,
 }
 
 impl ScopeTracker {
     pub fn new() -> Self {
         Self {
             scopes: vec![HashSet::new()],
+            all_declared: HashSet::new(),
         }
     }
 
@@ -21,9 +25,21 @@ impl ScopeTracker {
     }
 
     pub fn declare(&mut self, name: String) {
+        self.all_declared.insert(name.clone());
         if let Some(current) = self.scopes.last_mut() {
             current.insert(name);
         }
+    }
+
+    /// Returns true if `name` is declared in any currently-active scope
+    pub fn contains(&self, name: &str) -> bool {
+        self.scopes.iter().any(|s| s.contains(name))
+    }
+
+    /// All variables ever declared in this sh! block (including those in
+    /// already-popped scopes like loop variables).
+    pub fn all_vars(&self) -> HashSet<String> {
+        self.all_declared.clone()
     }
 
     pub fn check(&self, name: &str, span: proc_macro2::Span) -> Result<(), syn::Error> {
@@ -51,6 +67,25 @@ impl ScopeTracker {
             Err(syn::Error::new(span, format!("Undefined variable '{}'", name)))
         }
     }
+}
+
+/// Scope-check for the top-level `ShStmt` list (which may include untyped `fn` defs)
+pub fn check_sh_stmts(stmts: &[crate::parser::ShStmt], tracker: &mut ScopeTracker) -> Result<(), syn::Error> {
+    for stmt in stmts {
+        match stmt {
+            crate::parser::ShStmt::ShFn { name: _, params, body } => {
+                // Declare params so substitute_sh_vars treats them as sh! variables
+                for p in params {
+                    tracker.declare(p.clone());
+                }
+                check_sh_stmts(body, tracker)?;
+            }
+            crate::parser::ShStmt::Syn(syn_stmt) => {
+                check_stmts(std::slice::from_ref(syn_stmt), tracker)?;
+            }
+        }
+    }
+    Ok(())
 }
 
 fn levenshtein_distance(a: &str, b: &str) -> usize {

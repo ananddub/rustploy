@@ -16,6 +16,59 @@ fn is_os_receiver(expr: &syn::Expr) -> bool {
     }
 }
 
+/// Returns true if `name` was declared inside the current `sh!` block.
+fn is_sh_var(name: &str) -> bool {
+    crate::SH_VARS.with(|cell| cell.borrow().contains(name))
+}
+
+/// Walk an `os.*` method-call chain and replace every argument that is a plain
+/// identifier declared in the sh! scope with its shell-variable form `"$varname"`.
+/// Identifiers NOT in sh! scope (outer Rust variables) are left as-is so the
+/// Rust compiler can resolve them normally.
+fn substitute_sh_vars(expr: &syn::Expr) -> syn::Expr {
+    match expr {
+        syn::Expr::MethodCall(mc) => {
+            let new_receiver = Box::new(substitute_sh_vars(&mc.receiver));
+
+            let new_args: syn::punctuated::Punctuated<syn::Expr, syn::Token![,]> = mc
+                .args
+                .iter()
+                .map(|arg| match arg {
+                    syn::Expr::Path(ep) => {
+                        if let Some(ident) = ep.path.get_ident() {
+                            // Only substitute identifiers that are sh!-declared variables
+                            if ident != "os" && is_sh_var(&ident.to_string()) {
+                                let shell_var = format!("${}", ident);
+                                return syn::Expr::Lit(syn::ExprLit {
+                                    attrs: vec![],
+                                    lit: syn::Lit::Str(syn::LitStr::new(
+                                        &shell_var,
+                                        ident.span(),
+                                    )),
+                                });
+                            }
+                        }
+                        // Not a sh! variable — leave as raw Rust (outer variable, literal, etc.)
+                        arg.clone()
+                    }
+                    _ => substitute_sh_vars(arg),
+                })
+                .collect();
+
+            syn::Expr::MethodCall(syn::ExprMethodCall {
+                attrs: mc.attrs.clone(),
+                receiver: new_receiver,
+                dot_token: mc.dot_token,
+                method: mc.method.clone(),
+                turbofish: mc.turbofish.clone(),
+                paren_token: mc.paren_token,
+                args: new_args,
+            })
+        }
+        other => other.clone(),
+    }
+}
+
 pub fn convert_method_call(method_call: &ExprMethodCall) -> Result<proc_macro2::TokenStream, syn::Error> {
     let receiver = &*method_call.receiver;
     let method_name = method_call.method.to_string();
@@ -28,9 +81,10 @@ pub fn convert_method_call(method_call: &ExprMethodCall) -> Result<proc_macro2::
 
     let receiver_tokens = if is_special_method {
         if is_os_receiver(receiver) {
+            let subst = substitute_sh_vars(receiver);
             quote! {
                 (crate::utils::exec::script::dsl::IntoShellIRGeneric::into_shell_ir(
-                    crate::utils::exec::script::dsl::ShellIRWrapper(#receiver)
+                    crate::utils::exec::script::dsl::ShellIRWrapper(#subst)
                 ))
             }
         } else {
@@ -38,7 +92,8 @@ pub fn convert_method_call(method_call: &ExprMethodCall) -> Result<proc_macro2::
         }
     } else {
         if is_os_receiver(receiver) {
-            quote! { #receiver }
+            let subst = substitute_sh_vars(receiver);
+            quote! { #subst }
         } else {
             crate::convert::convert_expr(receiver)?
         }
@@ -95,37 +150,40 @@ pub fn convert_method_call(method_call: &ExprMethodCall) -> Result<proc_macro2::
     }
 
     if method_name == "sudo" {
-        return Ok(quote! {
-            (#receiver_tokens).sudo()
-        });
+        return Ok(quote! { (#receiver_tokens).sudo() });
     }
 
     if method_name == "success" {
-        return Ok(quote! {
-            (#receiver_tokens).success()
-        });
+        return Ok(quote! { (#receiver_tokens).success() });
     }
 
     if method_name == "failure" {
-        return Ok(quote! {
-            (#receiver_tokens).failure()
-        });
+        return Ok(quote! { (#receiver_tokens).failure() });
     }
 
     if method_name == "ok" {
-        return Ok(quote! {
-            (#receiver_tokens).ok()
-        });
+        return Ok(quote! { (#receiver_tokens).ok() });
     }
 
+    // Non-special OS chain methods: substitute sh vars in args too
     let mut args_tokens = Vec::new();
     for arg in &method_call.args {
         if let syn::Expr::Path(expr_path) = arg {
-            let is_os = expr_path.path.get_ident().map(|id| id == "os").unwrap_or(false);
+            let ident = expr_path.path.get_ident();
+            let is_os = ident.map(|id| id == "os").unwrap_or(false);
             if is_os {
                 args_tokens.push(quote! { #arg });
+            } else if let Some(ident) = ident {
+                if is_sh_var(&ident.to_string()) {
+                    // sh!-declared variable → shell "$var" string
+                    let shell_var = format!("${}", ident);
+                    args_tokens.push(quote! { #shell_var });
+                } else {
+                    // outer Rust variable → pass through as-is
+                    args_tokens.push(quote! { #arg });
+                }
             } else {
-                args_tokens.push(crate::convert::convert_expr(arg)?);
+                args_tokens.push(quote! { #arg });
             }
         } else if let syn::Expr::Macro(_) = arg {
             args_tokens.push(crate::convert::convert_expr(arg)?);

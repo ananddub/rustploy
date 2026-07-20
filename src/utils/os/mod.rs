@@ -119,7 +119,7 @@ pub struct JqBuilder<'a> {
 }
 impl<'a> IntoCommand for JqBuilder<'a> {
     fn build_str(&self) -> String {
-        format!("$(echo {} | jq -r {})", self.var, escape_arg(&self.query))
+        format!("$(echo {} | jq -r {})", escape_arg(&self.var), escape_arg(&self.query))
     }
 }
 
@@ -142,7 +142,7 @@ pub struct AwkBuilder<'a> {
 impl<'a> IntoCommand for AwkBuilder<'a> {
     fn build_str(&self) -> String {
         if self.target.starts_with('$') || (!self.target.contains(' ') && !self.target.contains('|')) {
-            format!("$(echo {} | awk {})", self.target, escape_arg(&self.expr))
+            format!("$(echo {} | awk {})", escape_arg(&self.target), escape_arg(&self.expr))
         } else {
             format!("$({} | awk {})", self.target, escape_arg(&self.expr))
         }
@@ -168,7 +168,7 @@ pub struct GrepBuilder<'a> {
 impl<'a> IntoCommand for GrepBuilder<'a> {
     fn build_str(&self) -> String {
         if self.target.starts_with('$') || (!self.target.contains(' ') && !self.target.contains('|')) {
-            format!("$(echo {} | grep {})", self.target, escape_arg(&self.pattern))
+            format!("$(echo {} | grep {})", escape_arg(&self.target), escape_arg(&self.pattern))
         } else {
             format!("$({} | grep {})", self.target, escape_arg(&self.pattern))
         }

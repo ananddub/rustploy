@@ -331,22 +331,26 @@ fn test_sh_macro_compilation() {
 #[test]
 fn test_sh_macro_advanced_features() {
     use super::sh;
-
+    use crate::utils::os::OsCli;
+    use crate::utils::exec::{CommandExecutor, LocalExecutor};
+    let temp = "test";
+    let executor = CommandExecutor::Local(LocalExecutor::new());
+    let os = OsCli::new(&executor);
     let script_ir = sh!(
         defer! {
             cmd("echo", "cleanup-done");
         }
-        let restart_service = |name| {
-
-            cmd("systemctl", "restart", name).sudo();
-        };
+        fn restart_service(name){
+            os.service(name).restart().sudo();
+            cmd("systemctl", "-R");
+        }
 
         let services = ["nginx", "sshd"];
 
         for service in services {
             restart_service(service);
         }
-
+        os.service(temp).restart().sudo();
         let logs = glob!("*.log");
         let user = shell_env!("USER");
 
@@ -362,7 +366,7 @@ fn test_sh_macro_advanced_features() {
     // 1. Closure function test
     assert!(bash.contains("restart_service() {"));
     assert!(bash.contains("local name=\"$1\""));
-    assert!(bash.contains("sudo 'systemctl' 'restart' \"$name\""));
+    assert!(bash.contains("sudo systemctl restart \"$name\""));
 
     // 2. Array loop test
     assert!(bash.contains("services=('nginx' 'sshd')"));

@@ -1,7 +1,7 @@
 use quote::quote;
 use syn::parse::Parse;
 use crate::parser::ShInput;
-use crate::convert::{convert_expr, convert_stmt};
+use crate::convert::{convert_expr, convert_stmt, convert_sh_stmt};
 
 pub fn convert_macro(mac: &syn::Macro) -> Result<proc_macro2::TokenStream, syn::Error> {
     let macro_name = mac.path.get_ident().map(|i| i.to_string()).ok_or_else(|| {
@@ -76,7 +76,7 @@ pub fn convert_macro(mac: &syn::Macro) -> Result<proc_macro2::TokenStream, syn::
         let inner_input = mac.parse_body_with(parser)?;
         let mut inner_stmts = Vec::new();
         for stmt in inner_input.stmts {
-            inner_stmts.push(convert_stmt(&stmt)?);
+            inner_stmts.push(convert_sh_stmt(&stmt)?);
         }
         return Ok(quote! {
             (crate::utils::exec::script::dsl::ShellIR::CaptureBlock(
@@ -90,7 +90,7 @@ pub fn convert_macro(mac: &syn::Macro) -> Result<proc_macro2::TokenStream, syn::
         let inner_input = mac.parse_body_with(parser)?;
         let mut inner_stmts = Vec::new();
         for stmt in inner_input.stmts {
-            inner_stmts.push(convert_stmt(&stmt)?);
+            inner_stmts.push(convert_sh_stmt(&stmt)?);
         }
         let cmd_tokens = if inner_stmts.len() == 1 {
             let stmt = &inner_stmts[0];
@@ -119,7 +119,7 @@ pub fn convert_macro(mac: &syn::Macro) -> Result<proc_macro2::TokenStream, syn::
         let inner_input = mac.parse_body_with(parser)?;
         let mut inner_stmts = Vec::new();
         for stmt in inner_input.stmts {
-            inner_stmts.push(convert_stmt(&stmt)?);
+            inner_stmts.push(convert_sh_stmt(&stmt)?);
         }
         let cmd_tokens = if inner_stmts.len() == 1 {
             let stmt = &inner_stmts[0];
@@ -189,7 +189,7 @@ pub fn convert_macro(mac: &syn::Macro) -> Result<proc_macro2::TokenStream, syn::
         let inner_input = mac.parse_body_with(parser)?;
         let mut inner_stmts = Vec::new();
         for stmt in inner_input.stmts {
-            inner_stmts.push(convert_stmt(&stmt)?);
+            inner_stmts.push(convert_sh_stmt(&stmt)?);
         }
         return Ok(quote! {
             (crate::utils::exec::script::dsl::ShellIR::Defer {
@@ -203,7 +203,7 @@ pub fn convert_macro(mac: &syn::Macro) -> Result<proc_macro2::TokenStream, syn::
         let inner_input = mac.parse_body_with(parser)?;
         let mut inner_stmts = Vec::new();
         for stmt in inner_input.stmts {
-            inner_stmts.push(convert_stmt(&stmt)?);
+            inner_stmts.push(convert_sh_stmt(&stmt)?);
         }
         return Ok(quote! {
             (crate::utils::exec::script::dsl::ShellIR::Parallel {

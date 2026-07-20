@@ -1,6 +1,27 @@
 use quote::quote;
 use syn::{Expr, Pat, Stmt};
 use crate::convert::{convert_expr, convert_macro};
+use crate::parser::ShStmt;
+
+/// Entry point for ShStmt (top-level, supports untyped `fn` params)
+pub fn convert_sh_stmt(sh_stmt: &ShStmt) -> Result<proc_macro2::TokenStream, syn::Error> {
+    match sh_stmt {
+        ShStmt::ShFn { name, params, body } => {
+            let mut body_stmts = Vec::new();
+            for s in body {
+                body_stmts.push(convert_sh_stmt(s)?);
+            }
+            Ok(quote! {
+                (crate::utils::exec::script::dsl::ShellIR::Function {
+                    name: #name.to_string(),
+                    params: vec![ #( #params.to_string() ),* ],
+                    body: vec![ #( #body_stmts ),* ],
+                })
+            })
+        }
+        ShStmt::Syn(stmt) => convert_stmt(stmt),
+    }
+}
 
 pub fn convert_stmt(stmt: &syn::Stmt) -> Result<proc_macro2::TokenStream, syn::Error> {
     match stmt {
