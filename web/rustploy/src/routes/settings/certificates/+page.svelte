@@ -40,8 +40,8 @@
 	</header>
 
 	<main class="flex-1 m-3.5 overflow-y-auto p-7 animate-fade-up min-h-0">
-		<!-- Constrained Max-Width Shell (Dokploy Standard max-w-5xl) -->
-		<div class="max-w-5xl space-y-6">
+		<!-- Horizontally Centered Max-Width Shell (max-w-5xl mx-auto) -->
+		<div class="max-w-5xl mx-auto space-y-6">
 			<Card.Root class="bg-[#171717] border border-[#262626] rounded-xl shadow-md overflow-hidden">
 				<Card.Header class="p-6 pb-4">
 					<div class="flex items-center justify-between">
@@ -58,7 +58,7 @@
 						</Button>
 					</div>
 
-					<!-- Dokploy Warning Alert Box -->
+					<!-- Warning Alert Box -->
 					<div class="mt-4 p-3.5 rounded-lg bg-orange-500/10 border border-orange-500/20 flex items-start gap-3 text-orange-400">
 						<AlertTriangle class="h-4 w-4 shrink-0 mt-0.5" />
 						<div>

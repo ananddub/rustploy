@@ -74,7 +74,6 @@
 		return key.length > len ? key.slice(0, len) + '…' : key;
 	}
 
-	// Modal state
 	let modalName = $state('');
 	let modalDesc = $state('');
 	let modalPrivateKey = $state('');
@@ -113,8 +112,8 @@
 	</header>
 
 	<main class="flex-1 m-3.5 overflow-y-auto p-7 animate-fade-up min-h-0">
-		<!-- Constrained Max-Width Shell (Dokploy Standard max-w-5xl) -->
-		<div class="max-w-5xl space-y-6">
+		<!-- Horizontally Centered Max-Width Shell (max-w-5xl mx-auto) -->
+		<div class="max-w-5xl mx-auto space-y-6">
 			<div class="flex items-center justify-between">
 				<div>
 					<h1 class="text-3xl font-bold tracking-tight text-[#FAFAFA]">SSH Keys</h1>
