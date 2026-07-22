@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import {
 		House,
@@ -45,6 +46,16 @@
 			open = !open;
 		}
 	}
+
+	onMount(() => {
+		const handleCustomOpen = () => {
+			open = true;
+		};
+		window.addEventListener('open-command-palette', handleCustomOpen);
+		return () => {
+			window.removeEventListener('open-command-palette', handleCustomOpen);
+		};
+	});
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
