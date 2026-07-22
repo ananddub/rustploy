@@ -76,4 +76,33 @@ impl GroupRepository {
             .await?;
         Ok(id)
     }
+
+    pub async fn get_user_final_permissions(&self, user_id: i64, org_id: i64) -> Result<Vec<String>, sqlx::Error> {
+        sqlx::query_scalar::<_, String>(
+            r#"
+            WITH user_permissions AS (
+                SELECT p.action, up.effect
+                FROM user_policy up
+                JOIN policy p ON p.id = up.policy_id
+                WHERE up.user_id = ? AND up.org_id = ?
+            )
+            SELECT DISTINCT action FROM (
+                SELECT p.action
+                FROM group_policy gp
+                JOIN policy p ON p.id = gp.policy_id
+                JOIN organization_members om ON om.group_id = gp.group_id
+                WHERE om.user_id = ? AND om.organization_id = ?
+                UNION ALL
+                SELECT action FROM user_permissions WHERE effect = 'GRANT'
+            ) perms
+            WHERE action NOT IN (SELECT action FROM user_permissions WHERE effect = 'DENY')
+            "#
+        )
+        .bind(user_id)
+        .bind(org_id)
+        .bind(user_id)
+        .bind(org_id)
+        .fetch_all(self.pool.as_ref())
+        .await
+    }
 }

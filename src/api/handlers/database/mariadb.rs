@@ -7,9 +7,14 @@ use crate::{
     api::dto::database::{
         CreateDatabaseDto, DatabaseOperationResponseDto, DatabaseResponseDto, PatchDatabaseDto,
     },
-    core::middleware::validator::ValidatedJson,
+    core::middleware::{
+        permission::{
+            AppDeployPermission, DatabaseCreatePermission, DatabaseDeletePermission,
+            DatabaseReadPermission, DatabaseUpdatePermission, RequirePermission,
+        },
+        validator::ValidatedJson,
+    },
     services::database::{DatabaseKind, DatabaseOperation, DatabaseService},
-    utils::jwt::claim::Claims,
 };
 use super::ApiError;
 
@@ -26,7 +31,7 @@ impl MariadbController {
     #[get("/environment/{environment_id}")]
     async fn list_by_environment(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<DatabaseReadPermission>,
         Path(environment_id): Path<i64>,
     ) -> Result<Json<Vec<DatabaseResponseDto>>, ApiError> {
         self.service
@@ -46,7 +51,7 @@ impl MariadbController {
     #[get("/{id}")]
     async fn get(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<DatabaseReadPermission>,
         Path(id): Path<i64>,
     ) -> Result<Json<DatabaseResponseDto>, ApiError> {
         self.service
@@ -60,7 +65,7 @@ impl MariadbController {
     #[post]
     async fn create(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<DatabaseCreatePermission>,
         ValidatedJson(body): ValidatedJson<CreateDatabaseDto>,
     ) -> Result<(StatusCode, Json<DatabaseResponseDto>), ApiError> {
         self.service
@@ -74,7 +79,7 @@ impl MariadbController {
     #[patch("/{id}")]
     async fn patch(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<DatabaseUpdatePermission>,
         Path(id): Path<i64>,
         ValidatedJson(body): ValidatedJson<PatchDatabaseDto>,
     ) -> Result<Json<DatabaseResponseDto>, ApiError> {
@@ -89,7 +94,7 @@ impl MariadbController {
     #[post("/{id}/deploy")]
     async fn deploy(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppDeployPermission>,
         Path(id): Path<i64>,
     ) -> Result<(StatusCode, Json<DatabaseOperationResponseDto>), ApiError> {
         super::run_operation(&self.service, DatabaseKind::Mariadb, id, DatabaseOperation::Deploy).await
@@ -98,7 +103,7 @@ impl MariadbController {
     #[post("/{id}/redeploy")]
     async fn redeploy(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppDeployPermission>,
         Path(id): Path<i64>,
     ) -> Result<(StatusCode, Json<DatabaseOperationResponseDto>), ApiError> {
         super::run_operation(&self.service, DatabaseKind::Mariadb, id, DatabaseOperation::Redeploy).await
@@ -107,7 +112,7 @@ impl MariadbController {
     #[post("/{id}/reload")]
     async fn reload(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppDeployPermission>,
         Path(id): Path<i64>,
     ) -> Result<(StatusCode, Json<DatabaseOperationResponseDto>), ApiError> {
         super::run_operation(&self.service, DatabaseKind::Mariadb, id, DatabaseOperation::Reload).await
@@ -116,7 +121,7 @@ impl MariadbController {
     #[post("/{id}/start")]
     async fn start(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppDeployPermission>,
         Path(id): Path<i64>,
     ) -> Result<(StatusCode, Json<DatabaseOperationResponseDto>), ApiError> {
         super::run_operation(&self.service, DatabaseKind::Mariadb, id, DatabaseOperation::Start).await
@@ -125,7 +130,7 @@ impl MariadbController {
     #[post("/{id}/stop")]
     async fn stop(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppDeployPermission>,
         Path(id): Path<i64>,
     ) -> Result<(StatusCode, Json<DatabaseOperationResponseDto>), ApiError> {
         super::run_operation(&self.service, DatabaseKind::Mariadb, id, DatabaseOperation::Stop).await
@@ -134,7 +139,7 @@ impl MariadbController {
     #[delete("/{id}")]
     async fn delete(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<DatabaseDeletePermission>,
         Path(id): Path<i64>,
     ) -> Result<StatusCode, ApiError> {
         self.service

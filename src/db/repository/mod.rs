@@ -59,6 +59,8 @@ pub use settings::SettingRepository;
 pub use ssh_keys::SshKeyRepository;
 pub use tags::TagRepository;
 pub use two_factor::TwoFactorRepository;
+pub use user_policy::UserPolicyRepository;
+pub use resource_access::ResourceAccessRepository;
 pub use users::UserRepository;
 pub use volume_backups::VolumeBackupRepository;
 
@@ -121,5 +123,7 @@ pub mod settings;
 pub mod ssh_keys;
 pub mod tags;
 pub mod two_factor;
+pub mod resource_access;
+pub mod user_policy;
 pub mod users;
 pub mod volume_backups;

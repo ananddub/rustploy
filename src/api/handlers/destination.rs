@@ -1,11 +1,20 @@
 use std::sync::Arc;
+
 use auto_route::controller;
 use axum::{Json, extract::Path, http::StatusCode};
+
 use crate::{
-    api::dto::destination::{CreateDestinationDto, PatchDestinationDto, DestinationResponseDto, TestDestinationDto},
-    core::middleware::validator::ValidatedJson,
+    api::dto::destination::{
+        CreateDestinationDto, DestinationResponseDto, PatchDestinationDto, TestDestinationDto,
+    },
+    core::middleware::{
+        permission::{
+            DatabaseCreatePermission, DatabaseDeletePermission, DatabaseReadPermission,
+            RequirePermission,
+        },
+        validator::ValidatedJson,
+    },
     services::destination::DestinationService,
-    utils::jwt::claim::Claims,
 };
 
 type ApiError = (StatusCode, String);
@@ -21,7 +30,10 @@ impl DestinationController {
     }
 
     #[get]
-    async fn list(&self, _claims: Claims) -> Result<Json<Vec<DestinationResponseDto>>, ApiError> {
+    async fn list(
+        &self,
+        RequirePermission(_claims, _): RequirePermission<DatabaseReadPermission>,
+    ) -> Result<Json<Vec<DestinationResponseDto>>, ApiError> {
         self.service
             .list()
             .await
@@ -33,7 +45,7 @@ impl DestinationController {
     #[get("/{id}")]
     async fn get(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<DatabaseReadPermission>,
         Path(id): Path<String>,
     ) -> Result<Json<DestinationResponseDto>, ApiError> {
         self.service
@@ -47,7 +59,7 @@ impl DestinationController {
     #[post]
     async fn create(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<DatabaseCreatePermission>,
         ValidatedJson(body): ValidatedJson<CreateDestinationDto>,
     ) -> Result<(StatusCode, Json<DestinationResponseDto>), ApiError> {
         self.service
@@ -61,7 +73,7 @@ impl DestinationController {
     #[patch("/{id}")]
     async fn patch(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<DatabaseCreatePermission>,
         Path(id): Path<String>,
         ValidatedJson(body): ValidatedJson<PatchDestinationDto>,
     ) -> Result<Json<DestinationResponseDto>, ApiError> {
@@ -74,7 +86,11 @@ impl DestinationController {
     }
 
     #[delete("/{id}")]
-    async fn delete(&self, _claims: Claims, Path(id): Path<String>) -> Result<StatusCode, ApiError> {
+    async fn delete(
+        &self,
+        RequirePermission(_claims, _): RequirePermission<DatabaseDeletePermission>,
+        Path(id): Path<String>,
+    ) -> Result<StatusCode, ApiError> {
         self.service
             .delete(&id)
             .await
@@ -85,7 +101,7 @@ impl DestinationController {
     #[post("/{id}/test")]
     async fn test_connection(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<DatabaseReadPermission>,
         Path(id): Path<String>,
     ) -> Result<StatusCode, ApiError> {
         self.service
@@ -98,7 +114,7 @@ impl DestinationController {
     #[post("/test-raw")]
     async fn test_connection_raw(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<DatabaseCreatePermission>,
         ValidatedJson(body): ValidatedJson<TestDestinationDto>,
     ) -> Result<StatusCode, ApiError> {
         self.service

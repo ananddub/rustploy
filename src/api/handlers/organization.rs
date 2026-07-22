@@ -7,7 +7,10 @@ use crate::{
     api::dto::organization::{
         CreateOrganizationDto, OrganizationResponseDto, PatchOrganizationDto,
     },
-    core::middleware::validator::ValidatedJson,
+    core::middleware::{
+        permission::{OrgWritePermission, RequirePermission},
+        validator::ValidatedJson,
+    },
     services::organization::OrganizationService,
     utils::jwt::claim::Claims,
 };
@@ -73,7 +76,7 @@ impl OrganizationController {
     #[patch("/{id}")]
     async fn patch(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<OrgWritePermission>,
         Path(id): Path<i64>,
         ValidatedJson(body): ValidatedJson<PatchOrganizationDto>,
     ) -> Result<Json<OrganizationResponseDto>, ApiError> {
@@ -86,7 +89,11 @@ impl OrganizationController {
     }
 
     #[delete("/{id}")]
-    async fn delete(&self, _claims: Claims, Path(id): Path<i64>) -> Result<StatusCode, ApiError> {
+    async fn delete(
+        &self,
+        RequirePermission(_claims, _): RequirePermission<OrgWritePermission>,
+        Path(id): Path<i64>,
+    ) -> Result<StatusCode, ApiError> {
         self.service
             .delete(id)
             .await

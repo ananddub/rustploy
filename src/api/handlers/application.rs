@@ -10,9 +10,14 @@ use crate::{
         PatchDockerSourceDto, PatchDropSourceDto, PatchGiteaSourceDto, PatchGithubSourceDto,
         PatchGitlabSourceDto, PatchResourceConfigDto,
     },
-    core::middleware::validator::ValidatedJson,
+    core::middleware::{
+        permission::{
+            AppCreatePermission, AppDeletePermission, AppDeployPermission, AppReadPermission,
+            RequirePermission,
+        },
+        validator::ValidatedJson,
+    },
     services::application::{ApplicationOperation, ApplicationOperationResult, ApplicationService},
-    utils::jwt::claim::Claims,
 };
 
 type ApiError = (StatusCode, String);
@@ -30,7 +35,7 @@ impl ApplicationController {
     #[get("/{id}")]
     async fn get(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppReadPermission>,
         Path(id): Path<i64>,
     ) -> Result<Json<ApplicationResponseDto>, ApiError> {
         self.service
@@ -44,7 +49,7 @@ impl ApplicationController {
     #[get("/environment/{environment_id}")]
     async fn list_by_environment(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppReadPermission>,
         Path(environment_id): Path<i64>,
     ) -> Result<Json<Vec<ApplicationResponseDto>>, ApiError> {
         self.service
@@ -63,7 +68,7 @@ impl ApplicationController {
     #[post]
     async fn create(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppCreatePermission>,
         ValidatedJson(body): ValidatedJson<CreateApplicationDto>,
     ) -> Result<(StatusCode, Json<ApplicationResponseDto>), ApiError> {
         self.service
@@ -77,7 +82,7 @@ impl ApplicationController {
     #[patch("/{id}")]
     async fn patch(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppCreatePermission>,
         Path(id): Path<i64>,
         ValidatedJson(body): ValidatedJson<PatchApplicationDto>,
     ) -> Result<Json<ApplicationResponseDto>, ApiError> {
@@ -92,7 +97,7 @@ impl ApplicationController {
     #[patch("/{id}/source/github")]
     async fn patch_github_source(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppCreatePermission>,
         Path(id): Path<i64>,
         ValidatedJson(body): ValidatedJson<PatchGithubSourceDto>,
     ) -> Result<Json<ApplicationResponseDto>, ApiError> {
@@ -107,7 +112,7 @@ impl ApplicationController {
     #[patch("/{id}/source/gitlab")]
     async fn patch_gitlab_source(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppCreatePermission>,
         Path(id): Path<i64>,
         ValidatedJson(body): ValidatedJson<PatchGitlabSourceDto>,
     ) -> Result<Json<ApplicationResponseDto>, ApiError> {
@@ -119,25 +124,10 @@ impl ApplicationController {
             .map_err(map_sqlx_error)
     }
 
-    #[patch("/{id}/source/gitea")]
-    async fn patch_gitea_source(
-        &self,
-        _claims: Claims,
-        Path(id): Path<i64>,
-        ValidatedJson(body): ValidatedJson<PatchGiteaSourceDto>,
-    ) -> Result<Json<ApplicationResponseDto>, ApiError> {
-        self.service
-            .set_gitea_source(id, body)
-            .await
-            .map(ApplicationResponseDto::from)
-            .map(Json)
-            .map_err(map_sqlx_error)
-    }
-
     #[patch("/{id}/source/bitbucket")]
     async fn patch_bitbucket_source(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppCreatePermission>,
         Path(id): Path<i64>,
         ValidatedJson(body): ValidatedJson<PatchBitbucketSourceDto>,
     ) -> Result<Json<ApplicationResponseDto>, ApiError> {
@@ -149,10 +139,25 @@ impl ApplicationController {
             .map_err(map_sqlx_error)
     }
 
+    #[patch("/{id}/source/gitea")]
+    async fn patch_gitea_source(
+        &self,
+        RequirePermission(_claims, _): RequirePermission<AppCreatePermission>,
+        Path(id): Path<i64>,
+        ValidatedJson(body): ValidatedJson<PatchGiteaSourceDto>,
+    ) -> Result<Json<ApplicationResponseDto>, ApiError> {
+        self.service
+            .set_gitea_source(id, body)
+            .await
+            .map(ApplicationResponseDto::from)
+            .map(Json)
+            .map_err(map_sqlx_error)
+    }
+
     #[patch("/{id}/source/docker")]
     async fn patch_docker_source(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppCreatePermission>,
         Path(id): Path<i64>,
         ValidatedJson(body): ValidatedJson<PatchDockerSourceDto>,
     ) -> Result<Json<ApplicationResponseDto>, ApiError> {
@@ -165,9 +170,9 @@ impl ApplicationController {
     }
 
     #[patch("/{id}/source/git")]
-    async fn patch_custom_git_source(
+    async fn patch_git_source(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppCreatePermission>,
         Path(id): Path<i64>,
         ValidatedJson(body): ValidatedJson<PatchCustomGitSourceDto>,
     ) -> Result<Json<ApplicationResponseDto>, ApiError> {
@@ -182,7 +187,7 @@ impl ApplicationController {
     #[patch("/{id}/source/drop")]
     async fn patch_drop_source(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppCreatePermission>,
         Path(id): Path<i64>,
         ValidatedJson(body): ValidatedJson<PatchDropSourceDto>,
     ) -> Result<Json<ApplicationResponseDto>, ApiError> {
@@ -197,7 +202,7 @@ impl ApplicationController {
     #[patch("/{id}/build")]
     async fn patch_build(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppCreatePermission>,
         Path(id): Path<i64>,
         ValidatedJson(body): ValidatedJson<PatchBuildConfigDto>,
     ) -> Result<Json<ApplicationResponseDto>, ApiError> {
@@ -212,7 +217,7 @@ impl ApplicationController {
     #[patch("/{id}/resources")]
     async fn patch_resources(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppCreatePermission>,
         Path(id): Path<i64>,
         ValidatedJson(body): ValidatedJson<PatchResourceConfigDto>,
     ) -> Result<Json<ApplicationResponseDto>, ApiError> {
@@ -227,7 +232,7 @@ impl ApplicationController {
     #[post("/{id}/deploy")]
     async fn deploy(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppDeployPermission>,
         Path(id): Path<i64>,
     ) -> Result<(StatusCode, Json<ApplicationOperationResponseDto>), ApiError> {
         self.operation(id, ApplicationOperation::Deploy).await
@@ -236,7 +241,7 @@ impl ApplicationController {
     #[post("/{id}/redeploy")]
     async fn redeploy(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppDeployPermission>,
         Path(id): Path<i64>,
     ) -> Result<(StatusCode, Json<ApplicationOperationResponseDto>), ApiError> {
         self.operation(id, ApplicationOperation::Redeploy).await
@@ -245,7 +250,7 @@ impl ApplicationController {
     #[post("/{id}/rebuild")]
     async fn rebuild(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppDeployPermission>,
         Path(id): Path<i64>,
     ) -> Result<(StatusCode, Json<ApplicationOperationResponseDto>), ApiError> {
         self.operation(id, ApplicationOperation::Rebuild).await
@@ -254,7 +259,7 @@ impl ApplicationController {
     #[post("/{id}/reload")]
     async fn reload(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppDeployPermission>,
         Path(id): Path<i64>,
     ) -> Result<(StatusCode, Json<ApplicationOperationResponseDto>), ApiError> {
         self.operation(id, ApplicationOperation::Reload).await
@@ -263,15 +268,18 @@ impl ApplicationController {
     #[post("/{id}/start")]
     async fn start(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppDeployPermission>,
         Path(id): Path<i64>,
     ) -> Result<(StatusCode, Json<ApplicationOperationResponseDto>), ApiError> {
         self.operation(id, ApplicationOperation::Start).await
     }
 
     #[post("/{id}/cancel")]
-    async fn cancel(&self, _claims: Claims, Path(id): Path<i64>) -> Result<StatusCode, ApiError> {
-
+    async fn cancel(
+        &self,
+        RequirePermission(_claims, _): RequirePermission<AppDeployPermission>,
+        Path(id): Path<i64>,
+    ) -> Result<StatusCode, ApiError> {
         match self.service.cancel_operation(id).await {
             Ok(true) => Ok(StatusCode::ACCEPTED),
             Ok(false) => Err((
@@ -283,7 +291,11 @@ impl ApplicationController {
     }
 
     #[delete("/{id}")]
-    async fn delete(&self, _claims: Claims, Path(id): Path<i64>) -> Result<StatusCode, ApiError> {
+    async fn delete(
+        &self,
+        RequirePermission(_claims, _): RequirePermission<AppDeletePermission>,
+        Path(id): Path<i64>,
+    ) -> Result<StatusCode, ApiError> {
         self.service
             .delete(id)
             .await

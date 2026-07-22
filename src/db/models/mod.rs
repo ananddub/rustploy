@@ -63,5 +63,7 @@ pub mod ssh_keys;
 pub mod tags;
 pub mod two_factor;
 pub mod types;
+pub mod resource_access;
+pub mod user_policy;
 pub mod users;
 pub mod volume_backups;

@@ -1,11 +1,17 @@
 use std::sync::Arc;
+
 use auto_route::controller;
 use axum::{Json, extract::Path, http::StatusCode};
+
 use crate::{
     api::dto::registry::{CreateRegistryDto, PatchRegistryDto, RegistryResponseDto, TestRegistryDto},
-    core::middleware::validator::ValidatedJson,
+    core::middleware::{
+        permission::{
+            AppCreatePermission, AppDeletePermission, AppReadPermission, RequirePermission,
+        },
+        validator::ValidatedJson,
+    },
     services::registry::RegistryService,
-    utils::jwt::claim::Claims,
 };
 
 type ApiError = (StatusCode, String);
@@ -21,7 +27,10 @@ impl RegistryController {
     }
 
     #[get]
-    async fn list(&self, _claims: Claims) -> Result<Json<Vec<RegistryResponseDto>>, ApiError> {
+    async fn list(
+        &self,
+        RequirePermission(_claims, _): RequirePermission<AppReadPermission>,
+    ) -> Result<Json<Vec<RegistryResponseDto>>, ApiError> {
         self.service
             .list()
             .await
@@ -33,7 +42,7 @@ impl RegistryController {
     #[get("/{id}")]
     async fn get(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppReadPermission>,
         Path(id): Path<i64>,
     ) -> Result<Json<RegistryResponseDto>, ApiError> {
         self.service
@@ -47,7 +56,7 @@ impl RegistryController {
     #[post]
     async fn create(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppCreatePermission>,
         ValidatedJson(body): ValidatedJson<CreateRegistryDto>,
     ) -> Result<(StatusCode, Json<RegistryResponseDto>), ApiError> {
         self.service
@@ -61,7 +70,7 @@ impl RegistryController {
     #[patch("/{id}")]
     async fn patch(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppCreatePermission>,
         Path(id): Path<i64>,
         ValidatedJson(body): ValidatedJson<PatchRegistryDto>,
     ) -> Result<Json<RegistryResponseDto>, ApiError> {
@@ -74,7 +83,11 @@ impl RegistryController {
     }
 
     #[delete("/{id}")]
-    async fn delete(&self, _claims: Claims, Path(id): Path<i64>) -> Result<StatusCode, ApiError> {
+    async fn delete(
+        &self,
+        RequirePermission(_claims, _): RequirePermission<AppDeletePermission>,
+        Path(id): Path<i64>,
+    ) -> Result<StatusCode, ApiError> {
         self.service
             .delete(id)
             .await
@@ -85,7 +98,7 @@ impl RegistryController {
     #[post("/{id}/test")]
     async fn test_connection(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppReadPermission>,
         Path(id): Path<i64>,
     ) -> Result<StatusCode, ApiError> {
         self.service
@@ -98,7 +111,7 @@ impl RegistryController {
     #[post("/test-raw")]
     async fn test_connection_raw(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppCreatePermission>,
         ValidatedJson(body): ValidatedJson<TestRegistryDto>,
     ) -> Result<StatusCode, ApiError> {
         self.service

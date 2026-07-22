@@ -7,9 +7,14 @@ use crate::{
     api::dto::schedule::{
         CreateScheduleDto, PatchScheduleDto, ScheduleResponseDto, ScheduleRunResponseDto,
     },
-    core::middleware::validator::ValidatedJson,
+    core::middleware::{
+        permission::{
+            AppCreatePermission, AppDeletePermission, AppDeployPermission, AppReadPermission,
+            RequirePermission,
+        },
+        validator::ValidatedJson,
+    },
     services::schedule::ScheduleService,
-    utils::jwt::claim::Claims,
 };
 
 type ApiError = (StatusCode, String);
@@ -27,7 +32,7 @@ impl ScheduleController {
     #[get("/{id}")]
     async fn get(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppReadPermission>,
         Path(id): Path<i64>,
     ) -> Result<Json<ScheduleResponseDto>, ApiError> {
         self.service
@@ -41,7 +46,7 @@ impl ScheduleController {
     #[get("/application/{application_id}")]
     async fn list_by_application(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppReadPermission>,
         Path(application_id): Path<i64>,
     ) -> Result<Json<Vec<ScheduleResponseDto>>, ApiError> {
         self.service
@@ -55,7 +60,7 @@ impl ScheduleController {
     #[get("/compose/{compose_id}")]
     async fn list_by_compose(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppReadPermission>,
         Path(compose_id): Path<i64>,
     ) -> Result<Json<Vec<ScheduleResponseDto>>, ApiError> {
         self.service
@@ -69,7 +74,7 @@ impl ScheduleController {
     #[get("/server/{server_id}")]
     async fn list_by_server(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppReadPermission>,
         Path(server_id): Path<i64>,
     ) -> Result<Json<Vec<ScheduleResponseDto>>, ApiError> {
         self.service
@@ -83,7 +88,7 @@ impl ScheduleController {
     #[get("/organization/{organization_id}")]
     async fn list_by_organization(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppReadPermission>,
         Path(organization_id): Path<i64>,
     ) -> Result<Json<Vec<ScheduleResponseDto>>, ApiError> {
         self.service
@@ -97,7 +102,7 @@ impl ScheduleController {
     #[post]
     async fn create(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppCreatePermission>,
         ValidatedJson(body): ValidatedJson<CreateScheduleDto>,
     ) -> Result<(StatusCode, Json<ScheduleResponseDto>), ApiError> {
         self.service
@@ -111,7 +116,7 @@ impl ScheduleController {
     #[patch("/{id}")]
     async fn patch(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppCreatePermission>,
         Path(id): Path<i64>,
         ValidatedJson(body): ValidatedJson<PatchScheduleDto>,
     ) -> Result<Json<ScheduleResponseDto>, ApiError> {
@@ -123,50 +128,26 @@ impl ScheduleController {
             .map_err(map_sqlx_error)
     }
 
-    #[patch("/{id}/enable")]
-    async fn enable(
-        &self,
-        _claims: Claims,
-        Path(id): Path<i64>,
-    ) -> Result<Json<ScheduleResponseDto>, ApiError> {
-        self.service
-            .set_enabled(id, true)
-            .await
-            .map(ScheduleResponseDto::from)
-            .map(Json)
-            .map_err(map_sqlx_error)
-    }
-
-    #[patch("/{id}/disable")]
-    async fn disable(
-        &self,
-        _claims: Claims,
-        Path(id): Path<i64>,
-    ) -> Result<Json<ScheduleResponseDto>, ApiError> {
-        self.service
-            .set_enabled(id, false)
-            .await
-            .map(ScheduleResponseDto::from)
-            .map(Json)
-            .map_err(map_sqlx_error)
-    }
-
     #[post("/{id}/run")]
-    async fn run_now(
+    async fn run_manual(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppDeployPermission>,
         Path(id): Path<i64>,
-    ) -> Result<(StatusCode, Json<ScheduleRunResponseDto>), ApiError> {
+    ) -> Result<Json<ScheduleRunResponseDto>, ApiError> {
         self.service
             .run_now(id)
             .await
             .map(ScheduleRunResponseDto::from)
-            .map(|response| (StatusCode::ACCEPTED, Json(response)))
+            .map(Json)
             .map_err(map_sqlx_error)
     }
 
     #[delete("/{id}")]
-    async fn delete(&self, _claims: Claims, Path(id): Path<i64>) -> Result<StatusCode, ApiError> {
+    async fn delete(
+        &self,
+        RequirePermission(_claims, _): RequirePermission<AppDeletePermission>,
+        Path(id): Path<i64>,
+    ) -> Result<StatusCode, ApiError> {
         self.service
             .delete(id)
             .await
@@ -178,10 +159,6 @@ impl ScheduleController {
 fn map_sqlx_error(error: sqlx::Error) -> ApiError {
     match error {
         sqlx::Error::RowNotFound => (StatusCode::NOT_FOUND, "schedule not found".into()),
-        sqlx::Error::Protocol(message) if message.contains("already running") => {
-            (StatusCode::CONFLICT, message)
-        }
-        sqlx::Error::Protocol(message) => (StatusCode::BAD_REQUEST, message),
         sqlx::Error::Database(ref database_error) if database_error.is_foreign_key_violation() => {
             (StatusCode::NOT_FOUND, "related resource not found".into())
         }
@@ -195,7 +172,7 @@ fn map_sqlx_error(error: sqlx::Error) -> ApiError {
             tracing::error!(error = %other, "schedule database operation failed");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                "database operation failed".into(),
+                "schedule operation failed".into(),
             )
         }
     }

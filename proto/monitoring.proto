@@ -1,0 +1,70 @@
+syntax = "proto3";
+
+package monitoring;
+
+service MonitoringService {
+  rpc PushSystemMetrics (SystemMetricsRequest) returns (MetricsResponse);
+  rpc PushContainerMetrics (ContainerMetricsRequest) returns (MetricsResponse);
+  rpc StreamLogs (LogStreamRequest) returns (stream LogChunk);
+  rpc ReportHealth (HealthReportRequest) returns (HealthReportResponse);
+}
+
+message SystemMetricsRequest {
+  int64 server_id = 1;
+  double cpu_usage = 2;
+  double memory_used_mb = 3;
+  double memory_total_mb = 4;
+  double memory_percent = 5;
+  double disk_used_gb = 6;
+  double disk_total_gb = 7;
+  double disk_percent = 8;
+  double net_rx_kbps = 9;
+  double net_tx_kbps = 10;
+  int64 timestamp = 11;
+}
+
+message ContainerMetricsRequest {
+  int64 server_id = 1;
+  int64 application_id = 2;
+  int64 compose_id = 3;
+  string container_id = 4;
+  string container_name = 5;
+  double cpu_percent = 6;
+  double memory_used_mb = 7;
+  double memory_limit_mb = 8;
+  double net_rx_kbps = 9;
+  double net_tx_kbps = 10;
+  int64 timestamp = 11;
+}
+
+message MetricsResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message LogStreamRequest {
+  int64 application_id = 1;
+  int64 compose_id = 2;
+  string container_id = 3;
+  int32 tail_lines = 4;
+}
+
+message LogChunk {
+  string container_id = 5;
+  string log_line = 6;
+  int64 timestamp = 7;
+  bool is_stderr = 8;
+}
+
+message HealthReportRequest {
+  int64 target_id = 1;
+  string target_type = 2; // "APPLICATION", "DATABASE", "SERVER"
+  string status = 3;      // "HEALTHY", "UNHEALTHY", "DEGRADED"
+  int32 response_time_ms = 4;
+  string error_message = 5;
+  int64 timestamp = 6;
+}
+
+message HealthReportResponse {
+  bool acknowledged = 1;
+}

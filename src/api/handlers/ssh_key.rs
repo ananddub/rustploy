@@ -5,9 +5,13 @@ use axum::{Json, extract::Path, http::StatusCode};
 
 use crate::{
     api::dto::ssh_key::{CreateSshKeyDto, GenerateSshKeyDto, PatchSshKeyDto, SshKeyResponseDto},
-    core::middleware::validator::ValidatedJson,
+    core::middleware::{
+        permission::{
+            RequirePermission, ServerCreatePermission, ServerDeletePermission, ServerReadPermission,
+        },
+        validator::ValidatedJson,
+    },
     services::ssh_key::SshKeyService,
-    utils::jwt::claim::Claims,
 };
 
 type ApiError = (StatusCode, String);
@@ -23,7 +27,10 @@ impl SshKeyController {
     }
 
     #[get]
-    async fn list(&self, _claims: Claims) -> Result<Json<Vec<SshKeyResponseDto>>, ApiError> {
+    async fn list(
+        &self,
+        RequirePermission(_claims, _): RequirePermission<ServerReadPermission>,
+    ) -> Result<Json<Vec<SshKeyResponseDto>>, ApiError> {
         self.service
             .list()
             .await
@@ -35,7 +42,7 @@ impl SshKeyController {
     #[get("/{id}")]
     async fn get(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<ServerReadPermission>,
         Path(id): Path<i64>,
     ) -> Result<Json<SshKeyResponseDto>, ApiError> {
         self.service
@@ -49,7 +56,7 @@ impl SshKeyController {
     #[post]
     async fn create(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<ServerCreatePermission>,
         ValidatedJson(body): ValidatedJson<CreateSshKeyDto>,
     ) -> Result<(StatusCode, Json<SshKeyResponseDto>), ApiError> {
         self.service
@@ -63,7 +70,7 @@ impl SshKeyController {
     #[post("/generate")]
     async fn generate(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<ServerCreatePermission>,
         ValidatedJson(body): ValidatedJson<GenerateSshKeyDto>,
     ) -> Result<(StatusCode, Json<SshKeyResponseDto>), ApiError> {
         self.service
@@ -77,7 +84,7 @@ impl SshKeyController {
     #[patch("/{id}")]
     async fn patch(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<ServerCreatePermission>,
         Path(id): Path<i64>,
         ValidatedJson(body): ValidatedJson<PatchSshKeyDto>,
     ) -> Result<Json<SshKeyResponseDto>, ApiError> {
@@ -92,7 +99,7 @@ impl SshKeyController {
     #[post("/{id}/mark-used")]
     async fn mark_used(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<ServerCreatePermission>,
         Path(id): Path<i64>,
     ) -> Result<Json<SshKeyResponseDto>, ApiError> {
         self.service
@@ -104,7 +111,11 @@ impl SshKeyController {
     }
 
     #[delete("/{id}")]
-    async fn delete(&self, _claims: Claims, Path(id): Path<i64>) -> Result<StatusCode, ApiError> {
+    async fn delete(
+        &self,
+        RequirePermission(_claims, _): RequirePermission<ServerDeletePermission>,
+        Path(id): Path<i64>,
+    ) -> Result<StatusCode, ApiError> {
         self.service
             .delete(id)
             .await

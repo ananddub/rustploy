@@ -5,9 +5,11 @@ use axum::{Json, extract::Path, http::StatusCode};
 
 use crate::{
     api::dto::environment::{CreateEnvironmentDto, EnvironmentResponseDto, PatchEnvironmentDto},
-    core::middleware::validator::ValidatedJson,
+    core::middleware::{
+        permission::{EnvReadPermission, EnvWritePermission, RequirePermission},
+        validator::ValidatedJson,
+    },
     services::environment::EnvironmentService,
-    utils::jwt::claim::Claims,
 };
 
 type ApiError = (StatusCode, String);
@@ -25,7 +27,7 @@ impl EnvironmentController {
     #[get("/{id}")]
     async fn get(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<EnvReadPermission>,
         Path(id): Path<i64>,
     ) -> Result<Json<EnvironmentResponseDto>, ApiError> {
         self.service
@@ -39,7 +41,7 @@ impl EnvironmentController {
     #[get("/project/{project_id}")]
     async fn list_by_project(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<EnvReadPermission>,
         Path(project_id): Path<i64>,
     ) -> Result<Json<Vec<EnvironmentResponseDto>>, ApiError> {
         self.service
@@ -58,7 +60,7 @@ impl EnvironmentController {
     #[post]
     async fn create(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<EnvWritePermission>,
         ValidatedJson(body): ValidatedJson<CreateEnvironmentDto>,
     ) -> Result<(StatusCode, Json<EnvironmentResponseDto>), ApiError> {
         self.service
@@ -72,7 +74,7 @@ impl EnvironmentController {
     #[patch("/{id}")]
     async fn patch(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<EnvWritePermission>,
         Path(id): Path<i64>,
         ValidatedJson(body): ValidatedJson<PatchEnvironmentDto>,
     ) -> Result<Json<EnvironmentResponseDto>, ApiError> {
@@ -87,7 +89,7 @@ impl EnvironmentController {
     #[put("/{id}/default")]
     async fn set_default(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<EnvWritePermission>,
         Path(id): Path<i64>,
     ) -> Result<Json<EnvironmentResponseDto>, ApiError> {
         self.service
@@ -99,7 +101,11 @@ impl EnvironmentController {
     }
 
     #[delete("/{id}")]
-    async fn delete(&self, _claims: Claims, Path(id): Path<i64>) -> Result<StatusCode, ApiError> {
+    async fn delete(
+        &self,
+        RequirePermission(_claims, _): RequirePermission<EnvWritePermission>,
+        Path(id): Path<i64>,
+    ) -> Result<StatusCode, ApiError> {
         self.service
             .delete(id)
             .await

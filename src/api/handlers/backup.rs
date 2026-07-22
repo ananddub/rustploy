@@ -5,21 +5,23 @@ use axum::{Json, extract::Path, http::StatusCode};
 use serde::Deserialize;
 
 use crate::{
-    services::schedule::ScheduleService,
-    utils::jwt::claim::Claims,
-};
-
-type ApiError = (StatusCode, String);
-
-use crate::{
     api::dto::backup::{
-        CreateBackupDto, CreateVolumeBackupDto, PatchBackupDto, PatchVolumeBackupDto,
-        BackupResponseDto, VolumeBackupResponseDto,
+        BackupResponseDto, CreateBackupDto, CreateVolumeBackupDto, PatchBackupDto,
+        PatchVolumeBackupDto, VolumeBackupResponseDto,
+    },
+    core::middleware::{
+        permission::{
+            AppDeployPermission, DatabaseCreatePermission, DatabaseDeletePermission,
+            DatabaseReadPermission, RequirePermission,
+        },
+        validator::ValidatedJson,
     },
     db::models::{backups::Backup, volume_backups::VolumeBackup},
     repository::{backups::BackupRepository, volume_backups::VolumeBackupRepository},
-    core::middleware::validator::ValidatedJson,
+    services::schedule::ScheduleService,
 };
+
+type ApiError = (StatusCode, String);
 
 pub struct BackupController {
     service: Arc<ScheduleService>,
@@ -43,7 +45,10 @@ impl BackupController {
     }
 
     #[get("/database")]
-    async fn list_database_backups(&self, _claims: Claims) -> Result<Json<Vec<BackupResponseDto>>, ApiError> {
+    async fn list_database_backups(
+        &self,
+        RequirePermission(_claims, _): RequirePermission<DatabaseReadPermission>,
+    ) -> Result<Json<Vec<BackupResponseDto>>, ApiError> {
         self.repo_backup
             .get_all()
             .await
@@ -53,7 +58,11 @@ impl BackupController {
     }
 
     #[get("/database/{id}")]
-    async fn get_database_backup(&self, _claims: Claims, Path(id): Path<i64>) -> Result<Json<BackupResponseDto>, ApiError> {
+    async fn get_database_backup(
+        &self,
+        RequirePermission(_claims, _): RequirePermission<DatabaseReadPermission>,
+        Path(id): Path<i64>,
+    ) -> Result<Json<BackupResponseDto>, ApiError> {
         self.repo_backup
             .get_by_id(id)
             .await
@@ -67,7 +76,7 @@ impl BackupController {
     #[post("/database")]
     async fn create_database_backup(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<DatabaseCreatePermission>,
         ValidatedJson(dto): ValidatedJson<CreateBackupDto>,
     ) -> Result<(StatusCode, Json<BackupResponseDto>), ApiError> {
         let item = Backup {
@@ -108,7 +117,7 @@ impl BackupController {
     #[patch("/database/{id}")]
     async fn patch_database_backup(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<DatabaseCreatePermission>,
         Path(id): Path<i64>,
         ValidatedJson(dto): ValidatedJson<PatchBackupDto>,
     ) -> Result<Json<BackupResponseDto>, ApiError> {
@@ -140,7 +149,7 @@ impl BackupController {
     #[delete("/database/{id}")]
     async fn delete_database_backup(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<DatabaseDeletePermission>,
         Path(id): Path<i64>,
     ) -> Result<StatusCode, ApiError> {
         self.repo_backup.delete(id).await.map_err(map_sqlx_error)?;
@@ -150,7 +159,7 @@ impl BackupController {
     #[post("/database/{id}/run")]
     async fn run_database_backup(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppDeployPermission>,
         Path(id): Path<i64>,
     ) -> Result<StatusCode, ApiError> {
         self.service
@@ -161,7 +170,10 @@ impl BackupController {
     }
 
     #[get("/volume")]
-    async fn list_volume_backups(&self, _claims: Claims) -> Result<Json<Vec<VolumeBackupResponseDto>>, ApiError> {
+    async fn list_volume_backups(
+        &self,
+        RequirePermission(_claims, _): RequirePermission<DatabaseReadPermission>,
+    ) -> Result<Json<Vec<VolumeBackupResponseDto>>, ApiError> {
         self.repo_volume
             .get_all()
             .await
@@ -171,7 +183,11 @@ impl BackupController {
     }
 
     #[get("/volume/{id}")]
-    async fn get_volume_backup(&self, _claims: Claims, Path(id): Path<i64>) -> Result<Json<VolumeBackupResponseDto>, ApiError> {
+    async fn get_volume_backup(
+        &self,
+        RequirePermission(_claims, _): RequirePermission<DatabaseReadPermission>,
+        Path(id): Path<i64>,
+    ) -> Result<Json<VolumeBackupResponseDto>, ApiError> {
         self.repo_volume
             .get_by_id(id)
             .await
@@ -185,7 +201,7 @@ impl BackupController {
     #[post("/volume")]
     async fn create_volume_backup(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<DatabaseCreatePermission>,
         ValidatedJson(dto): ValidatedJson<CreateVolumeBackupDto>,
     ) -> Result<(StatusCode, Json<VolumeBackupResponseDto>), ApiError> {
         let item = VolumeBackup {
@@ -227,7 +243,7 @@ impl BackupController {
     #[patch("/volume/{id}")]
     async fn patch_volume_backup(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<DatabaseCreatePermission>,
         Path(id): Path<i64>,
         ValidatedJson(dto): ValidatedJson<PatchVolumeBackupDto>,
     ) -> Result<Json<VolumeBackupResponseDto>, ApiError> {
@@ -259,7 +275,7 @@ impl BackupController {
     #[delete("/volume/{id}")]
     async fn delete_volume_backup(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<DatabaseDeletePermission>,
         Path(id): Path<i64>,
     ) -> Result<StatusCode, ApiError> {
         self.repo_volume.delete(id).await.map_err(map_sqlx_error)?;
@@ -269,7 +285,7 @@ impl BackupController {
     #[post("/volume/{id}/run")]
     async fn run_volume_backup(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppDeployPermission>,
         Path(id): Path<i64>,
     ) -> Result<StatusCode, ApiError> {
         self.service
@@ -282,7 +298,7 @@ impl BackupController {
     #[post("/database/{id}/restore")]
     async fn restore_database_backup(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppDeployPermission>,
         Path(id): Path<i64>,
         Json(body): Json<RestoreBackupDto>,
     ) -> Result<StatusCode, ApiError> {
@@ -296,7 +312,7 @@ impl BackupController {
     #[post("/volume/{id}/restore")]
     async fn restore_volume_backup(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppDeployPermission>,
         Path(id): Path<i64>,
         Json(body): Json<RestoreBackupDto>,
     ) -> Result<StatusCode, ApiError> {

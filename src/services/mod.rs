@@ -8,6 +8,7 @@ pub mod destination;
 pub mod domain;
 pub mod environment;
 pub mod organization;
+pub mod permission;
 pub mod project;
 pub mod public;
 pub mod registry;

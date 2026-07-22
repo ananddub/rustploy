@@ -3,10 +3,12 @@ use crate::{
         ServerAuditDto, ServerConnectionDto, ServerConnectionResponseDto, SetupOutcomeDto,
         SetupServerDto,
     },
+    core::middleware::permission::{
+        RequirePermission, ServerCreatePermission, ServerDeletePermission, ServerReadPermission,
+    },
     services::remote_server::ServerService,
     utils::{
         exec::{ExecError, RemoteExecutor, SshAuth, SshHostKey},
-        jwt::claim::Claims,
         setup::{ServerSetup, SetupConfig},
     },
 };
@@ -29,7 +31,7 @@ impl ServerController {
     #[post("/{id}/test-connection")]
     async fn test_connection(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<ServerReadPermission>,
         Path(id): Path<i64>,
         Json(body): Json<ServerConnectionDto>,
     ) -> Result<Json<ServerConnectionResponseDto>, ApiError> {
@@ -63,7 +65,7 @@ impl ServerController {
     #[post("/{id}/audit")]
     async fn audit(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<ServerReadPermission>,
         Path(id): Path<i64>,
         Json(body): Json<ServerConnectionDto>,
     ) -> Result<Json<ServerAuditDto>, ApiError> {
@@ -90,7 +92,7 @@ impl ServerController {
     #[post("/{id}/setup")]
     async fn setup(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<ServerCreatePermission>,
         Path(id): Path<i64>,
         Json(body): Json<SetupServerDto>,
     ) -> Result<Json<SetupOutcomeDto>, ApiError> {
@@ -126,7 +128,7 @@ impl ServerController {
     #[get("/{id}/sessions")]
     async fn sessions(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<ServerReadPermission>,
         Path(id): Path<i64>,
     ) -> Result<Json<ServerConnectionResponseDto>, ApiError> {
         self.service
@@ -145,7 +147,11 @@ impl ServerController {
     }
 
     #[delete("/{id}/sessions")]
-    async fn clear_sessions(&self, _claims: Claims, Path(_id): Path<i64>) -> StatusCode {
+    async fn clear_sessions(
+        &self,
+        RequirePermission(_claims, _): RequirePermission<ServerDeletePermission>,
+        Path(_id): Path<i64>,
+    ) -> StatusCode {
         StatusCode::NO_CONTENT
     }
 

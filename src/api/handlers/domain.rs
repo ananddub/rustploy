@@ -5,9 +5,13 @@ use axum::{Json, extract::Path, http::StatusCode};
 
 use crate::{
     api::dto::domain::{CreateDomainDto, DomainResponseDto, PatchDomainDto},
-    core::middleware::validator::ValidatedJson,
+    core::middleware::{
+        permission::{
+            AppCreatePermission, AppDeletePermission, AppReadPermission, RequirePermission,
+        },
+        validator::ValidatedJson,
+    },
     services::domain::DomainService,
-    utils::jwt::claim::Claims,
 };
 
 type ApiError = (StatusCode, String);
@@ -25,7 +29,7 @@ impl DomainController {
     #[get("/{id}")]
     async fn get(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppReadPermission>,
         Path(id): Path<i64>,
     ) -> Result<Json<DomainResponseDto>, ApiError> {
         self.service
@@ -39,7 +43,7 @@ impl DomainController {
     #[get("/application/{application_id}")]
     async fn list_by_application(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppReadPermission>,
         Path(application_id): Path<i64>,
     ) -> Result<Json<Vec<DomainResponseDto>>, ApiError> {
         self.service
@@ -53,7 +57,7 @@ impl DomainController {
     #[get("/compose/{compose_id}")]
     async fn list_by_compose(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppReadPermission>,
         Path(compose_id): Path<i64>,
     ) -> Result<Json<Vec<DomainResponseDto>>, ApiError> {
         self.service
@@ -67,7 +71,7 @@ impl DomainController {
     #[post]
     async fn create(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppCreatePermission>,
         ValidatedJson(body): ValidatedJson<CreateDomainDto>,
     ) -> Result<(StatusCode, Json<DomainResponseDto>), ApiError> {
         self.service
@@ -81,7 +85,7 @@ impl DomainController {
     #[patch("/{id}")]
     async fn patch(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppCreatePermission>,
         Path(id): Path<i64>,
         ValidatedJson(body): ValidatedJson<PatchDomainDto>,
     ) -> Result<Json<DomainResponseDto>, ApiError> {
@@ -94,7 +98,11 @@ impl DomainController {
     }
 
     #[delete("/{id}")]
-    async fn delete(&self, _claims: Claims, Path(id): Path<i64>) -> Result<StatusCode, ApiError> {
+    async fn delete(
+        &self,
+        RequirePermission(_claims, _): RequirePermission<AppDeletePermission>,
+        Path(id): Path<i64>,
+    ) -> Result<StatusCode, ApiError> {
         self.service
             .delete(id)
             .await

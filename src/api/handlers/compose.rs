@@ -10,14 +10,17 @@ use crate::{
         PatchComposeGiteaSourceDto, PatchComposeGithubSourceDto, PatchComposeGitlabSourceDto,
         PatchComposeRawSourceDto,
     },
-    core::middleware::validator::ValidatedJson,
+    core::middleware::{
+        permission::{
+            AppCreatePermission, AppDeletePermission, AppDeployPermission, AppReadPermission,
+            RequirePermission,
+        },
+        validator::ValidatedJson,
+    },
     services::compose::{ComposeOperation, ComposeService},
-    utils::jwt::claim::Claims,
 };
 
 type ApiError = (StatusCode, String);
-
-
 
 pub struct ComposeController {
     service: Arc<ComposeService>,
@@ -32,7 +35,7 @@ impl ComposeController {
     #[get("/{id}")]
     async fn get(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppReadPermission>,
         Path(id): Path<i64>,
     ) -> Result<Json<ComposeResponseDto>, ApiError> {
         self.service
@@ -46,7 +49,7 @@ impl ComposeController {
     #[get("/environment/{environment_id}")]
     async fn list_by_environment(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppReadPermission>,
         Path(environment_id): Path<i64>,
     ) -> Result<Json<Vec<ComposeResponseDto>>, ApiError> {
         self.service
@@ -60,7 +63,7 @@ impl ComposeController {
     #[post]
     async fn create(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppCreatePermission>,
         ValidatedJson(body): ValidatedJson<CreateComposeDto>,
     ) -> Result<(StatusCode, Json<ComposeResponseDto>), ApiError> {
         self.service
@@ -74,7 +77,7 @@ impl ComposeController {
     #[patch("/{id}")]
     async fn patch(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppCreatePermission>,
         Path(id): Path<i64>,
         ValidatedJson(body): ValidatedJson<PatchComposeDto>,
     ) -> Result<Json<ComposeResponseDto>, ApiError> {
@@ -89,7 +92,7 @@ impl ComposeController {
     #[patch("/{id}/source/github")]
     async fn patch_github_source(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppCreatePermission>,
         Path(id): Path<i64>,
         ValidatedJson(body): ValidatedJson<PatchComposeGithubSourceDto>,
     ) -> Result<Json<ComposeResponseDto>, ApiError> {
@@ -104,7 +107,7 @@ impl ComposeController {
     #[patch("/{id}/source/gitlab")]
     async fn patch_gitlab_source(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppCreatePermission>,
         Path(id): Path<i64>,
         ValidatedJson(body): ValidatedJson<PatchComposeGitlabSourceDto>,
     ) -> Result<Json<ComposeResponseDto>, ApiError> {
@@ -116,25 +119,10 @@ impl ComposeController {
             .map_err(map_sqlx_error)
     }
 
-    #[patch("/{id}/source/gitea")]
-    async fn patch_gitea_source(
-        &self,
-        _claims: Claims,
-        Path(id): Path<i64>,
-        ValidatedJson(body): ValidatedJson<PatchComposeGiteaSourceDto>,
-    ) -> Result<Json<ComposeResponseDto>, ApiError> {
-        self.service
-            .set_gitea_source(id, body)
-            .await
-            .map(ComposeResponseDto::from)
-            .map(Json)
-            .map_err(map_sqlx_error)
-    }
-
     #[patch("/{id}/source/bitbucket")]
     async fn patch_bitbucket_source(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppCreatePermission>,
         Path(id): Path<i64>,
         ValidatedJson(body): ValidatedJson<PatchComposeBitbucketSourceDto>,
     ) -> Result<Json<ComposeResponseDto>, ApiError> {
@@ -146,10 +134,25 @@ impl ComposeController {
             .map_err(map_sqlx_error)
     }
 
-    #[patch("/{id}/source/git")]
-    async fn patch_custom_git_source(
+    #[patch("/{id}/source/gitea")]
+    async fn patch_gitea_source(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppCreatePermission>,
+        Path(id): Path<i64>,
+        ValidatedJson(body): ValidatedJson<PatchComposeGiteaSourceDto>,
+    ) -> Result<Json<ComposeResponseDto>, ApiError> {
+        self.service
+            .set_gitea_source(id, body)
+            .await
+            .map(ComposeResponseDto::from)
+            .map(Json)
+            .map_err(map_sqlx_error)
+    }
+
+    #[patch("/{id}/source/git")]
+    async fn patch_git_source(
+        &self,
+        RequirePermission(_claims, _): RequirePermission<AppCreatePermission>,
         Path(id): Path<i64>,
         ValidatedJson(body): ValidatedJson<PatchComposeCustomGitSourceDto>,
     ) -> Result<Json<ComposeResponseDto>, ApiError> {
@@ -164,7 +167,7 @@ impl ComposeController {
     #[patch("/{id}/source/raw")]
     async fn patch_raw_source(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppCreatePermission>,
         Path(id): Path<i64>,
         ValidatedJson(body): ValidatedJson<PatchComposeRawSourceDto>,
     ) -> Result<Json<ComposeResponseDto>, ApiError> {
@@ -176,10 +179,10 @@ impl ComposeController {
             .map_err(map_sqlx_error)
     }
 
-    #[post("/{id}/source/drop/upload")]
-    async fn upload_drop_source(
+    #[post("/{id}/source/upload")]
+    async fn upload_source(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppCreatePermission>,
         Path(id): Path<i64>,
         multipart: Multipart,
     ) -> Result<Json<ComposeResponseDto>, ApiError> {
@@ -188,13 +191,13 @@ impl ComposeController {
             .await
             .map(ComposeResponseDto::from)
             .map(Json)
-            .map_err(|e| (StatusCode::BAD_REQUEST, e))
+            .map_err(|err| (StatusCode::BAD_REQUEST, err))
     }
 
     #[post("/{id}/deploy")]
     async fn deploy(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppDeployPermission>,
         Path(id): Path<i64>,
     ) -> Result<(StatusCode, Json<ComposeOperationResponseDto>), ApiError> {
         self.operation(id, ComposeOperation::Deploy).await
@@ -203,7 +206,7 @@ impl ComposeController {
     #[post("/{id}/redeploy")]
     async fn redeploy(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppDeployPermission>,
         Path(id): Path<i64>,
     ) -> Result<(StatusCode, Json<ComposeOperationResponseDto>), ApiError> {
         self.operation(id, ComposeOperation::Redeploy).await
@@ -212,7 +215,7 @@ impl ComposeController {
     #[post("/{id}/reload")]
     async fn reload(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppDeployPermission>,
         Path(id): Path<i64>,
     ) -> Result<(StatusCode, Json<ComposeOperationResponseDto>), ApiError> {
         self.operation(id, ComposeOperation::Reload).await
@@ -221,7 +224,7 @@ impl ComposeController {
     #[post("/{id}/start")]
     async fn start(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppDeployPermission>,
         Path(id): Path<i64>,
     ) -> Result<(StatusCode, Json<ComposeOperationResponseDto>), ApiError> {
         self.operation(id, ComposeOperation::Start).await
@@ -230,12 +233,11 @@ impl ComposeController {
     #[post("/{id}/stop")]
     async fn stop(
         &self,
-        _claims: Claims,
+        RequirePermission(_claims, _): RequirePermission<AppDeployPermission>,
         Path(id): Path<i64>,
     ) -> Result<(StatusCode, Json<ComposeOperationResponseDto>), ApiError> {
-        // self.operation(id, ComposeOperation::Stop).await
         match self.service.cancel_operation(id).await {
-            Ok(true) => Err((StatusCode::ACCEPTED,"your request has been canceled".into())),
+            Ok(true) => Err((StatusCode::ACCEPTED, "your request has been canceled".into())),
             Ok(false) => Err((
                 StatusCode::CONFLICT,
                 "no running compose deployment to cancel".into(),
@@ -245,7 +247,11 @@ impl ComposeController {
     }
 
     #[post("/{id}/cancel")]
-    async fn cancel(&self, _claims: Claims, Path(id): Path<i64>) -> Result<StatusCode, ApiError> {
+    async fn cancel(
+        &self,
+        RequirePermission(_claims, _): RequirePermission<AppDeployPermission>,
+        Path(id): Path<i64>,
+    ) -> Result<StatusCode, ApiError> {
         match self.service.cancel_operation(id).await {
             Ok(true) => Ok(StatusCode::ACCEPTED),
             Ok(false) => Err((
@@ -257,7 +263,11 @@ impl ComposeController {
     }
 
     #[delete("/{id}")]
-    async fn delete(&self, _claims: Claims, Path(id): Path<i64>) -> Result<StatusCode, ApiError> {
+    async fn delete(
+        &self,
+        RequirePermission(_claims, _): RequirePermission<AppDeletePermission>,
+        Path(id): Path<i64>,
+    ) -> Result<StatusCode, ApiError> {
         self.service
             .delete(id)
             .await

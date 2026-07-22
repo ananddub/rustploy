@@ -1,0 +1,99 @@
+use std::sync::Arc;
+use auto_di::singleton;
+
+use crate::db::repository::{GroupRepository, UserRepository, ResourceAccessRepository, UserPolicyRepository};
+use crate::services::permission::types::{PolicyAction, ResourceType, UserRole};
+
+pub struct PermissionService {
+    user_repo: Arc<UserRepository>,
+    group_repo: Arc<GroupRepository>,
+    resource_access_repo: Arc<ResourceAccessRepository>,
+    user_policy_repo: Arc<UserPolicyRepository>,
+}
+
+#[singleton]
+impl PermissionService {
+    pub fn new(
+        user_repo: Arc<UserRepository>,
+        group_repo: Arc<GroupRepository>,
+        resource_access_repo: Arc<ResourceAccessRepository>,
+        user_policy_repo: Arc<UserPolicyRepository>,
+    ) -> Self {
+        Self {
+            user_repo,
+            group_repo,
+            resource_access_repo,
+            user_policy_repo,
+        }
+    }
+
+    /// Check if user has permission for a specific PolicyAction
+    pub async fn check_permission(
+        &self,
+        user_id: i64,
+        org_id: i64,
+        action: PolicyAction,
+    ) -> Result<bool, sqlx::Error> {
+        // 1. Fetch user to check global role
+        if let Some(user) = self.user_repo.get_by_id(user_id).await? {
+            let role_str = user.role.as_deref().unwrap_or("MEMBER");
+            let role = UserRole::from(role_str);
+            if role == UserRole::Owner {
+                return Ok(true); // OWNER bypass
+            }
+        }
+
+        // 2. Fetch final permissions via GroupRepository (evaluates user_policy & group_policy)
+        let perms = self.group_repo.get_user_final_permissions(user_id, org_id).await?;
+        let action_str = action.as_str();
+
+        Ok(perms.iter().any(|p| p == action_str))
+    }
+
+    /// Check if user has access to a specific granular resource
+    pub async fn check_resource_access(
+        &self,
+        user_id: i64,
+        org_id: i64,
+        resource_type: ResourceType,
+        resource_id: i64,
+    ) -> Result<bool, sqlx::Error> {
+        // Check OWNER status first
+        if let Some(user) = self.user_repo.get_by_id(user_id).await? {
+            let role_str = user.role.as_deref().unwrap_or("MEMBER");
+            let role = UserRole::from(role_str);
+            if role == UserRole::Owner {
+                return Ok(true);
+            }
+        }
+
+        self.resource_access_repo
+            .check_access(user_id, org_id, resource_type.as_str(), resource_id)
+            .await
+    }
+
+    /// Set an explicit GRANT or DENY policy override for a user
+    pub async fn set_user_policy_override(
+        &self,
+        user_id: i64,
+        org_id: i64,
+        policy_id: i64,
+        effect: crate::services::permission::types::PolicyEffect,
+    ) -> Result<crate::db::models::user_policy::UserPolicy, sqlx::Error> {
+        self.user_policy_repo
+            .upsert(user_id, org_id, policy_id, effect.as_str())
+            .await
+    }
+
+    /// Remove an explicit user policy override
+    pub async fn remove_user_policy_override(
+        &self,
+        user_id: i64,
+        org_id: i64,
+        policy_id: i64,
+    ) -> Result<(), sqlx::Error> {
+        self.user_policy_repo
+            .delete(user_id, org_id, policy_id)
+            .await
+    }
+}
