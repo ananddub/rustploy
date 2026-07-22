@@ -190,37 +190,44 @@ certificatesResolvers:
 	let skipYaml       = $state(false);
 	let yamlError      = $state('');
 
-	onMount(async () => {
-		const loaderModule = await import('@monaco-editor/loader');
-		const loader = loaderModule.default;
-		// Point loader at CDN so it doesn't try to bundle workers through Vite
-		loader.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.0/min/vs' } });
-		monacoInst = await loader.init();
+	onMount(() => {
+		let isMounted = true;
+		(async () => {
+			const loaderModule = await import('@monaco-editor/loader');
+			const loader = loaderModule.default;
+			// Point loader at CDN so it doesn't try to bundle workers through Vite
+			loader.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.0/min/vs' } });
+			monacoInst = await loader.init();
+			if (!isMounted || !editorEl) return;
 
-		editor = monacoInst.editor.create(editorEl, {
-			value: '',
-			language: 'yaml',
-			theme: 'vs-dark',
-			readOnly: true,
-			fontSize: 13,
-			fontFamily: '"Fira Code", "JetBrains Mono", monospace',
-			minimap: { enabled: false },
-			scrollBeyondLastLine: false,
-			lineNumbers: 'on',
-			wordWrap: 'on',
-			automaticLayout: true,
-			padding: { top: 16, bottom: 16 },
-			renderLineHighlight: 'line',
-			smoothScrolling: true,
-			stickyScroll: { enabled: false },
-		});
+			editor = monacoInst.editor.create(editorEl, {
+				value: '',
+				language: 'yaml',
+				theme: 'vs-dark',
+				readOnly: true,
+				fontSize: 13,
+				fontFamily: '"Fira Code", "JetBrains Mono", monospace',
+				minimap: { enabled: false },
+				scrollBeyondLastLine: false,
+				lineNumbers: 'on',
+				wordWrap: 'on',
+				automaticLayout: true,
+				padding: { top: 16, bottom: 16 },
+				renderLineHighlight: 'line',
+				smoothScrolling: true,
+				stickyScroll: { enabled: false },
+			});
 
-		monacoReady = true;
+			monacoReady = true;
 
-		// If a file was already selected before editor loaded, load it now
-		if (selectedFile) loadFileInEditor(selectedFile);
+			// If a file was already selected before editor loaded, load it now
+			if (selectedFile) loadFileInEditor(selectedFile);
+		})();
 
-		return () => editor?.dispose();
+		return () => {
+			isMounted = false;
+			editor?.dispose();
+		};
 	});
 
 	function loadFileInEditor(path: string) {
