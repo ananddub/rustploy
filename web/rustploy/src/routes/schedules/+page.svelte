@@ -187,7 +187,7 @@
 									</Badge>
 								</div>
 								{#if s.description}
-									<p class="text-xs text-muted-foreground line-clamp-1">{s.description}</p>
+									<p class="text-sm text-muted-foreground line-clamp-1">{s.description}</p>
 								{/if}
 								<div class="flex items-center gap-2 flex-wrap">
 									<Badge variant="outline" class="font-mono text-[10px] bg-transparent">{s.cron}</Badge>
@@ -247,7 +247,7 @@
 			<div class="flex items-start justify-between gap-3">
 				<div>
 					<h2 class="text-base font-semibold">{editingId !== null ? 'Edit' : 'Create'} Schedule</h2>
-					<p class="text-xs text-muted-foreground mt-0.5">
+					<p class="text-sm text-muted-foreground mt-0.5">
 						{editingId !== null ? 'Update the schedule settings' : 'Set up a new automated task'}
 					</p>
 				</div>
@@ -256,19 +256,19 @@
 
 			<!-- Name -->
 			<div class="flex flex-col gap-1.5">
-				<Label for="m-name" class="text-xs text-muted-foreground">Name <span class="text-destructive">*</span></Label>
+				<Label for="m-name" class="text-sm text-muted-foreground">Name <span class="text-destructive">*</span></Label>
 				<Input id="m-name" placeholder="Daily Database Backup" bind:value={fName} required />
 			</div>
 
 			<!-- Description -->
 			<div class="flex flex-col gap-1.5">
-				<Label for="m-desc" class="text-xs text-muted-foreground">Description</Label>
+				<Label for="m-desc" class="text-sm text-muted-foreground">Description</Label>
 				<Input id="m-desc" placeholder="Optional description" bind:value={fDesc} />
 			</div>
 
 			<!-- Cron preset picker -->
 			<div class="flex flex-col gap-1.5">
-				<Label class="text-xs text-muted-foreground">Schedule <span class="text-destructive">*</span></Label>
+				<Label class="text-sm text-muted-foreground">Schedule <span class="text-destructive">*</span></Label>
 				<Select.Root type="single" value={fPreset} onValueChange={handlePreset}>
 					<Select.Trigger class="w-full">
 						<span class="text-sm">{cronPresets.find(p => p.value === fPreset)?.label ?? 'Custom'}</span>
@@ -286,7 +286,7 @@
 			<!-- Shell + Command side by side -->
 			<div class="grid grid-cols-3 gap-3">
 				<div class="flex flex-col gap-1.5">
-					<Label class="text-xs text-muted-foreground">Shell</Label>
+					<Label class="text-sm text-muted-foreground">Shell</Label>
 					<Select.Root type="single" value={fShell} onValueChange={(v) => (fShell = (v ?? 'bash') as 'bash' | 'sh')}>
 						<Select.Trigger><span class="text-sm font-mono">{fShell}</span></Select.Trigger>
 						<Select.Content>
@@ -296,14 +296,14 @@
 					</Select.Root>
 				</div>
 				<div class="col-span-2 flex flex-col gap-1.5">
-					<Label for="m-cmd" class="text-xs text-muted-foreground">Command <span class="text-destructive">*</span></Label>
+					<Label for="m-cmd" class="text-sm text-muted-foreground">Command <span class="text-destructive">*</span></Label>
 					<Input id="m-cmd" placeholder="npm run backup" bind:value={fCommand} class="font-mono text-sm" />
 				</div>
 			</div>
 
 			<!-- Service -->
 			<div class="flex flex-col gap-1.5">
-				<Label for="m-svc" class="text-xs text-muted-foreground">Service <span class="text-muted-foreground/50">(optional)</span></Label>
+				<Label for="m-svc" class="text-sm text-muted-foreground">Service <span class="text-muted-foreground/50">(optional)</span></Label>
 				<Input id="m-svc" placeholder="my-service-name" bind:value={fService} />
 			</div>
 
@@ -344,7 +344,7 @@
 				</div>
 				<div>
 					<h2 class="text-sm font-semibold">Delete Schedule</h2>
-					<p class="text-xs text-muted-foreground mt-0.5">
+					<p class="text-sm text-muted-foreground mt-0.5">
 						Delete <strong class="text-foreground">{target?.name}</strong>? This cannot be undone.
 					</p>
 				</div>

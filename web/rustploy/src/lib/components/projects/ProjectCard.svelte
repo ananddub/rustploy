@@ -78,7 +78,7 @@
 			</div>
 		{:else}
 			<p class="font-medium text-sm group-hover:text-primary transition-colors">{project.name}</p>
-			<p class="text-xs text-muted-foreground mt-0.5">
+			<p class="text-sm text-muted-foreground mt-0.5">
 				{#if project.description}
 					{project.description}
 				{:else}
@@ -90,8 +90,8 @@
 
 	{#if !isEditing}
 		<div class="text-right hidden sm:block shrink-0">
-			<p class="text-xs font-mono text-muted-foreground/50">{project.env_var}</p>
-			<p class="text-xs text-muted-foreground/50 mt-0.5">{formatDate(project.created_at)}</p>
+			<p class="text-sm font-mono text-muted-foreground/50">{project.env_var}</p>
+			<p class="text-sm text-muted-foreground/50 mt-0.5">{formatDate(project.created_at)}</p>
 		</div>
 	{/if}
 

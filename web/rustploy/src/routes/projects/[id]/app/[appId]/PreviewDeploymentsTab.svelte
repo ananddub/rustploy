@@ -53,7 +53,7 @@
 					<div class="flex flex-col gap-1.5">
 						<label for="prev-wildcard" class="text-sm font-medium text-muted-foreground">Wildcard Domain</label>
 						<input id="prev-wildcard" class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring" placeholder="*.preview.example.com" bind:value={wildcard} />
-						<p class="text-xs text-muted-foreground">Subdomains will be generated per branch.</p>
+						<p class="text-sm text-muted-foreground">Subdomains will be generated per branch.</p>
 					</div>
 					<div class="flex flex-col gap-1.5">
 						<label for="prev-port" class="text-sm font-medium text-muted-foreground">Exposed Port</label>

@@ -70,7 +70,7 @@
 			<div class="flex items-center justify-between mb-3">
 				<div>
 					<h1 class="text-lg font-semibold leading-tight">{name || '…'}</h1>
-					<p class="text-xs text-muted-foreground mt-0.5 font-mono">{appName}</p>
+					<p class="text-sm text-muted-foreground mt-0.5 font-mono">{appName}</p>
 				</div>
 				<div class="flex items-center gap-1.5">
 					<button

@@ -59,8 +59,8 @@
 									<Table.Cell class="text-sm font-medium">{node.hostname}</Table.Cell>
 									<Table.Cell><Badge variant={node.role === 'manager' ? 'default' : 'outline'} class="text-[10px] capitalize">{node.role}</Badge></Table.Cell>
 									<Table.Cell><Badge variant="default" class="text-[10px]">{node.status}</Badge></Table.Cell>
-									<Table.Cell class="text-xs">{node.availability}</Table.Cell>
-									<Table.Cell class="text-xs font-mono text-muted-foreground">{node.ip}</Table.Cell>
+									<Table.Cell class="text-sm">{node.availability}</Table.Cell>
+									<Table.Cell class="text-sm font-mono text-muted-foreground">{node.ip}</Table.Cell>
 									<Table.Cell class="text-[10px] font-mono text-muted-foreground">{node.id}</Table.Cell>
 									<Table.Cell>
 										<Button variant="ghost" size="sm" class="h-7 w-7 p-0"><Trash2 class="w-3.5 h-3.5 text-destructive" /></Button>

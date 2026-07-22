@@ -256,7 +256,7 @@
 		<!-- RAW — Monaco editor -->
 		{#if provider === 'RAW'}
 			<p class="text-sm font-medium mb-1">Compose File</p>
-			<p class="text-xs text-muted-foreground mb-3">Edit your Docker Compose YAML directly.</p>
+			<p class="text-sm text-muted-foreground mb-3">Edit your Docker Compose YAML directly.</p>
 			<div class="rounded-md overflow-hidden border border-border" style="height: 420px">
 				<div bind:this={editorContainer} style="height: 100%; width: 100%"></div>
 			</div>
@@ -315,7 +315,7 @@
 				<div class="flex flex-col gap-1.5">
 					<label for="cgit-url" class="text-sm font-medium text-muted-foreground">Repository URL</label>
 					<input id="cgit-url" class="{inputCls} font-mono" placeholder="https://github.com/user/repo.git" bind:value={gitUrl} />
-					<p class="text-xs text-muted-foreground">Branches are fetched automatically as you type.</p>
+					<p class="text-sm text-muted-foreground">Branches are fetched automatically as you type.</p>
 				</div>
 				<div class="flex flex-col gap-1.5">
 					<label for="cgn-sshkey" class="text-sm font-medium text-muted-foreground">SSH Key</label>

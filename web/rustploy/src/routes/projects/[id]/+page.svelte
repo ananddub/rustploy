@@ -149,9 +149,9 @@
 
 	<!-- Env description + stats -->
 	<div class="px-8 pt-5 pb-3 flex items-center justify-between">
-		<p class="text-xs text-muted-foreground">{selectedEnv?.description ?? 'Production environment'}</p>
+		<p class="text-sm text-muted-foreground">{selectedEnv?.description ?? 'Production environment'}</p>
 		{#if !appsLoading && totalServices > 0}
-			<p class="text-xs text-muted-foreground">
+			<p class="text-sm text-muted-foreground">
 				{apps.length} app{apps.length !== 1 ? 's' : ''}
 				{#if composes.length} · {composes.length} compose{/if}
 				{#if databases.length} · {databases.length} db{/if}
@@ -199,7 +199,7 @@
 							</div>
 							<div class="min-w-0">
 								<p class="font-medium text-sm truncate group-hover:text-primary transition-colors">{compose.name}</p>
-								<p class="text-xs text-muted-foreground">compose</p>
+								<p class="text-sm text-muted-foreground">compose</p>
 							</div>
 						</div>
 						<div class="flex items-center justify-between border-t border-border pt-2">
@@ -228,7 +228,7 @@
 							</div>
 							<div class="min-w-0">
 								<p class="font-medium text-sm truncate group-hover:text-primary transition-colors">{db.name}</p>
-								<p class="text-xs text-muted-foreground capitalize">{db.kind}</p>
+								<p class="text-sm text-muted-foreground capitalize">{db.kind}</p>
 							</div>
 						</div>
 						<div class="flex items-center justify-between border-t border-border pt-2">

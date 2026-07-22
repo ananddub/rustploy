@@ -299,7 +299,7 @@
 				<div class="flex flex-col gap-1.5">
 					<label for="hosted-watch" class="text-sm font-medium text-muted-foreground">Watch Paths</label>
 					<input id="hosted-watch" class={inputCls} placeholder="src/**, dist/*.js" bind:value={hostedWatchPaths} />
-					<p class="text-xs text-muted-foreground">Comma-separated glob patterns. Leave empty to watch everything.</p>
+					<p class="text-sm text-muted-foreground">Comma-separated glob patterns. Leave empty to watch everything.</p>
 				</div>
 				<Switch
 					checked={hostedSubmodules}
@@ -322,7 +322,7 @@
 				<div class="flex flex-col gap-1.5">
 					<label for="git-url" class="text-sm font-medium text-muted-foreground">Repository URL</label>
 					<input id="git-url" class="{inputCls} font-mono" placeholder="https://github.com/user/repo.git" bind:value={gitUrl} />
-					<p class="text-xs text-muted-foreground">Branches are fetched automatically as you type.</p>
+					<p class="text-sm text-muted-foreground">Branches are fetched automatically as you type.</p>
 				</div>
 				<div class="flex flex-col gap-1.5">
 					<label for="gen-sshkey" class="text-sm font-medium text-muted-foreground">SSH Key</label>
@@ -347,7 +347,7 @@
 				<div class="flex flex-col gap-1.5">
 					<label for="git-watch" class="text-sm font-medium text-muted-foreground">Watch Paths</label>
 					<input id="git-watch" class={inputCls} placeholder="src/**, dist/*.js" bind:value={gitWatchPaths} />
-					<p class="text-xs text-muted-foreground">Comma-separated glob patterns. Leave empty to watch everything.</p>
+					<p class="text-sm text-muted-foreground">Comma-separated glob patterns. Leave empty to watch everything.</p>
 				</div>
 				<Switch
 					checked={gitSubmodules}
@@ -370,7 +370,7 @@
 				<div class="flex flex-col gap-1.5">
 					<label for="dock-img" class="text-sm font-medium text-muted-foreground">Docker Image <span class="text-destructive">*</span></label>
 					<input id="dock-img" class="{inputCls} font-mono" placeholder="nginx:latest" bind:value={dockerImage} />
-					<p class="text-xs text-muted-foreground">e.g. nginx:latest · ghcr.io/user/repo:tag · custom-registry.com/image:v1</p>
+					<p class="text-sm text-muted-foreground">e.g. nginx:latest · ghcr.io/user/repo:tag · custom-registry.com/image:v1</p>
 				</div>
 				<div class="grid grid-cols-2 gap-4">
 					<div class="flex flex-col gap-1.5">
@@ -385,7 +385,7 @@
 				<div class="flex flex-col gap-1.5">
 					<label for="dock-reg" class="text-sm font-medium text-muted-foreground">Registry URL</label>
 					<input id="dock-reg" class="{inputCls} font-mono" placeholder="registry.example.com" bind:value={registryUrl} />
-					<p class="text-xs text-muted-foreground">Leave empty for Docker Hub</p>
+					<p class="text-sm text-muted-foreground">Leave empty for Docker Hub</p>
 				</div>
 				{#if srcError}<div class="rounded-md bg-destructive/10 border border-destructive/30 px-3 py-2 text-sm text-destructive">{srcError}</div>{/if}
 				<div class="flex justify-end items-center gap-3">
@@ -454,7 +454,7 @@
 		{#if buildType === 'STATIC'}
 			<div class="flex flex-col gap-1.5 mb-4">
 				<label for="pub-dir" class="text-sm font-medium text-muted-foreground">Publish Directory</label>
-				<p class="text-xs text-muted-foreground">Serve this directory via NGINX after the build phase.</p>
+				<p class="text-sm text-muted-foreground">Serve this directory via NGINX after the build phase.</p>
 				<input id="pub-dir" class={inputCls} placeholder="dist" bind:value={publishDir} />
 			</div>
 		{/if}

@@ -50,7 +50,7 @@
 						{/each}
 					</select>
 				</div>
-				<p class="text-xs text-muted-foreground font-mono">{cron || '—'}</p>
+				<p class="text-sm text-muted-foreground font-mono">{cron || '—'}</p>
 			</div>
 			<div class="flex justify-end">
 				<button

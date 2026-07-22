@@ -149,6 +149,6 @@
 				</div>
 			{/each}
 		</div>
-		<p class="text-xs text-muted-foreground/40 text-right">{logs.length} lines</p>
+		<p class="text-sm text-muted-foreground/40 text-right">{logs.length} lines</p>
 	{/if}
 </div>

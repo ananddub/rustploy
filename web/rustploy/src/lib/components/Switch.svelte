@@ -15,7 +15,7 @@
 	<div class="flex items-center justify-between border border-border rounded-lg px-4 py-3 bg-secondary/40">
 		<div class="min-w-0 pr-4">
 			<p class="text-sm font-medium">{label}</p>
-			{#if description}<p class="text-xs text-muted-foreground mt-0.5">{description}</p>{/if}
+			{#if description}<p class="text-sm text-muted-foreground mt-0.5">{description}</p>{/if}
 		</div>
 		<button
 			type="button"

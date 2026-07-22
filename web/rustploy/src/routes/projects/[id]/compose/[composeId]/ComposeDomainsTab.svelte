@@ -159,7 +159,7 @@
 				<div class="flex flex-col gap-1.5"><label for="ca-path" class="text-sm font-medium text-muted-foreground">Path</label><input id="ca-path" class={inputCls} placeholder="/" bind:value={aPath} /></div>
 				<div class="flex flex-col gap-1.5"><label for="ca-port" class="text-sm font-medium text-muted-foreground">Container Port</label><input id="ca-port" type="number" class={inputCls} placeholder="80" bind:value={aPort} /></div>
 			</div>
-			<div class={toggleRowCls}><div><p class="text-sm font-medium">HTTPS</p><p class="text-xs text-muted-foreground mt-0.5">Provision SSL certificate</p></div><Switch checked={aHttps} onchange={(v) => (aHttps = v)} /></div>
+			<div class={toggleRowCls}><div><p class="text-sm font-medium">HTTPS</p><p class="text-sm text-muted-foreground mt-0.5">Provision SSL certificate</p></div><Switch checked={aHttps} onchange={(v) => (aHttps = v)} /></div>
 			{#if aHttps}
 				<div class="flex flex-col gap-1.5"><label for="ca-cert" class="text-sm font-medium text-muted-foreground">Certificate Type</label>
 				<select id="ca-cert" class="h-9 w-full rounded-md border border-input bg-secondary px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring" bind:value={aCert}>

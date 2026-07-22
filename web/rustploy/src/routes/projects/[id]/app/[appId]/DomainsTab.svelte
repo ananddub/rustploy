@@ -254,20 +254,20 @@
 			</div>
 			<div class="flex flex-col gap-1.5">
 				<label for="add-ipath" class="text-sm font-medium text-muted-foreground">Internal Path</label>
-				<p class="text-xs text-muted-foreground">The path where your application expects requests internally</p>
+				<p class="text-sm text-muted-foreground">The path where your application expects requests internally</p>
 				<input id="add-ipath" class={inputCls} placeholder="/" bind:value={aInternalPath} />
 			</div>
 			<div class={toggleRowCls}>
-				<div><p class="text-sm font-medium">Strip Path</p><p class="text-xs text-muted-foreground mt-0.5">Remove the external path before forwarding to the app</p></div>
+				<div><p class="text-sm font-medium">Strip Path</p><p class="text-sm text-muted-foreground mt-0.5">Remove the external path before forwarding to the app</p></div>
 				<Switch checked={aStripPath} onchange={(v) => (aStripPath = v)} />
 			</div>
 			<div class="flex flex-col gap-1.5">
 				<label for="add-port" class="text-sm font-medium text-muted-foreground">Container Port</label>
-				<p class="text-xs text-muted-foreground">Port your application listens on inside the container</p>
+				<p class="text-sm text-muted-foreground">Port your application listens on inside the container</p>
 				<input id="add-port" type="number" min="1" max="65535" class={inputCls} placeholder="3000" bind:value={aPort} />
 			</div>
 			<div class={toggleRowCls}>
-				<div><p class="text-sm font-medium">Custom Entrypoint</p><p class="text-xs text-muted-foreground mt-0.5">Use custom entrypoint instead of default "web"/"websecure"</p></div>
+				<div><p class="text-sm font-medium">Custom Entrypoint</p><p class="text-sm text-muted-foreground mt-0.5">Use custom entrypoint instead of default "web"/"websecure"</p></div>
 				<Switch checked={aCustomEpEnabled} onchange={(v) => (aCustomEpEnabled = v)} />
 			</div>
 			{#if aCustomEpEnabled}
@@ -277,7 +277,7 @@
 				</div>
 			{/if}
 			<div class={toggleRowCls}>
-				<div><p class="text-sm font-medium">HTTPS</p><p class="text-xs text-muted-foreground mt-0.5">Automatically provision SSL certificate</p></div>
+				<div><p class="text-sm font-medium">HTTPS</p><p class="text-sm text-muted-foreground mt-0.5">Automatically provision SSL certificate</p></div>
 				<Switch checked={aHttps} onchange={(v) => (aHttps = v)} />
 			</div>
 			{#if aHttps}
@@ -350,11 +350,11 @@
 				</div>
 			</div>
 			<div class={toggleRowCls}>
-				<div><p class="text-sm font-medium">Strip Path</p><p class="text-xs text-muted-foreground mt-0.5">Remove external path before forwarding</p></div>
+				<div><p class="text-sm font-medium">Strip Path</p><p class="text-sm text-muted-foreground mt-0.5">Remove external path before forwarding</p></div>
 				<Switch checked={eStripPath} onchange={(v) => (eStripPath = v)} />
 			</div>
 			<div class={toggleRowCls}>
-				<div><p class="text-sm font-medium">Custom Entrypoint</p><p class="text-xs text-muted-foreground mt-0.5">Use custom entrypoint instead of default</p></div>
+				<div><p class="text-sm font-medium">Custom Entrypoint</p><p class="text-sm text-muted-foreground mt-0.5">Use custom entrypoint instead of default</p></div>
 				<Switch checked={eCustomEpEnabled} onchange={(v) => (eCustomEpEnabled = v)} />
 			</div>
 			{#if eCustomEpEnabled}
@@ -364,7 +364,7 @@
 				</div>
 			{/if}
 			<div class={toggleRowCls}>
-				<div><p class="text-sm font-medium">HTTPS</p><p class="text-xs text-muted-foreground mt-0.5">Automatically provision SSL certificate</p></div>
+				<div><p class="text-sm font-medium">HTTPS</p><p class="text-sm text-muted-foreground mt-0.5">Automatically provision SSL certificate</p></div>
 				<Switch checked={eHttps} onchange={(v) => (eHttps = v)} />
 			</div>
 			{#if eHttps}
