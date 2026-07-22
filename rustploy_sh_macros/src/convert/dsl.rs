@@ -48,8 +48,17 @@ fn substitute_sh_vars(expr: &syn::Expr) -> syn::Expr {
                                 });
                             }
                         }
-                        // Not a sh! variable — leave as raw Rust (outer variable, literal, etc.)
                         arg.clone()
+                    }
+                    syn::Expr::Macro(em) => {
+                        let macro_name = em.mac.path.get_ident().map(|i| i.to_string()).unwrap_or_default();
+                        if macro_name == "rust" {
+                            let parser = <syn::Expr as syn::parse::Parse>::parse;
+                            if let Ok(inner) = em.mac.parse_body_with(parser) {
+                                return inner;
+                            }
+                        }
+                        substitute_sh_vars(arg)
                     }
                     _ => substitute_sh_vars(arg),
                 })

@@ -7,7 +7,7 @@ use syn::parse_macro_input;
 mod parser;
 mod convert;
 
-use parser::{ShInput, ShStmt};
+use parser::ShInput;
 use convert::convert_sh_stmt;
 
 std::thread_local! {

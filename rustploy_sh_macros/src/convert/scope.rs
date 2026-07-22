@@ -1,11 +1,14 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+use syn::spanned::Spanned;
 use syn::{Expr, Pat, Stmt};
 
 pub struct ScopeTracker {
     scopes: Vec<HashSet<String>>,
-    /// Every name ever declared — survives scope pops.
+    /// Every variable name ever declared — survives scope pops.
     /// Used by substitute_sh_vars to distinguish sh!-local vars from outer Rust vars.
     all_declared: HashSet<String>,
+    /// Declared DSL functions: function name -> expected argument count (arity)
+    declared_functions: HashMap<String, usize>,
 }
 
 impl ScopeTracker {
@@ -13,6 +16,7 @@ impl ScopeTracker {
         Self {
             scopes: vec![HashSet::new()],
             all_declared: HashSet::new(),
+            declared_functions: HashMap::new(),
         }
     }
 
@@ -29,6 +33,10 @@ impl ScopeTracker {
         if let Some(current) = self.scopes.last_mut() {
             current.insert(name);
         }
+    }
+
+    pub fn declare_fn(&mut self, name: String, arity: usize) {
+        self.declared_functions.insert(name, arity);
     }
 
     /// Returns true if `name` is declared in any currently-active scope
@@ -62,23 +70,116 @@ impl ScopeTracker {
         }
 
         if let Some(suggestion) = best_match {
-            Err(syn::Error::new(span, format!("Undefined variable '{}'. Did you mean '{}'?", name, suggestion)))
+            Err(syn::Error::new(
+                span,
+                format!("Undefined variable '{}'. Did you mean '{}'?", name, suggestion),
+            ))
         } else {
-            Err(syn::Error::new(span, format!("Undefined variable '{}'", name)))
+            // Not a local sh! variable or typo of one — auto-detected as an outer Rust variable!
+            Ok(())
+        }
+    }
+
+    pub fn check_fn(&self, name: &str, given_args: usize, span: proc_macro2::Span) -> Result<(), syn::Error> {
+        if let Some(&expected_arity) = self.declared_functions.get(name) {
+            if given_args != expected_arity {
+                return Err(syn::Error::new(
+                    span,
+                    format!(
+                        "Function '{}' expects {} argument(s), but {} were given",
+                        name, expected_arity, given_args
+                    ),
+                ));
+            }
+            return Ok(());
+        }
+
+        // If not found, look for typos among declared functions
+        let mut best_match = None;
+        let mut min_dist = usize::MAX;
+        for fn_name in self.declared_functions.keys() {
+            let dist = levenshtein_distance(name, fn_name);
+            if dist < min_dist && dist <= 2 {
+                min_dist = dist;
+                best_match = Some(fn_name.clone());
+            }
+        }
+
+        if let Some(suggestion) = best_match {
+            Err(syn::Error::new(
+                span,
+                format!("Undefined function '{}'. Did you mean '{}'?", name, suggestion),
+            ))
+        } else {
+            Err(syn::Error::new(span, format!("Undefined function '{}'", name)))
         }
     }
 }
 
+fn is_builtin_func(name: &str) -> bool {
+    matches!(
+        name,
+        "cmd"
+            | "echo"
+            | "sleep"
+            | "exit"
+            | "temp_file"
+            | "capture"
+            | "capture_stdout"
+            | "capture_status"
+            | "glob"
+            | "shell_env"
+            | "systemctl"
+            | "apt"
+            | "apk"
+            | "dnf"
+            | "yum"
+            | "pacman"
+            | "zypper"
+            | "xbps"
+            | "emerge"
+            | "nix"
+            | "brew"
+            | "package"
+            | "os_id"
+            | "os_family"
+            | "os_arch"
+            | "os_release"
+            | "os_codename"
+            | "os_version"
+    )
+}
+
 /// Scope-check for the top-level `ShStmt` list (which may include untyped `fn` defs)
-pub fn check_sh_stmts(stmts: &[crate::parser::ShStmt], tracker: &mut ScopeTracker) -> Result<(), syn::Error> {
+pub fn check_sh_stmts(
+    stmts: &[crate::parser::ShStmt],
+    tracker: &mut ScopeTracker,
+) -> Result<(), syn::Error> {
+    // Pass 1: Register all function declarations first
+    for stmt in stmts {
+        match stmt {
+            crate::parser::ShStmt::ShFn { name, params, .. } => {
+                tracker.declare_fn(name.clone(), params.len());
+            }
+            crate::parser::ShStmt::Syn(Stmt::Item(syn::Item::Fn(item_fn))) => {
+                let name = item_fn.sig.ident.to_string();
+                let arity = item_fn.sig.inputs.len();
+                tracker.declare_fn(name, arity);
+            }
+            _ => {}
+        }
+    }
+
+    // Pass 2: Check scopes and statements
     for stmt in stmts {
         match stmt {
             crate::parser::ShStmt::ShFn { name: _, params, body } => {
-                // Declare params so substitute_sh_vars treats them as sh! variables
+                tracker.push_scope();
                 for p in params {
                     tracker.declare(p.clone());
                 }
                 check_sh_stmts(body, tracker)?;
+                tracker.pop_scope();
             }
             crate::parser::ShStmt::Syn(syn_stmt) => {
                 check_stmts(std::slice::from_ref(syn_stmt), tracker)?;
@@ -107,10 +208,11 @@ fn levenshtein_distance(a: &str, b: &str) -> usize {
             if a_chars[i - 1] == b_chars[j - 1] {
                 dp[i][j] = dp[i - 1][j - 1];
             } else {
-                dp[i][j] = 1 + std::cmp::min(
-                    dp[i - 1][j - 1],
-                    std::cmp::min(dp[i - 1][j], dp[i][j - 1])
-                );
+                dp[i][j] = 1
+                    + std::cmp::min(
+                        dp[i - 1][j - 1],
+                        std::cmp::min(dp[i - 1][j], dp[i][j - 1]),
+                    );
             }
         }
     }
@@ -132,7 +234,7 @@ pub fn check_stmts(stmts: &[Stmt], tracker: &mut ScopeTracker) -> Result<(), syn
             }
             Stmt::Expr(expr, _) => {
                 if let Expr::Path(_) = expr {
-                    // Skip checking standalone path statement (treated as outer Rust variable reference)
+                    // Skip checking standalone path statement
                 } else {
                     check_expr(expr, tracker)?;
                 }
@@ -142,6 +244,21 @@ pub fn check_stmts(stmts: &[Stmt], tracker: &mut ScopeTracker) -> Result<(), syn
                 if macro_name != "rust" {
                     check_macro(&stmt_macro.mac, tracker)?;
                 }
+            }
+            Stmt::Item(syn::Item::Fn(item_fn)) => {
+                let name = item_fn.sig.ident.to_string();
+                let arity = item_fn.sig.inputs.len();
+                tracker.declare_fn(name, arity);
+                tracker.push_scope();
+                for input in &item_fn.sig.inputs {
+                    if let syn::FnArg::Typed(pat_type) = input {
+                        if let syn::Pat::Ident(pat_ident) = &*pat_type.pat {
+                            tracker.declare(pat_ident.ident.to_string());
+                        }
+                    }
+                }
+                check_stmts(&item_fn.block.stmts, tracker)?;
+                tracker.pop_scope();
             }
             Stmt::Item(_) => {}
         }
@@ -153,10 +270,27 @@ fn check_expr(expr: &Expr, tracker: &mut ScopeTracker) -> Result<(), syn::Error>
     match expr {
         Expr::Path(expr_path) => {
             if let Some(ident) = expr_path.path.get_ident() {
-                tracker.check(&ident.to_string(), ident.span())?;
+                let name = ident.to_string();
+                if name != "os" {
+                    tracker.check(&name, ident.span())?;
+                }
             }
         }
         Expr::Call(expr_call) => {
+            let func_name = match &*expr_call.func {
+                Expr::Path(expr_path) => {
+                    expr_path.path.segments.iter()
+                        .map(|s| s.ident.to_string())
+                        .collect::<Vec<_>>()
+                        .join("::")
+                }
+                _ => String::new(),
+            };
+
+            if !func_name.is_empty() && !is_builtin_func(&func_name) && !func_name.contains("::") {
+                tracker.check_fn(&func_name, expr_call.args.len(), expr_call.span())?;
+            }
+
             for arg in &expr_call.args {
                 check_expr(arg, tracker)?;
             }
@@ -165,6 +299,17 @@ fn check_expr(expr: &Expr, tracker: &mut ScopeTracker) -> Result<(), syn::Error>
             let method_name = method_call.method.to_string();
             if method_name == "stdout" || method_name == "stderr" || method_name == "sudo" || method_name == "ok" {
                 check_expr(&method_call.receiver, tracker)?;
+                for arg in &method_call.args {
+                    check_expr(arg, tracker)?;
+                }
+            } else {
+                let is_os_receiver = match &*method_call.receiver {
+                    Expr::Path(p) => p.path.get_ident().map_or(false, |i| i == "os"),
+                    _ => false,
+                };
+                if !is_os_receiver {
+                    check_expr(&method_call.receiver, tracker)?;
+                }
                 for arg in &method_call.args {
                     check_expr(arg, tracker)?;
                 }
@@ -263,16 +408,36 @@ mod tests {
     }
 
     #[test]
-    fn test_scope_validation_out_of_scope() {
+    fn test_scope_validation_fn_arity_mismatch() {
         let stmts: Vec<Stmt> = parse_quote! {
-            if true {
-                let port = 8080;
+            fn restart_service(name: String) {
+                cmd("echo", name);
             }
-            cmd("echo", port);
+            restart_service();
         };
         let mut tracker = ScopeTracker::new();
         let res = check_stmts(&stmts, &mut tracker);
         assert!(res.is_err());
-        assert_eq!(res.unwrap_err().to_string(), "Undefined variable 'port'");
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            "Function 'restart_service' expects 1 argument(s), but 0 were given"
+        );
+    }
+
+    #[test]
+    fn test_scope_validation_undefined_fn_suggestion() {
+        let stmts: Vec<Stmt> = parse_quote! {
+            fn restart_service(name: String) {
+                cmd("echo", name);
+            }
+            restrt_service("nginx");
+        };
+        let mut tracker = ScopeTracker::new();
+        let res = check_stmts(&stmts, &mut tracker);
+        assert!(res.is_err());
+        assert_eq!(
+            res.unwrap_err().to_string(),
+            "Undefined function 'restrt_service'. Did you mean 'restart_service'?"
+        );
     }
 }

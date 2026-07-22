@@ -161,11 +161,20 @@ pub fn convert_expr(expr: &syn::Expr) -> Result<proc_macro2::TokenStream, syn::E
                 syn::Error::new_spanned(expr_path, "Expected single identifier for variable reference")
             })?;
             let name_str = ident.to_string();
-            Ok(quote! {
-                (crate::utils::exec::script::dsl::ShellIR::Expr(
-                    crate::utils::exec::script::dsl::Expr::Variable(#name_str.to_string())
-                ))
-            })
+            let is_sh_var = crate::SH_VARS.with(|cell| cell.borrow().contains(&name_str));
+            if is_sh_var {
+                Ok(quote! {
+                    (crate::utils::exec::script::dsl::ShellIR::Expr(
+                        crate::utils::exec::script::dsl::Expr::Variable(#name_str.to_string())
+                    ))
+                })
+            } else {
+                Ok(quote! {
+                    (crate::utils::exec::script::dsl::ShellIR::Expr(
+                        crate::utils::exec::script::dsl::Expr::Literal((#ident).build_str())
+                    ))
+                })
+            }
         }
         Expr::MethodCall(method_call) => {
             convert_method_call(method_call)

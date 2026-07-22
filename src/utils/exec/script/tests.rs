@@ -355,10 +355,8 @@ fn test_sh_macro_advanced_features() {
         let user = shell_env!("USER");
 
         cmd("rm", logs);
-
+        restart_service(temp);
         cmd("echo", "deploy-finished").stdout("/var/log/deploy.log");
-
-
     );
 
     let bash = script_ir.iter().map(|s| s.to_bash()).collect::<Vec<_>>().join("\n");
@@ -898,6 +896,18 @@ fn test_sh_macro_unified_capture() {
     assert!(bash.contains("res_status") && bash.contains("true"));
     assert!(bash.contains("echo \"$res_stdout\""));
     assert!(bash.contains("echo \"$res_stderr\""));
+}
+
+#[test]
+fn test_auto_detect_outer_rust_vars() {
+    let outer_var = "my_custom_service";
+    let script_ir = sh!(
+        cmd("systemctl", "restart", outer_var);
+    );
+
+    let bash = script_ir.iter().map(|s| s.to_bash()).collect::<Vec<_>>().join("\n");
+    println!("BASH GENERATED: {}", bash);
+    assert!(bash.contains("systemctl 'restart' 'my_custom_service'"));
 }
 
 
