@@ -115,7 +115,7 @@
 								</div>
 								<div class="min-w-0">
 									<p class="font-medium text-sm truncate group-hover:text-primary transition-colors">{app.app_name}</p>
-									<p class="text-xs text-muted-foreground truncate">{app.build_type}</p>
+									<p class="text-sm text-muted-foreground truncate">{app.build_type}</p>
 								</div>
 							</div>
 						</div>

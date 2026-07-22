@@ -292,7 +292,7 @@
 								<Card.Content>
 									<p class="text-2xl font-bold">{services.length}</p>
 									{#if unscheduled.length > 0}
-										<p class="text-xs text-muted-foreground mt-1">{unscheduled.length} with no running tasks</p>
+										<p class="text-sm text-muted-foreground mt-1">{unscheduled.length} with no running tasks</p>
 									{/if}
 								</Card.Content>
 							</Card.Root>
@@ -392,12 +392,12 @@
 											<Table.Root>
 												<Table.Header>
 													<Table.Row>
-														<Table.Head class="text-xs pl-6">Container</Table.Head>
-														<Table.Head class="text-xs">State</Table.Head>
-														<Table.Head class="text-xs text-right">CPU</Table.Head>
-														<Table.Head class="text-xs text-right">Memory</Table.Head>
-														<Table.Head class="text-xs text-right">Block I/O</Table.Head>
-														<Table.Head class="text-xs text-right">Network I/O</Table.Head>
+														<Table.Head class="text-sm pl-6">Container</Table.Head>
+														<Table.Head class="text-sm">State</Table.Head>
+														<Table.Head class="text-sm text-right">CPU</Table.Head>
+														<Table.Head class="text-sm text-right">Memory</Table.Head>
+														<Table.Head class="text-sm text-right">Block I/O</Table.Head>
+														<Table.Head class="text-sm text-right">Network I/O</Table.Head>
 													</Table.Row>
 												</Table.Header>
 												<Table.Body>
@@ -414,10 +414,10 @@
 																	{c.state}
 																</span>
 															</Table.Cell>
-															<Table.Cell class="text-xs text-right font-mono text-muted-foreground">{c.cpu}</Table.Cell>
-															<Table.Cell class="text-xs text-right font-mono text-muted-foreground">{c.memory}</Table.Cell>
-															<Table.Cell class="text-xs text-right font-mono text-muted-foreground">{c.blockIO}</Table.Cell>
-															<Table.Cell class="text-xs text-right font-mono text-muted-foreground">{c.netIO}</Table.Cell>
+															<Table.Cell class="text-sm text-right font-mono text-muted-foreground">{c.cpu}</Table.Cell>
+															<Table.Cell class="text-sm text-right font-mono text-muted-foreground">{c.memory}</Table.Cell>
+															<Table.Cell class="text-sm text-right font-mono text-muted-foreground">{c.blockIO}</Table.Cell>
+															<Table.Cell class="text-sm text-right font-mono text-muted-foreground">{c.netIO}</Table.Cell>
 														</Table.Row>
 													{/each}
 												</Table.Body>

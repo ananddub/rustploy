@@ -36,18 +36,18 @@
 				<Card.Content class="space-y-4">
 					<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
 						<div class="space-y-1.5">
-							<Label class="text-xs">Build Concurrency</Label>
+							<Label class="text-sm">Build Concurrency</Label>
 							<Input bind:value={concurrency} type="number" placeholder="3" />
 							<p class="text-[10px] text-muted-foreground">Max concurrent builds</p>
 						</div>
 						<div class="space-y-1.5">
-							<Label class="text-xs">Keep Deployments</Label>
+							<Label class="text-sm">Keep Deployments</Label>
 							<Input bind:value={keepDeployments} type="number" placeholder="50" />
 							<p class="text-[10px] text-muted-foreground">Number of deployments to retain</p>
 						</div>
 					</div>
 					<div class="space-y-1.5">
-						<Label class="text-xs">Log Retention (days)</Label>
+						<Label class="text-sm">Log Retention (days)</Label>
 						<Input bind:value={logRetention} type="number" class="w-40" />
 					</div>
 					<Separator />

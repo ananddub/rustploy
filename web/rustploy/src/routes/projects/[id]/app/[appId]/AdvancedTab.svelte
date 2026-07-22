@@ -73,17 +73,17 @@
 			<div class="flex flex-col gap-1.5">
 				<label for="mem-res" class="text-sm font-medium text-muted-foreground">Memory Reservation</label>
 				<input id="mem-res" class={inputCls} placeholder="512m" bind:value={memRes} />
-				<p class="text-xs text-muted-foreground">Soft limit — guaranteed minimum</p>
+				<p class="text-sm text-muted-foreground">Soft limit — guaranteed minimum</p>
 			</div>
 			<div class="flex flex-col gap-1.5">
 				<label for="mem-lim" class="text-sm font-medium text-muted-foreground">Memory Limit</label>
 				<input id="mem-lim" class={inputCls} placeholder="1g" bind:value={memLimit} />
-				<p class="text-xs text-muted-foreground">Hard limit — container will be OOM-killed if exceeded</p>
+				<p class="text-sm text-muted-foreground">Hard limit — container will be OOM-killed if exceeded</p>
 			</div>
 			<div class="flex flex-col gap-1.5">
 				<label for="cpu-res" class="text-sm font-medium text-muted-foreground">CPU Reservation</label>
 				<input id="cpu-res" class={inputCls} placeholder="0.25" bind:value={cpuRes} />
-				<p class="text-xs text-muted-foreground">Fractional CPU units (e.g. 0.5 = half a core)</p>
+				<p class="text-sm text-muted-foreground">Fractional CPU units (e.g. 0.5 = half a core)</p>
 			</div>
 			<div class="flex flex-col gap-1.5">
 				<label for="cpu-lim" class="text-sm font-medium text-muted-foreground">CPU Limit</label>
@@ -93,7 +93,7 @@
 		<div class="flex flex-col gap-1.5 mt-4 w-40">
 			<label for="replicas" class="text-sm font-medium text-muted-foreground">Replicas</label>
 			<input id="replicas" class={inputCls} type="number" min="1" max="99" bind:value={replicas} />
-			<p class="text-xs text-muted-foreground">Number of container instances</p>
+			<p class="text-sm text-muted-foreground">Number of container instances</p>
 		</div>
 		{#if resError}<div class="mt-4 rounded-md bg-destructive/10 border border-destructive/30 px-3 py-2 text-sm text-destructive">{resError}</div>{/if}
 		<div class="flex justify-end items-center gap-3 mt-4">

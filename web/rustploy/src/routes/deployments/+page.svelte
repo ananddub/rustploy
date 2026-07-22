@@ -263,7 +263,7 @@
 														</span>
 													</div>
 												</Table.Cell>
-												<Table.Cell class="text-xs text-muted-foreground whitespace-nowrap">{d.createdAt}</Table.Cell>
+												<Table.Cell class="text-sm text-muted-foreground whitespace-nowrap">{d.createdAt}</Table.Cell>
 												<Table.Cell>
 													<Button variant="ghost" size="sm" class="h-7 gap-1 text-xs" onclick={() => goto(d.href)}>
 														<ExternalLink class="w-3.5 h-3.5" /> Open
@@ -317,31 +317,31 @@
 								<Table.Root>
 									<Table.Header>
 										<Table.Row>
-											<Table.Head class="text-xs font-medium">Job ID</Table.Head>
-											<Table.Head class="text-xs font-medium">Label</Table.Head>
-											<Table.Head class="text-xs font-medium">Type</Table.Head>
-											<Table.Head class="text-xs font-medium">State</Table.Head>
-											<Table.Head class="text-xs font-medium">Added</Table.Head>
-											<Table.Head class="text-xs font-medium">Processed</Table.Head>
-											<Table.Head class="text-xs font-medium">Finished</Table.Head>
-											<Table.Head class="text-xs font-medium">Error</Table.Head>
+											<Table.Head class="text-sm font-medium">Job ID</Table.Head>
+											<Table.Head class="text-sm font-medium">Label</Table.Head>
+											<Table.Head class="text-sm font-medium">Type</Table.Head>
+											<Table.Head class="text-sm font-medium">State</Table.Head>
+											<Table.Head class="text-sm font-medium">Added</Table.Head>
+											<Table.Head class="text-sm font-medium">Processed</Table.Head>
+											<Table.Head class="text-sm font-medium">Finished</Table.Head>
+											<Table.Head class="text-sm font-medium">Error</Table.Head>
 										</Table.Row>
 									</Table.Header>
 									<Table.Body>
 										{#each queueJobs as job (job.id)}
 											<Table.Row class="hover:bg-muted/30 transition-colors">
-												<Table.Cell class="font-mono text-xs text-muted-foreground">{job.id}</Table.Cell>
+												<Table.Cell class="font-mono text-sm text-muted-foreground">{job.id}</Table.Cell>
 												<Table.Cell class="text-sm max-w-[180px] truncate">{job.label}</Table.Cell>
-												<Table.Cell class="text-xs text-muted-foreground capitalize">{job.type}</Table.Cell>
+												<Table.Cell class="text-sm text-muted-foreground capitalize">{job.type}</Table.Cell>
 												<Table.Cell>
 													<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border capitalize {queueBadge(job.state)}">
 														{job.state}
 													</span>
 												</Table.Cell>
-												<Table.Cell class="text-xs text-muted-foreground whitespace-nowrap">{job.added}</Table.Cell>
-												<Table.Cell class="text-xs text-muted-foreground whitespace-nowrap">{job.processed}</Table.Cell>
-												<Table.Cell class="text-xs text-muted-foreground whitespace-nowrap">{job.finished}</Table.Cell>
-												<Table.Cell class="text-xs text-destructive max-w-[160px] truncate">{job.error || '—'}</Table.Cell>
+												<Table.Cell class="text-sm text-muted-foreground whitespace-nowrap">{job.added}</Table.Cell>
+												<Table.Cell class="text-sm text-muted-foreground whitespace-nowrap">{job.processed}</Table.Cell>
+												<Table.Cell class="text-sm text-muted-foreground whitespace-nowrap">{job.finished}</Table.Cell>
+												<Table.Cell class="text-sm text-destructive max-w-[160px] truncate">{job.error || '—'}</Table.Cell>
 											</Table.Row>
 										{/each}
 									</Table.Body>

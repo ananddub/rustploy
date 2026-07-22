@@ -183,10 +183,10 @@
 													{member.banned ? 'Deactivated' : 'Active'}
 												</Badge>
 											</Table.Cell>
-											<Table.Cell class="text-center text-xs text-muted-foreground">
+											<Table.Cell class="text-center text-sm text-muted-foreground">
 												{member.twoFactorEnabled ? 'Enabled' : 'Disabled'}
 											</Table.Cell>
-											<Table.Cell class="text-center text-xs text-muted-foreground whitespace-nowrap">
+											<Table.Cell class="text-center text-sm text-muted-foreground whitespace-nowrap">
 												{fmtDate(member.createdAt)}
 											</Table.Cell>
 											<Table.Cell class="text-right pr-4">
@@ -198,19 +198,19 @@
 															</Button>
 														</DropdownMenu.Trigger>
 														<DropdownMenu.Content align="end">
-															<DropdownMenu.Label class="text-xs">Actions</DropdownMenu.Label>
+															<DropdownMenu.Label class="text-sm">Actions</DropdownMenu.Label>
 															{#if canChange}
-																<DropdownMenu.Item class="text-xs cursor-pointer" onclick={() => openChangeRole(member)}>
+																<DropdownMenu.Item class="text-sm cursor-pointer" onclick={() => openChangeRole(member)}>
 																	Change Role
 																</DropdownMenu.Item>
-																<DropdownMenu.Item class="text-xs cursor-pointer">
+																<DropdownMenu.Item class="text-sm cursor-pointer">
 																	Edit Permissions
 																</DropdownMenu.Item>
 															{/if}
 															{#if canDelete}
 																<DropdownMenu.Separator />
 																<DropdownMenu.Item
-																	class="text-xs cursor-pointer text-destructive focus:text-destructive"
+																	class="text-sm cursor-pointer text-destructive focus:text-destructive"
 																	onclick={() => (confirmDeleteMemberId = member.id)}>
 																	Delete User
 																</DropdownMenu.Item>
@@ -275,7 +275,7 @@
 													class="text-[10px] capitalize"
 												>{inv.status}</Badge>
 											</Table.Cell>
-											<Table.Cell class="text-center text-xs text-muted-foreground whitespace-nowrap">
+											<Table.Cell class="text-center text-sm text-muted-foreground whitespace-nowrap">
 												{fmtDate(inv.expiresAt)}
 												{#if expired}<span class="ml-1">(Expired)</span>{/if}
 											</Table.Cell>
@@ -287,16 +287,16 @@
 														</Button>
 													</DropdownMenu.Trigger>
 													<DropdownMenu.Content align="end">
-														<DropdownMenu.Label class="text-xs">Actions</DropdownMenu.Label>
+														<DropdownMenu.Label class="text-sm">Actions</DropdownMenu.Label>
 														{#if !expired && inv.status === 'pending'}
-															<DropdownMenu.Item class="text-xs cursor-pointer gap-2" onclick={() => copyInvitation(inv.id)}>
+															<DropdownMenu.Item class="text-sm cursor-pointer gap-2" onclick={() => copyInvitation(inv.id)}>
 																<Copy class="w-3.5 h-3.5" /> Copy Invitation
 															</DropdownMenu.Item>
-															<DropdownMenu.Item class="text-xs cursor-pointer" onclick={() => cancelInvitation(inv.id)}>
+															<DropdownMenu.Item class="text-sm cursor-pointer" onclick={() => cancelInvitation(inv.id)}>
 																Cancel Invitation
 															</DropdownMenu.Item>
 														{/if}
-														<DropdownMenu.Item class="text-xs cursor-pointer text-destructive focus:text-destructive" onclick={() => removeInvitation(inv.id)}>
+														<DropdownMenu.Item class="text-sm cursor-pointer text-destructive focus:text-destructive" onclick={() => removeInvitation(inv.id)}>
 															Remove Invitation
 														</DropdownMenu.Item>
 													</DropdownMenu.Content>
@@ -332,7 +332,7 @@
 			<div class="flex items-start justify-between">
 				<div>
 					<h2 class="text-base font-semibold">Add Invitation</h2>
-					<p class="text-xs text-muted-foreground mt-0.5">Invite a user to join your organization</p>
+					<p class="text-sm text-muted-foreground mt-0.5">Invite a user to join your organization</p>
 				</div>
 				<button type="button" onclick={() => (showInvite=false)}
 					class="text-muted-foreground hover:text-foreground p-1 rounded hover:bg-accent">✕</button>
@@ -353,12 +353,12 @@
 			</div>
 
 			<div class="space-y-1.5">
-				<Label for="i-email" class="text-xs">Email <span class="text-destructive">*</span></Label>
+				<Label for="i-email" class="text-sm">Email <span class="text-destructive">*</span></Label>
 				<Input id="i-email" type="email" bind:value={iEmail} placeholder="user@example.com" required />
 			</div>
 
 			<div class="space-y-1.5">
-				<Label class="text-xs">Role <span class="text-destructive">*</span></Label>
+				<Label class="text-sm">Role <span class="text-destructive">*</span></Label>
 				<Select.Root type="single" value={iRole} onValueChange={(v) => (iRole = (v ?? 'member') as Role)}>
 					<Select.Trigger class="w-full">
 						<span class="text-sm capitalize">{iRole}</span>
@@ -372,11 +372,11 @@
 
 			{#if iMode === 'credentials'}
 				<div class="space-y-1.5">
-					<Label for="i-pass" class="text-xs">Password <span class="text-destructive">*</span></Label>
+					<Label for="i-pass" class="text-sm">Password <span class="text-destructive">*</span></Label>
 					<Input id="i-pass" type="password" bind:value={iPassword} placeholder="Min 8 characters" />
 				</div>
 				<div class="space-y-1.5">
-					<Label for="i-confirm" class="text-xs">Confirm Password <span class="text-destructive">*</span></Label>
+					<Label for="i-confirm" class="text-sm">Confirm Password <span class="text-destructive">*</span></Label>
 					<Input id="i-confirm" type="password" bind:value={iConfirm} placeholder="Confirm password" />
 				</div>
 			{/if}
@@ -405,10 +405,10 @@
 		<div class="bg-card border border-border rounded-xl shadow-2xl w-full max-w-sm pointer-events-auto flex flex-col gap-4 p-6">
 			<div>
 				<h2 class="text-base font-semibold">Change Role</h2>
-				<p class="text-xs text-muted-foreground mt-0.5">Change the role for <strong class="text-foreground">{target?.email}</strong></p>
+				<p class="text-sm text-muted-foreground mt-0.5">Change the role for <strong class="text-foreground">{target?.email}</strong></p>
 			</div>
 			<div class="space-y-1.5">
-				<Label class="text-xs">Role</Label>
+				<Label class="text-sm">Role</Label>
 				<Select.Root type="single" value={changeRoleValue} onValueChange={(v) => (changeRoleValue = (v ?? 'member') as Role)}>
 					<Select.Trigger class="w-full">
 						<span class="text-sm capitalize">{changeRoleValue}</span>
@@ -442,7 +442,7 @@
 				</div>
 				<div>
 					<h2 class="text-sm font-semibold">Delete User</h2>
-					<p class="text-xs text-muted-foreground mt-0.5">
+					<p class="text-sm text-muted-foreground mt-0.5">
 						Delete <strong class="text-foreground">{target?.email}</strong>? This cannot be undone.
 					</p>
 				</div>

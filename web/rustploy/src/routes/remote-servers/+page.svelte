@@ -248,7 +248,7 @@
 												<span class="font-medium text-xs">{keyName(server.ssh_key_id) ?? 'None'}</span>
 											</div>
 											{#if server.description}
-												<p class="text-xs text-muted-foreground truncate">{server.description}</p>
+												<p class="text-sm text-muted-foreground truncate">{server.description}</p>
 											{/if}
 
 											<!-- Test result -->
@@ -340,37 +340,37 @@
 			<div class="flex items-start justify-between gap-3">
 				<div>
 					<h2 class="text-base font-semibold">Add Remote Server</h2>
-					<p class="text-xs text-muted-foreground mt-0.5">Connect a new server via SSH</p>
+					<p class="text-sm text-muted-foreground mt-0.5">Connect a new server via SSH</p>
 				</div>
 				<button type="button" onclick={() => (showModal=false)}
 					class="text-muted-foreground hover:text-foreground p-1 rounded hover:bg-accent">✕</button>
 			</div>
 
 			<div class="space-y-1.5">
-				<Label for="m-name" class="text-xs">Name <span class="text-destructive">*</span></Label>
+				<Label for="m-name" class="text-sm">Name <span class="text-destructive">*</span></Label>
 				<Input id="m-name" bind:value={mName} placeholder="production-1" required />
 			</div>
 			<div class="space-y-1.5">
-				<Label for="m-desc" class="text-xs">Description</Label>
+				<Label for="m-desc" class="text-sm">Description</Label>
 				<Input id="m-desc" bind:value={mDesc} placeholder="Optional description" />
 			</div>
 			<div class="grid grid-cols-3 gap-3">
 				<div class="col-span-2 space-y-1.5">
-					<Label for="m-ip" class="text-xs">IP Address <span class="text-destructive">*</span></Label>
+					<Label for="m-ip" class="text-sm">IP Address <span class="text-destructive">*</span></Label>
 					<Input id="m-ip" bind:value={mIp} placeholder="192.168.1.100" class="font-mono" required />
 				</div>
 				<div class="space-y-1.5">
-					<Label for="m-port" class="text-xs">Port</Label>
+					<Label for="m-port" class="text-sm">Port</Label>
 					<Input id="m-port" bind:value={mPort} type="number" placeholder="22" class="font-mono" />
 				</div>
 			</div>
 			<div class="grid grid-cols-2 gap-3">
 				<div class="space-y-1.5">
-					<Label for="m-user" class="text-xs">Username</Label>
+					<Label for="m-user" class="text-sm">Username</Label>
 					<Input id="m-user" bind:value={mUser} placeholder="root" class="font-mono" />
 				</div>
 				<div class="space-y-1.5">
-					<Label class="text-xs">Server Type</Label>
+					<Label class="text-sm">Server Type</Label>
 					<Select.Root type="single" value={mType} onValueChange={(v) => (mType = v ?? 'REMOTE')}>
 						<Select.Trigger class="w-full h-9">
 							<span class="text-sm">{mType}</span>
@@ -384,7 +384,7 @@
 				</div>
 			</div>
 			<div class="space-y-1.5">
-				<Label class="text-xs flex items-center gap-1.5">
+				<Label class="text-sm flex items-center gap-1.5">
 					<FileKey class="w-3.5 h-3.5" /> SSH Key
 				</Label>
 				<Select.Root type="single" value={mSshKeyId !== null ? String(mSshKeyId) : ''} onValueChange={(v) => (mSshKeyId = v ? Number(v) : null)}>
@@ -427,7 +427,7 @@
 				</div>
 				<div>
 					<h2 class="text-sm font-semibold">Delete Server</h2>
-					<p class="text-xs text-muted-foreground mt-0.5">
+					<p class="text-sm text-muted-foreground mt-0.5">
 						Delete <strong class="text-foreground">{target?.name}</strong>?
 						This cannot be undone.
 					</p>

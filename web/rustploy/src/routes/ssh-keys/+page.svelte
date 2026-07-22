@@ -147,9 +147,9 @@
 									<span class="text-xs bg-yellow-500/15 text-yellow-600 px-2 py-0.5 rounded">No private key</span>
 								{/if}
 							</div>
-							{#if key.description}<p class="text-xs text-muted-foreground mt-0.5">{key.description}</p>{/if}
+							{#if key.description}<p class="text-sm text-muted-foreground mt-0.5">{key.description}</p>{/if}
 							<div class="mt-2 flex items-center gap-2 bg-muted/60 rounded-md px-3 py-1.5">
-								<p class="font-mono text-xs text-muted-foreground truncate flex-1">{truncateKey(key.public_key)}</p>
+								<p class="font-mono text-sm text-muted-foreground truncate flex-1">{truncateKey(key.public_key)}</p>
 								<button onclick={() => copyPublicKey(key)} class="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors shrink-0">
 									{#if copied === key.id}<CheckCircle class="w-3.5 h-3.5 text-green-600" /> Copied{:else}<Copy class="w-3.5 h-3.5" /> Copy{/if}
 								</button>
@@ -179,7 +179,7 @@
 			<div class="flex items-center justify-between">
 				<div>
 					<h2 class="text-base font-semibold">{editKey ? 'Edit SSH Key' : 'Add SSH Key'}</h2>
-					<p class="text-xs text-muted-foreground mt-0.5">{editKey ? 'Update key details' : 'Add a new SSH key for server authentication'}</p>
+					<p class="text-sm text-muted-foreground mt-0.5">{editKey ? 'Update key details' : 'Add a new SSH key for server authentication'}</p>
 				</div>
 				<button type="button" class="text-muted-foreground hover:text-foreground hover:bg-accent p-1 rounded" onclick={() => { showCreate = false; editKey = null; }}>✕</button>
 			</div>

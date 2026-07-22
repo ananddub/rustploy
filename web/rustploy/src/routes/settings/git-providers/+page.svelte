@@ -133,7 +133,7 @@
 											<svg class="w-6 h-6 shrink-0" viewBox="0 0 24 24">{@html svgFor(p.type)}</svg>
 											<div class="min-w-0">
 												<p class="text-sm font-semibold truncate">{p.name}</p>
-												<p class="text-xs text-muted-foreground">{fmtDate(p.createdAt)}</p>
+												<p class="text-sm text-muted-foreground">{fmtDate(p.createdAt)}</p>
 											</div>
 											{#if !p.isOwner}
 												<Badge variant="secondary" class="text-xs gap-1 shrink-0">
@@ -208,13 +208,13 @@
 				<div class="flex items-center justify-between rounded-lg border border-border px-4 py-3">
 					<div>
 						<p class="text-sm font-medium">GitHub Organization</p>
-						<p class="text-xs text-muted-foreground">Enable for an organization account instead of personal</p>
+						<p class="text-sm text-muted-foreground">Enable for an organization account instead of personal</p>
 					</div>
 					<Switch bind:checked={ghOrgMode} />
 				</div>
 				{#if ghOrgMode}
 					<div class="space-y-1.5">
-						<Label for="gh-org" class="text-xs">Organization Name <span class="text-destructive">*</span></Label>
+						<Label for="gh-org" class="text-sm">Organization Name <span class="text-destructive">*</span></Label>
 						<Input id="gh-org" bind:value={ghOrgName} placeholder="my-organization" />
 					</div>
 				{/if}
@@ -230,27 +230,27 @@
 				<p class="text-sm text-muted-foreground">Register a GitLab OAuth application and provide the credentials below.</p>
 				<div class="grid grid-cols-2 gap-4">
 					<div class="space-y-1.5">
-						<Label for="gl-name" class="text-xs">Name <span class="text-destructive">*</span></Label>
+						<Label for="gl-name" class="text-sm">Name <span class="text-destructive">*</span></Label>
 						<Input id="gl-name" bind:value={glName} placeholder="My GitLab" required />
 					</div>
 					<div class="space-y-1.5">
-						<Label for="gl-url" class="text-xs">GitLab URL <span class="text-destructive">*</span></Label>
+						<Label for="gl-url" class="text-sm">GitLab URL <span class="text-destructive">*</span></Label>
 						<Input id="gl-url" bind:value={glUrl} placeholder="https://gitlab.com" required />
 					</div>
 					<div class="space-y-1.5">
-						<Label for="gl-appid" class="text-xs">Application ID <span class="text-destructive">*</span></Label>
+						<Label for="gl-appid" class="text-sm">Application ID <span class="text-destructive">*</span></Label>
 						<Input id="gl-appid" bind:value={glAppId} placeholder="Application ID" required />
 					</div>
 					<div class="space-y-1.5">
-						<Label for="gl-secret" class="text-xs">Application Secret <span class="text-destructive">*</span></Label>
+						<Label for="gl-secret" class="text-sm">Application Secret <span class="text-destructive">*</span></Label>
 						<Input id="gl-secret" type="password" bind:value={glAppSecret} placeholder="Secret" required />
 					</div>
 					<div class="col-span-2 space-y-1.5">
-						<Label for="gl-redirect" class="text-xs">Redirect URI</Label>
+						<Label for="gl-redirect" class="text-sm">Redirect URI</Label>
 						<Input id="gl-redirect" bind:value={glRedirect} class="font-mono text-xs" />
 					</div>
 					<div class="col-span-2 space-y-1.5">
-						<Label for="gl-group" class="text-xs">Group Name <span class="text-muted-foreground">(optional)</span></Label>
+						<Label for="gl-group" class="text-sm">Group Name <span class="text-muted-foreground">(optional)</span></Label>
 						<Input id="gl-group" bind:value={glGroup} placeholder="my-gitlab-group" />
 					</div>
 				</div>
@@ -266,15 +266,15 @@
 				<p class="text-sm text-muted-foreground">Connect your Bitbucket account using your username and an App Password.</p>
 				<div class="space-y-4">
 					<div class="space-y-1.5">
-						<Label for="bb-name" class="text-xs">Name <span class="text-destructive">*</span></Label>
+						<Label for="bb-name" class="text-sm">Name <span class="text-destructive">*</span></Label>
 						<Input id="bb-name" bind:value={bbName} placeholder="My Bitbucket" required />
 					</div>
 					<div class="space-y-1.5">
-						<Label for="bb-user" class="text-xs">Username <span class="text-destructive">*</span></Label>
+						<Label for="bb-user" class="text-sm">Username <span class="text-destructive">*</span></Label>
 						<Input id="bb-user" bind:value={bbUser} placeholder="bitbucket-username" required />
 					</div>
 					<div class="space-y-1.5">
-						<Label for="bb-pass" class="text-xs">App Password <span class="text-destructive">*</span></Label>
+						<Label for="bb-pass" class="text-sm">App Password <span class="text-destructive">*</span></Label>
 						<Input id="bb-pass" type="password" bind:value={bbPass} placeholder="App Password" required />
 					</div>
 				</div>
@@ -290,23 +290,23 @@
 				<p class="text-sm text-muted-foreground">Register a Gitea OAuth application and provide the credentials below.</p>
 				<div class="grid grid-cols-2 gap-4">
 					<div class="space-y-1.5">
-						<Label for="gt-name" class="text-xs">Name <span class="text-destructive">*</span></Label>
+						<Label for="gt-name" class="text-sm">Name <span class="text-destructive">*</span></Label>
 						<Input id="gt-name" bind:value={gtName} placeholder="My Gitea" required />
 					</div>
 					<div class="space-y-1.5">
-						<Label for="gt-url" class="text-xs">Gitea URL <span class="text-destructive">*</span></Label>
+						<Label for="gt-url" class="text-sm">Gitea URL <span class="text-destructive">*</span></Label>
 						<Input id="gt-url" bind:value={gtUrl} placeholder="https://gitea.example.com" required />
 					</div>
 					<div class="space-y-1.5">
-						<Label for="gt-appid" class="text-xs">Client ID <span class="text-destructive">*</span></Label>
+						<Label for="gt-appid" class="text-sm">Client ID <span class="text-destructive">*</span></Label>
 						<Input id="gt-appid" bind:value={gtAppId} placeholder="Client ID" required />
 					</div>
 					<div class="space-y-1.5">
-						<Label for="gt-secret" class="text-xs">Client Secret <span class="text-destructive">*</span></Label>
+						<Label for="gt-secret" class="text-sm">Client Secret <span class="text-destructive">*</span></Label>
 						<Input id="gt-secret" type="password" bind:value={gtSecret} placeholder="Secret" required />
 					</div>
 					<div class="col-span-2 space-y-1.5">
-						<Label for="gt-redirect" class="text-xs">Redirect URI</Label>
+						<Label for="gt-redirect" class="text-sm">Redirect URI</Label>
 						<Input id="gt-redirect" bind:value={gtRedirect} class="font-mono text-xs" />
 					</div>
 				</div>
@@ -335,7 +335,7 @@
 				</div>
 				<div>
 					<h2 class="text-sm font-semibold">Delete Git Provider</h2>
-					<p class="text-xs text-muted-foreground mt-0.5">
+					<p class="text-sm text-muted-foreground mt-0.5">
 						{#if target?.sharedWithOrg}
 							This provider is shared with the organization. Deleting it will remove access for all members.
 						{:else}

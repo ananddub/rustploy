@@ -281,27 +281,27 @@
 						<h2 class="text-base font-semibold mb-4">Server Info</h2>
 						<div class="grid grid-cols-2 md:grid-cols-3 gap-3">
 							<div class="bg-secondary rounded-lg p-3">
-								<p class="text-xs text-muted-foreground uppercase tracking-wide mb-1">Address</p>
+								<p class="text-sm text-muted-foreground uppercase tracking-wide mb-1">Address</p>
 								<p class="text-sm font-mono">{server.ip_address}:{server.port}</p>
 							</div>
 							<div class="bg-secondary rounded-lg p-3">
-								<p class="text-xs text-muted-foreground uppercase tracking-wide mb-1">User</p>
+								<p class="text-sm text-muted-foreground uppercase tracking-wide mb-1">User</p>
 								<p class="text-sm font-mono">{server.username}</p>
 							</div>
 							<div class="bg-secondary rounded-lg p-3">
-								<p class="text-xs text-muted-foreground uppercase tracking-wide mb-1">Type</p>
+								<p class="text-sm text-muted-foreground uppercase tracking-wide mb-1">Type</p>
 								<p class="text-sm">{server.server_type}</p>
 							</div>
 							<div class="bg-secondary rounded-lg p-3">
-								<p class="text-xs text-muted-foreground uppercase tracking-wide mb-1">App Name</p>
+								<p class="text-sm text-muted-foreground uppercase tracking-wide mb-1">App Name</p>
 								<p class="text-sm font-mono truncate">{server.app_name}</p>
 							</div>
 							<div class="bg-secondary rounded-lg p-3">
-								<p class="text-xs text-muted-foreground uppercase tracking-wide mb-1">Created</p>
+								<p class="text-sm text-muted-foreground uppercase tracking-wide mb-1">Created</p>
 								<p class="text-sm">{formatDate(server.created_at)}</p>
 							</div>
 							<div class="bg-secondary rounded-lg p-3">
-								<p class="text-xs text-muted-foreground uppercase tracking-wide mb-1">Updated</p>
+								<p class="text-sm text-muted-foreground uppercase tracking-wide mb-1">Updated</p>
 								<p class="text-sm">{formatDate(server.updated_at)}</p>
 							</div>
 						</div>
@@ -417,27 +417,27 @@
 						{:else}
 							<div class="grid grid-cols-2 md:grid-cols-3 gap-3">
 								<div class="bg-secondary rounded-lg p-4">
-									<p class="text-xs text-muted-foreground uppercase tracking-wide mb-1">Connected</p>
+									<p class="text-sm text-muted-foreground uppercase tracking-wide mb-1">Connected</p>
 									<p class="text-2xl font-semibold {sessions.connected ? 'text-green-500' : 'text-destructive'}">{sessions.connected ? 'Yes' : 'No'}</p>
 								</div>
 								<div class="bg-secondary rounded-lg p-4">
-									<p class="text-xs text-muted-foreground uppercase tracking-wide mb-1">Active Sessions</p>
+									<p class="text-sm text-muted-foreground uppercase tracking-wide mb-1">Active Sessions</p>
 									<p class="text-2xl font-semibold">{sessions.connections}</p>
 								</div>
 								<div class="bg-secondary rounded-lg p-4">
-									<p class="text-xs text-muted-foreground uppercase tracking-wide mb-1">Active Channels</p>
+									<p class="text-sm text-muted-foreground uppercase tracking-wide mb-1">Active Channels</p>
 									<p class="text-2xl font-semibold">{sessions.active_channels}</p>
 								</div>
 								<div class="bg-secondary rounded-lg p-4">
-									<p class="text-xs text-muted-foreground uppercase tracking-wide mb-1">Max Pool Size</p>
+									<p class="text-sm text-muted-foreground uppercase tracking-wide mb-1">Max Pool Size</p>
 									<p class="text-2xl font-semibold">{sessions.max_pool_size}</p>
 								</div>
 								<div class="bg-secondary rounded-lg p-4">
-									<p class="text-xs text-muted-foreground uppercase tracking-wide mb-1">Max Channels/Session</p>
+									<p class="text-sm text-muted-foreground uppercase tracking-wide mb-1">Max Channels/Session</p>
 									<p class="text-2xl font-semibold">{sessions.max_channels_per_session}</p>
 								</div>
 								<div class="bg-secondary rounded-lg p-4">
-									<p class="text-xs text-muted-foreground uppercase tracking-wide mb-1">Reused Sessions</p>
+									<p class="text-sm text-muted-foreground uppercase tracking-wide mb-1">Reused Sessions</p>
 									<p class="text-2xl font-semibold">{sessions.reused_sessions}</p>
 								</div>
 							</div>
@@ -491,7 +491,7 @@
 									{#if audit.swarm_active}<CheckCircle size={15} class="text-green-500" />{:else}<XCircle size={15} class="text-muted-foreground/40" />{/if}
 								</div>
 							</div>
-							<p class="text-xs text-muted-foreground uppercase tracking-wide mb-2">Tools</p>
+							<p class="text-sm text-muted-foreground uppercase tracking-wide mb-2">Tools</p>
 							<div class="grid grid-cols-2 gap-2">
 								{#each [['Docker', audit.docker], ['Git', audit.git], ['Nixpacks', audit.nixpacks], ['Railpack', audit.railpack], ['Buildpacks', audit.buildpacks], ['Rclone', audit.rclone]] as [name, tool]}
 									<div class="bg-secondary rounded-lg px-3 py-2 flex items-center justify-between">
@@ -538,7 +538,7 @@
 							<h2 class="text-base font-semibold mb-4">Setup Results</h2>
 							{#if setup.completed.length > 0}
 								<div class="mb-4">
-									<p class="text-xs text-muted-foreground uppercase tracking-wide mb-2">Completed Steps</p>
+									<p class="text-sm text-muted-foreground uppercase tracking-wide mb-2">Completed Steps</p>
 									<div class="flex flex-col gap-1.5">
 										{#each setup.completed as step}
 											<div class="flex items-center gap-2 text-sm text-green-500">
@@ -549,7 +549,7 @@
 								</div>
 							{/if}
 							{#if setup.audit}
-								<p class="text-xs text-muted-foreground uppercase tracking-wide mb-2 mt-4">Post-setup Audit</p>
+								<p class="text-sm text-muted-foreground uppercase tracking-wide mb-2 mt-4">Post-setup Audit</p>
 								<div class="grid grid-cols-2 gap-2">
 									{#each [['Docker', setup.audit.docker], ['Git', setup.audit.git], ['Nixpacks', setup.audit.nixpacks], ['Railpack', setup.audit.railpack]] as [name, tool]}
 										<div class="bg-secondary rounded-lg px-3 py-2 flex items-center justify-between">

@@ -127,18 +127,18 @@
 						<!-- Form -->
 						<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
 							<div class="space-y-1.5">
-								<Label for="org-name" class="text-xs">Organization Name</Label>
+								<Label for="org-name" class="text-sm">Organization Name</Label>
 								<Input id="org-name" bind:value={formName} placeholder="My Organization" />
 							</div>
 							<div class="space-y-1.5">
-								<Label for="org-slug" class="text-xs">Slug</Label>
+								<Label for="org-slug" class="text-sm">Slug</Label>
 								<Input id="org-slug" bind:value={formSlug} placeholder="my-org" />
 								<p class="text-[10px] text-muted-foreground">Used in URLs. Lowercase, no spaces.</p>
 							</div>
 						</div>
 
 						<div class="space-y-1.5">
-							<Label for="org-logo" class="text-xs">Logo URL</Label>
+							<Label for="org-logo" class="text-sm">Logo URL</Label>
 							<Input id="org-logo" bind:value={formLogo} placeholder="https://example.com/logo.png" />
 							{#if formLogo}
 								<div class="flex items-center gap-3 mt-2">
@@ -182,7 +182,7 @@
 						<div class="flex items-center justify-between">
 							<div>
 								<p class="text-sm font-medium">Delete Organization</p>
-								<p class="text-xs text-muted-foreground mt-0.5">
+								<p class="text-sm text-muted-foreground mt-0.5">
 									Permanently delete this organization, all projects, services, and associated data.
 									This action cannot be undone.
 								</p>
@@ -212,7 +212,7 @@
 				</div>
 				<div>
 					<h2 class="text-sm font-semibold">Delete Organization</h2>
-					<p class="text-xs text-muted-foreground mt-0.5">
+					<p class="text-sm text-muted-foreground mt-0.5">
 						Are you sure you want to delete <strong class="text-foreground">{org?.name}</strong>?
 						This will permanently delete all projects, services, and data. This cannot be undone.
 					</p>

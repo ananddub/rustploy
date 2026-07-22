@@ -100,7 +100,7 @@
 					bind:value={envVar}
 					required
 				/>
-				<p class="text-xs text-muted-foreground">Used as prefix for environment variables</p>
+				<p class="text-sm text-muted-foreground">Used as prefix for environment variables</p>
 			</div>
 
 			{#if error}

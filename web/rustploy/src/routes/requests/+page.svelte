@@ -189,7 +189,7 @@
 				<div class="flex flex-wrap items-end gap-4 justify-between">
 					<div class="flex items-center gap-3 flex-wrap">
 						<div class="flex flex-col gap-1">
-							<Label for="cron" class="text-xs text-muted-foreground flex items-center gap-1.5">
+							<Label for="cron" class="text-sm text-muted-foreground flex items-center gap-1.5">
 								Log Cleanup Schedule
 								<span title="At the scheduled time, the cleanup job will keep only the last 1000 entries in the access log file." class="cursor-help opacity-50">ⓘ</span>
 							</Label>
@@ -270,7 +270,7 @@
 								{/each}
 								{#if statusFilter.length > 0}
 									<DropdownMenu.Separator />
-									<DropdownMenu.Item class="text-xs justify-center text-muted-foreground" onclick={() => (statusFilter = [])}>
+									<DropdownMenu.Item class="text-sm justify-center text-muted-foreground" onclick={() => (statusFilter = [])}>
 										Clear filters
 									</DropdownMenu.Item>
 								{/if}
@@ -304,13 +304,13 @@
 								<Table.Header>
 									<Table.Row>
 										{#if visibleCols.level}
-											<Table.Head class="text-xs w-20">Level</Table.Head>
+											<Table.Head class="text-sm w-20">Level</Table.Head>
 										{/if}
 										{#if visibleCols.message}
-											<Table.Head class="text-xs">Message</Table.Head>
+											<Table.Head class="text-sm">Message</Table.Head>
 										{/if}
 										{#if visibleCols.time}
-											<Table.Head class="text-xs w-44">
+											<Table.Head class="text-sm w-44">
 												<button class="flex items-center gap-1 hover:text-foreground transition-colors"
 													onclick={() => { sortKey = 'StartUTC'; sortDir = sortDir === 'asc' ? 'desc' : 'asc'; }}>
 													Time <span class="opacity-40 text-[10px]">{sortKey === 'StartUTC' ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}</span>
@@ -349,7 +349,7 @@
 												</Table.Cell>
 											{/if}
 											{#if visibleCols.time}
-												<Table.Cell class="text-xs text-muted-foreground whitespace-nowrap">{fmtTime(row.StartUTC)}</Table.Cell>
+												<Table.Cell class="text-sm text-muted-foreground whitespace-nowrap">{fmtTime(row.StartUTC)}</Table.Cell>
 											{/if}
 										</Table.Row>
 									{/each}
@@ -386,7 +386,7 @@
 		<div class="flex items-start justify-between px-6 py-4 border-b border-border">
 			<div>
 				<h2 class="text-base font-semibold">Request log</h2>
-				<p class="text-xs text-muted-foreground mt-0.5">Details of the request log entry</p>
+				<p class="text-sm text-muted-foreground mt-0.5">Details of the request log entry</p>
 			</div>
 			<button onclick={() => (selectedRow = null)}
 				class="text-muted-foreground hover:text-foreground hover:bg-accent p-1.5 rounded transition-colors">
@@ -401,8 +401,8 @@
 					<Table.Body>
 						{#each Object.entries(selectedRow) as [key, value] (key)}
 							<Table.Row>
-								<Table.Cell class="font-medium text-xs w-40 text-muted-foreground">{key}</Table.Cell>
-								<Table.Cell class="text-xs font-mono break-all whitespace-pre-wrap">
+								<Table.Cell class="font-medium text-sm w-40 text-muted-foreground">{key}</Table.Cell>
+								<Table.Cell class="text-sm font-mono break-all whitespace-pre-wrap">
 									{#if key === 'RequestAddr' || key === 'ClientAddr'}
 										<div class="flex items-center gap-2 bg-muted px-2 py-1 rounded">
 											<span>{value}</span>

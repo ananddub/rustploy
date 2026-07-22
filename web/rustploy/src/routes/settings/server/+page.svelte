@@ -150,11 +150,11 @@
 
 					<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 						<div class="space-y-1.5">
-							<Label for="domain" class="text-xs">Domain</Label>
+							<Label for="domain" class="text-sm">Domain</Label>
 							<Input id="domain" bind:value={domain} placeholder="example.com" />
 						</div>
 						<div class="space-y-1.5">
-							<Label for="email" class="text-xs">Let's Encrypt Email</Label>
+							<Label for="email" class="text-sm">Let's Encrypt Email</Label>
 							<Input id="email" bind:value={letsEncryptEmail} placeholder="admin@example.com" type="email" />
 						</div>
 					</div>
@@ -162,14 +162,14 @@
 					<div class="flex items-center justify-between rounded-lg border border-border px-4 py-3">
 						<div>
 							<p class="text-sm font-medium">HTTPS</p>
-							<p class="text-xs text-muted-foreground">Automatically provision SSL Certificate</p>
+							<p class="text-sm text-muted-foreground">Automatically provision SSL Certificate</p>
 						</div>
 						<Switch bind:checked={https} />
 					</div>
 
 					{#if https}
 						<div class="space-y-1.5">
-							<Label class="text-xs">Certificate Provider</Label>
+							<Label class="text-sm">Certificate Provider</Label>
 							<Select.Root type="single" value={certType} onValueChange={(v) => (certType = (v ?? 'none') as typeof certType)}>
 								<Select.Trigger class="w-full">
 									<span class="text-sm capitalize">{certType === 'letsencrypt' ? "Let's Encrypt" : certType}</span>
@@ -331,7 +331,7 @@
 						{/each}
 					</div>
 					{#if allHealthy}
-						<p class="text-xs text-muted-foreground">All services are running. You can proceed.</p>
+						<p class="text-sm text-muted-foreground">All services are running. You can proceed.</p>
 					{:else}
 						<div class="flex items-start gap-2 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-600 dark:text-yellow-400">
 							<AlertTriangle class="w-3.5 h-3.5 shrink-0 mt-0.5" />
@@ -414,15 +414,15 @@
 					{#each ports as port, i (i)}
 						<div class="grid grid-cols-4 gap-3 items-end rounded-lg border border-border p-4 bg-muted/20">
 							<div class="space-y-1.5">
-								<Label class="text-xs text-muted-foreground">Target Port</Label>
+								<Label class="text-sm text-muted-foreground">Target Port</Label>
 								<Input type="number" bind:value={port.targetPort} placeholder="e.g. 8080" class="h-8 text-sm" />
 							</div>
 							<div class="space-y-1.5">
-								<Label class="text-xs text-muted-foreground">Published Port</Label>
+								<Label class="text-sm text-muted-foreground">Published Port</Label>
 								<Input type="number" bind:value={port.publishedPort} placeholder="e.g. 80" class="h-8 text-sm" />
 							</div>
 							<div class="space-y-1.5">
-								<Label class="text-xs text-muted-foreground">Protocol</Label>
+								<Label class="text-sm text-muted-foreground">Protocol</Label>
 								<Select.Root type="single" value={port.protocol} onValueChange={(v) => (port.protocol = (v ?? 'tcp') as typeof port.protocol)}>
 									<Select.Trigger class="h-8"><span class="text-sm uppercase">{port.protocol}</span></Select.Trigger>
 									<Select.Content>

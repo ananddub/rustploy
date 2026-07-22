@@ -290,7 +290,7 @@
 			<div class="flex items-start justify-between">
 				<div>
 					<h2 class="text-base font-semibold">{editingId ? 'Edit' : 'Add'} Certificate</h2>
-					<p class="text-xs text-muted-foreground mt-0.5">
+					<p class="text-sm text-muted-foreground mt-0.5">
 						{editingId ? 'Update the certificate configuration' : 'Add a new TLS certificate'}
 					</p>
 				</div>
@@ -300,13 +300,13 @@
 
 			<!-- Name -->
 			<div class="space-y-1.5">
-				<Label for="c-name" class="text-xs">Name <span class="text-destructive">*</span></Label>
+				<Label for="c-name" class="text-sm">Name <span class="text-destructive">*</span></Label>
 				<Input id="c-name" bind:value={fName} placeholder="My Certificate" required />
 			</div>
 
 			<!-- Certificate Data -->
 			<div class="space-y-1.5">
-				<Label for="c-cert" class="text-xs">
+				<Label for="c-cert" class="text-sm">
 					Certificate Data <span class="text-destructive">*</span>
 				</Label>
 				<textarea
@@ -322,7 +322,7 @@
 
 			<!-- Private Key -->
 			<div class="space-y-1.5">
-				<Label for="c-key" class="text-xs">
+				<Label for="c-key" class="text-sm">
 					Private Key <span class="text-destructive">*</span>
 				</Label>
 				<textarea
@@ -364,7 +364,7 @@
 				</div>
 				<div>
 					<h2 class="text-sm font-semibold">Delete Certificate</h2>
-					<p class="text-xs text-muted-foreground mt-0.5">
+					<p class="text-sm text-muted-foreground mt-0.5">
 						Are you sure you want to delete <strong class="text-foreground">{target?.name}</strong>?
 						This cannot be undone.
 					</p>

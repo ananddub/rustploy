@@ -176,37 +176,37 @@
 					<h2 class="text-base font-semibold mb-4">Database Info</h2>
 					<div class="grid grid-cols-2 md:grid-cols-4 gap-3">
 						<div class="bg-secondary rounded-lg p-3">
-							<p class="text-xs text-muted-foreground uppercase tracking-wide mb-1">Type</p>
+							<p class="text-sm text-muted-foreground uppercase tracking-wide mb-1">Type</p>
 							<p class="text-sm font-medium capitalize">{db.kind}</p>
 						</div>
 						<div class="bg-secondary rounded-lg p-3">
-							<p class="text-xs text-muted-foreground uppercase tracking-wide mb-1">Status</p>
+							<p class="text-sm text-muted-foreground uppercase tracking-wide mb-1">Status</p>
 							<div class="flex items-center gap-1.5">
 								<span class="w-2 h-2 rounded-full {statusDot(db.app_status)}"></span>
 								<p class="text-sm font-medium">{db.app_status}</p>
 							</div>
 						</div>
 						<div class="bg-secondary rounded-lg p-3">
-							<p class="text-xs text-muted-foreground uppercase tracking-wide mb-1">Replicas</p>
+							<p class="text-sm text-muted-foreground uppercase tracking-wide mb-1">Replicas</p>
 							<p class="text-sm font-medium">{db.replicas}</p>
 						</div>
 						<div class="bg-secondary rounded-lg p-3">
-							<p class="text-xs text-muted-foreground uppercase tracking-wide mb-1">App Name</p>
+							<p class="text-sm text-muted-foreground uppercase tracking-wide mb-1">App Name</p>
 							<p class="text-sm font-mono truncate">{db.app_name}</p>
 						</div>
 						{#if db.external_port}
 							<div class="bg-secondary rounded-lg p-3">
-								<p class="text-xs text-muted-foreground uppercase tracking-wide mb-1">External Port</p>
+								<p class="text-sm text-muted-foreground uppercase tracking-wide mb-1">External Port</p>
 								<p class="text-sm font-mono">{db.external_port}</p>
 							</div>
 						{/if}
 						{#if db.memory_limit || db.cpu_limit}
 							<div class="bg-secondary rounded-lg p-3">
-								<p class="text-xs text-muted-foreground uppercase tracking-wide mb-1">Memory Limit</p>
+								<p class="text-sm text-muted-foreground uppercase tracking-wide mb-1">Memory Limit</p>
 								<p class="text-sm font-mono">{db.memory_limit ?? '—'}</p>
 							</div>
 							<div class="bg-secondary rounded-lg p-3">
-								<p class="text-xs text-muted-foreground uppercase tracking-wide mb-1">CPU Limit</p>
+								<p class="text-sm text-muted-foreground uppercase tracking-wide mb-1">CPU Limit</p>
 								<p class="text-sm font-mono">{db.cpu_limit ?? '—'}</p>
 							</div>
 						{/if}

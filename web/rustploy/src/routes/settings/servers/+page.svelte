@@ -268,38 +268,38 @@
 			<div class="flex items-start justify-between gap-3">
 				<div>
 					<h2 class="text-base font-semibold">{editingId ? 'Edit' : 'Add'} Server</h2>
-					<p class="text-xs text-muted-foreground mt-0.5">{editingId ? 'Update server connection details' : 'Connect a new remote server via SSH'}</p>
+					<p class="text-sm text-muted-foreground mt-0.5">{editingId ? 'Update server connection details' : 'Connect a new remote server via SSH'}</p>
 				</div>
 				<button type="button" onclick={() => { showModal=false; editingId=null; }}
 					class="text-muted-foreground hover:text-foreground p-1 rounded hover:bg-accent">✕</button>
 			</div>
 
 			<div class="space-y-1.5">
-				<Label for="m-name" class="text-xs">Name <span class="text-destructive">*</span></Label>
+				<Label for="m-name" class="text-sm">Name <span class="text-destructive">*</span></Label>
 				<Input id="m-name" bind:value={fName} placeholder="Production Server" required />
 			</div>
 			<div class="space-y-1.5">
-				<Label for="m-desc" class="text-xs">Description</Label>
+				<Label for="m-desc" class="text-sm">Description</Label>
 				<Input id="m-desc" bind:value={fDesc} placeholder="Optional description" />
 			</div>
 			<div class="grid grid-cols-3 gap-3">
 				<div class="col-span-2 space-y-1.5">
-					<Label for="m-ip" class="text-xs">IP Address <span class="text-destructive">*</span></Label>
+					<Label for="m-ip" class="text-sm">IP Address <span class="text-destructive">*</span></Label>
 					<Input id="m-ip" bind:value={fIp} placeholder="192.168.1.100" class="font-mono" required />
 				</div>
 				<div class="space-y-1.5">
-					<Label for="m-port" class="text-xs">Port</Label>
+					<Label for="m-port" class="text-sm">Port</Label>
 					<Input id="m-port" bind:value={fPort} type="number" placeholder="22" class="font-mono" />
 				</div>
 			</div>
 			<div class="space-y-1.5">
-				<Label for="m-user" class="text-xs">Username</Label>
+				<Label for="m-user" class="text-sm">Username</Label>
 				<Input id="m-user" bind:value={fUser} placeholder="root" class="font-mono" />
 			</div>
 			<div class="space-y-1.5">
-				<Label class="text-xs">SSH Key <span class="text-destructive">*</span></Label>
+				<Label class="text-sm">SSH Key <span class="text-destructive">*</span></Label>
 				{#if sshKeys.length === 0}
-					<p class="text-xs text-muted-foreground">No SSH keys found.
+					<p class="text-sm text-muted-foreground">No SSH keys found.
 						<button type="button" class="text-primary hover:underline" onclick={() => goto('/ssh-keys')}>Add one first</button>.
 					</p>
 				{:else}
@@ -316,7 +316,7 @@
 				{/if}
 			</div>
 			<div class="space-y-1.5">
-				<Label class="text-xs">Server Type</Label>
+				<Label class="text-sm">Server Type</Label>
 				<Select.Root type="single" value={fType} onValueChange={(v) => (fType=(v??'deploy') as ServerType)}>
 					<Select.Trigger class="w-full">
 						<span class="text-sm capitalize">{fType}</span>
@@ -363,7 +363,7 @@
 				</div>
 				<div>
 					<h2 class="text-sm font-semibold">Delete Server</h2>
-					<p class="text-xs text-muted-foreground mt-0.5">
+					<p class="text-sm text-muted-foreground mt-0.5">
 						Delete <strong class="text-foreground">{target?.name}</strong>?
 						This will remove the server and all associated data.
 					</p>

@@ -370,7 +370,7 @@ certificatesResolvers:
 						<div class="flex items-center justify-between px-4 py-2.5 border-b border-border bg-muted/20">
 							<div class="min-w-0">
 								<p class="text-[10px] text-muted-foreground/60 uppercase tracking-wider">Traefik config</p>
-								<p class="text-xs font-mono text-muted-foreground truncate">{selectedFile ?? ''}</p>
+								<p class="text-sm font-mono text-muted-foreground truncate">{selectedFile ?? ''}</p>
 							</div>
 							<Button variant="secondary" size="sm" class="gap-1.5 h-7 text-xs shrink-0 ml-4" onclick={toggleLock}>
 								{#if locked}<Lock class="w-3 h-3" /> Unlock{:else}<LockOpen class="w-3 h-3" /> Lock{/if}
@@ -394,7 +394,7 @@ certificatesResolvers:
 								<input type="checkbox" class="mt-0.5" bind:checked={skipYaml} />
 								<div>
 									<p class="text-sm font-medium">Skip YAML validation <span class="text-muted-foreground font-normal">(for Go templating)</span></p>
-									<p class="text-xs text-muted-foreground mt-0.5">
+									<p class="text-sm text-muted-foreground mt-0.5">
 										Traefik supports Go templates like <code class="bg-muted px-1 py-0.5 rounded text-[10px] font-mono">{'{{range}}'}</code> which fail standard YAML validation.
 									</p>
 								</div>

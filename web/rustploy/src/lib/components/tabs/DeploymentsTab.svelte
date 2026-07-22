@@ -136,7 +136,7 @@
 				<div class="grid grid-cols-[1fr_110px_90px_130px_90px] gap-3 items-center px-5 py-3 border-b border-border last:border-0 hover:bg-accent/20 transition-colors">
 					<div class="min-w-0">
 						<p class="text-sm font-medium truncate">{d.title}</p>
-						{#if d.description}<p class="text-xs text-muted-foreground truncate mt-0.5">{d.description}</p>{/if}
+						{#if d.description}<p class="text-sm text-muted-foreground truncate mt-0.5">{d.description}</p>{/if}
 					</div>
 					<div>
 						<span class="inline-flex items-center gap-1 text-xs font-medium {deployStatusColor(d.status)}">

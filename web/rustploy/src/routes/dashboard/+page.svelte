@@ -102,7 +102,7 @@
 				</CardHeader>
 				<CardContent>
 					<p class="text-2xl font-bold">{projectsCount}</p>
-					<p class="text-xs text-muted-foreground mt-1">Active projects</p>
+					<p class="text-sm text-muted-foreground mt-1">Active projects</p>
 				</CardContent>
 			</Card>
 
@@ -116,7 +116,7 @@
 				</CardHeader>
 				<CardContent>
 					<p class="text-2xl font-bold">{servicesCount}</p>
-					<p class="text-xs text-muted-foreground mt-1">
+					<p class="text-sm text-muted-foreground mt-1">
 						{servicesBreakdown.apps} apps · {servicesBreakdown.compose} compose · {servicesBreakdown.db} db
 					</p>
 				</CardContent>
@@ -135,7 +135,7 @@
 						<p class="text-2xl font-bold">{deploys7d}</p>
 						<Badge variant="secondary" class="text-[10px] font-medium text-green-500">{deploys7dChange}</Badge>
 					</div>
-					<p class="text-xs text-muted-foreground mt-1">Deployment activity</p>
+					<p class="text-sm text-muted-foreground mt-1">Deployment activity</p>
 				</CardContent>
 			</Card>
 
@@ -222,7 +222,7 @@
 											{deployment.kind} service
 											<span class="text-muted-foreground font-normal">#{deployment.id}</span>
 										</p>
-										<p class="text-xs text-muted-foreground mt-0.5">
+										<p class="text-sm text-muted-foreground mt-0.5">
 											Project {deployment.project_id} · Environment {deployment.environment_id}
 										</p>
 									</div>

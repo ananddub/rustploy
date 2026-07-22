@@ -165,7 +165,7 @@
 			<div class="flex items-start justify-between">
 				<div>
 					<h2 class="text-base font-semibold">{editingId ? 'Update' : 'Create'} Tag</h2>
-					<p class="text-xs text-muted-foreground mt-0.5">
+					<p class="text-sm text-muted-foreground mt-0.5">
 						{editingId ? 'Update the tag name and color' : 'Create a new tag to organize your projects'}
 					</p>
 				</div>
@@ -175,7 +175,7 @@
 
 			<!-- Name -->
 			<div class="space-y-1.5">
-				<Label for="t-name" class="text-xs">Name</Label>
+				<Label for="t-name" class="text-sm">Name</Label>
 				<Input id="t-name" bind:value={mName} placeholder="e.g., Production, Client, Internal" required />
 				{#if modalError && modalError.includes('name')}
 					<p class="text-xs text-destructive">{modalError}</p>
@@ -184,7 +184,7 @@
 
 			<!-- Color -->
 			<div class="space-y-1.5">
-				<Label class="text-xs">Color <span class="text-muted-foreground">(Optional)</span></Label>
+				<Label class="text-sm">Color <span class="text-muted-foreground">(Optional)</span></Label>
 				<div class="flex items-center gap-3">
 					<!-- Colored square that opens color picker -->
 					<button
@@ -254,7 +254,7 @@
 				</div>
 				<div>
 					<h2 class="text-sm font-semibold">Delete Tag</h2>
-					<p class="text-xs text-muted-foreground mt-0.5">
+					<p class="text-sm text-muted-foreground mt-0.5">
 						Are you sure you want to delete the tag
 						<strong class="text-foreground"> "{target?.name}"</strong>?
 						This will remove the tag from all projects. This cannot be undone.

@@ -359,7 +359,7 @@
 											</Table.Cell>
 										{/if}
 										{#if visibleCols.status}
-											<Table.Cell class="text-xs text-muted-foreground">{c.status}</Table.Cell>
+											<Table.Cell class="text-sm text-muted-foreground">{c.status}</Table.Cell>
 										{/if}
 										{#if visibleCols.image}
 											<Table.Cell>
@@ -384,35 +384,35 @@
 													</Button>
 												</DropdownMenu.Trigger>
 												<DropdownMenu.Content align="end" class="w-48">
-													<DropdownMenu.Label class="text-xs">Actions</DropdownMenu.Label>
+													<DropdownMenu.Label class="text-sm">Actions</DropdownMenu.Label>
 													<DropdownMenu.Item
-														class="gap-2 text-xs cursor-pointer"
+														class="gap-2 text-sm cursor-pointer"
 														onclick={() => copyId(c.containerId)}
 													>
 														<Copy class="w-3.5 h-3.5" /> Copy Container ID
 													</DropdownMenu.Item>
 													<DropdownMenu.Separator />
-													<DropdownMenu.Item class="gap-2 text-xs cursor-pointer">
+													<DropdownMenu.Item class="gap-2 text-sm cursor-pointer">
 														<ScrollText class="w-3.5 h-3.5" /> View Logs
 													</DropdownMenu.Item>
-													<DropdownMenu.Item class="gap-2 text-xs cursor-pointer">
+													<DropdownMenu.Item class="gap-2 text-sm cursor-pointer">
 														<FileText class="w-3.5 h-3.5" /> Config
 													</DropdownMenu.Item>
-													<DropdownMenu.Item class="gap-2 text-xs cursor-pointer">
+													<DropdownMenu.Item class="gap-2 text-sm cursor-pointer">
 														<HardDrive class="w-3.5 h-3.5" /> Mounts
 													</DropdownMenu.Item>
-													<DropdownMenu.Item class="gap-2 text-xs cursor-pointer">
+													<DropdownMenu.Item class="gap-2 text-sm cursor-pointer">
 														<Network class="w-3.5 h-3.5" /> Networks
 													</DropdownMenu.Item>
-													<DropdownMenu.Item class="gap-2 text-xs cursor-pointer">
+													<DropdownMenu.Item class="gap-2 text-sm cursor-pointer">
 														<Terminal class="w-3.5 h-3.5" /> Terminal
 													</DropdownMenu.Item>
-													<DropdownMenu.Item class="gap-2 text-xs cursor-pointer">
+													<DropdownMenu.Item class="gap-2 text-sm cursor-pointer">
 														<Upload class="w-3.5 h-3.5" /> Upload File
 													</DropdownMenu.Item>
 													<DropdownMenu.Separator />
 													<DropdownMenu.Item
-														class="gap-2 text-xs cursor-pointer text-destructive"
+														class="gap-2 text-sm cursor-pointer text-destructive"
 														variant="destructive"
 													>
 														<Trash2 class="w-3.5 h-3.5" /> Remove
@@ -430,7 +430,7 @@
 				<!-- Pagination -->
 				{#if filtered.length > 0}
 					<div class="flex items-center justify-between">
-						<p class="text-xs text-muted-foreground">
+						<p class="text-sm text-muted-foreground">
 							Showing {showFrom}–{showTo} of {filtered.length} containers
 						</p>
 						<div class="flex items-center gap-2">

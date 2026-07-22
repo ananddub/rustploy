@@ -235,16 +235,16 @@
 										</Table.Head>
 									{/if}
 									{#if visibleCols.resource}
-										<Table.Head class="text-xs font-medium">Resource</Table.Head>
+										<Table.Head class="text-sm font-medium">Resource</Table.Head>
 									{/if}
 									{#if visibleCols.name}
-										<Table.Head class="text-xs font-medium">Name</Table.Head>
+										<Table.Head class="text-sm font-medium">Name</Table.Head>
 									{/if}
 									{#if visibleCols.role}
-										<Table.Head class="text-xs font-medium">Role</Table.Head>
+										<Table.Head class="text-sm font-medium">Role</Table.Head>
 									{/if}
 									{#if visibleCols.metadata}
-										<Table.Head class="text-xs font-medium">Metadata</Table.Head>
+										<Table.Head class="text-sm font-medium">Metadata</Table.Head>
 									{/if}
 								</Table.Row>
 							</Table.Header>
@@ -260,7 +260,7 @@
 										{@const ac = ACTION_CONFIG[log.action]}
 										<Table.Row class="hover:bg-muted/20 transition-colors">
 											{#if visibleCols.date}
-												<Table.Cell class="text-xs text-muted-foreground whitespace-nowrap">{fmtDate(log.createdAt)}</Table.Cell>
+												<Table.Cell class="text-sm text-muted-foreground whitespace-nowrap">{fmtDate(log.createdAt)}</Table.Cell>
 											{/if}
 											{#if visibleCols.user}
 												<Table.Cell class="text-sm">{log.userEmail}</Table.Cell>

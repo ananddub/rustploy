@@ -29,19 +29,19 @@
 		<p class="text-sm text-muted-foreground mb-4">Details about this compose service.</p>
 		<div class="grid grid-cols-2 gap-4 text-sm">
 			<div class="bg-secondary rounded-lg p-3">
-				<p class="text-xs text-muted-foreground uppercase tracking-wide mb-1">App Name</p>
+				<p class="text-sm text-muted-foreground uppercase tracking-wide mb-1">App Name</p>
 				<p class="font-mono">{compose.app_name}</p>
 			</div>
 			<div class="bg-secondary rounded-lg p-3">
-				<p class="text-xs text-muted-foreground uppercase tracking-wide mb-1">Compose Type</p>
+				<p class="text-sm text-muted-foreground uppercase tracking-wide mb-1">Compose Type</p>
 				<p>{compose.compose_type}</p>
 			</div>
 			<div class="bg-secondary rounded-lg p-3">
-				<p class="text-xs text-muted-foreground uppercase tracking-wide mb-1">Source Type</p>
+				<p class="text-sm text-muted-foreground uppercase tracking-wide mb-1">Source Type</p>
 				<p>{compose.source_type}</p>
 			</div>
 			<div class="bg-secondary rounded-lg p-3">
-				<p class="text-xs text-muted-foreground uppercase tracking-wide mb-1">Trigger Type</p>
+				<p class="text-sm text-muted-foreground uppercase tracking-wide mb-1">Trigger Type</p>
 				<p>{compose.trigger_type}</p>
 			</div>
 		</div>

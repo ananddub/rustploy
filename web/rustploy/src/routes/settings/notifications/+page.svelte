@@ -233,7 +233,7 @@
 			<div class="flex items-start justify-between">
 				<div>
 					<h2 class="text-base font-semibold">{editingId ? 'Edit' : 'Add'} Notification</h2>
-					<p class="text-xs text-muted-foreground mt-0.5">{editingId ? 'Update notification provider' : 'Add a new notification provider'}</p>
+					<p class="text-sm text-muted-foreground mt-0.5">{editingId ? 'Update notification provider' : 'Add a new notification provider'}</p>
 				</div>
 				<button type="button" onclick={() => { showModal=false; editingId=null; }}
 					class="text-muted-foreground hover:text-foreground p-1 rounded hover:bg-accent">✕</button>
@@ -241,13 +241,13 @@
 
 			<!-- Name -->
 			<div class="space-y-1.5">
-				<Label for="n-name" class="text-xs">Name <span class="text-destructive">*</span></Label>
+				<Label for="n-name" class="text-sm">Name <span class="text-destructive">*</span></Label>
 				<Input id="n-name" bind:value={fName} placeholder="e.g. Deploy Alerts" required />
 			</div>
 
 			<!-- Type selector -->
 			<div class="space-y-1.5">
-				<Label class="text-xs">Provider <span class="text-destructive">*</span></Label>
+				<Label class="text-sm">Provider <span class="text-destructive">*</span></Label>
 				<Select.Root type="single" value={notifType} onValueChange={(v) => (notifType = (v??'slack') as NotifType)}>
 					<Select.Trigger class="w-full">
 						<span class="text-sm">{TYPE_CONFIG[notifType].label}</span>
@@ -263,38 +263,38 @@
 			<!-- Dynamic fields per type -->
 			{#if notifType === 'slack' || notifType === 'discord' || notifType === 'lark' || notifType === 'teams'}
 				<div class="space-y-1.5">
-					<Label for="n-wh" class="text-xs">Webhook URL <span class="text-destructive">*</span></Label>
+					<Label for="n-wh" class="text-sm">Webhook URL <span class="text-destructive">*</span></Label>
 					<Input id="n-wh" bind:value={fWebhookUrl} placeholder="https://hooks.slack.com/services/..." required />
 				</div>
 				{#if notifType === 'slack' || notifType === 'mattermost'}
 					<div class="space-y-1.5">
-						<Label for="n-ch" class="text-xs">Channel <span class="text-muted-foreground">(optional)</span></Label>
+						<Label for="n-ch" class="text-sm">Channel <span class="text-muted-foreground">(optional)</span></Label>
 						<Input id="n-ch" bind:value={fChannel} placeholder="#deployments" />
 					</div>
 				{/if}
 
 			{:else if notifType === 'mattermost'}
 				<div class="space-y-1.5">
-					<Label for="n-wh2" class="text-xs">Webhook URL <span class="text-destructive">*</span></Label>
+					<Label for="n-wh2" class="text-sm">Webhook URL <span class="text-destructive">*</span></Label>
 					<Input id="n-wh2" bind:value={fWebhookUrl} placeholder="https://mattermost.example.com/hooks/..." required />
 				</div>
 				<div class="space-y-1.5">
-					<Label for="n-ch2" class="text-xs">Channel <span class="text-muted-foreground">(optional)</span></Label>
+					<Label for="n-ch2" class="text-sm">Channel <span class="text-muted-foreground">(optional)</span></Label>
 					<Input id="n-ch2" bind:value={fChannel} placeholder="town-square" />
 				</div>
 
 			{:else if notifType === 'telegram'}
 				<div class="space-y-1.5">
-					<Label for="n-bot" class="text-xs">Bot Token <span class="text-destructive">*</span></Label>
+					<Label for="n-bot" class="text-sm">Bot Token <span class="text-destructive">*</span></Label>
 					<Input id="n-bot" bind:value={fBotToken} placeholder="123456:ABC-DEF..." required />
 				</div>
 				<div class="grid grid-cols-2 gap-3">
 					<div class="space-y-1.5">
-						<Label for="n-chat" class="text-xs">Chat ID <span class="text-destructive">*</span></Label>
+						<Label for="n-chat" class="text-sm">Chat ID <span class="text-destructive">*</span></Label>
 						<Input id="n-chat" bind:value={fChatId} placeholder="-100123456789" required />
 					</div>
 					<div class="space-y-1.5">
-						<Label for="n-thread" class="text-xs">Message Thread ID <span class="text-muted-foreground">(optional)</span></Label>
+						<Label for="n-thread" class="text-sm">Message Thread ID <span class="text-muted-foreground">(optional)</span></Label>
 						<Input id="n-thread" bind:value={fThreadId} placeholder="Thread ID" />
 					</div>
 				</div>
@@ -302,75 +302,75 @@
 			{:else if notifType === 'email'}
 				<div class="grid grid-cols-2 gap-3">
 					<div class="space-y-1.5">
-						<Label for="n-smtp" class="text-xs">SMTP Server <span class="text-destructive">*</span></Label>
+						<Label for="n-smtp" class="text-sm">SMTP Server <span class="text-destructive">*</span></Label>
 						<Input id="n-smtp" bind:value={fSmtp} placeholder="smtp.gmail.com" required />
 					</div>
 					<div class="space-y-1.5">
-						<Label for="n-port" class="text-xs">Port</Label>
+						<Label for="n-port" class="text-sm">Port</Label>
 						<Input id="n-port" bind:value={fPort} type="number" placeholder="587" />
 					</div>
 				</div>
 				<div class="grid grid-cols-2 gap-3">
 					<div class="space-y-1.5">
-						<Label for="n-eu" class="text-xs">Username <span class="text-destructive">*</span></Label>
+						<Label for="n-eu" class="text-sm">Username <span class="text-destructive">*</span></Label>
 						<Input id="n-eu" bind:value={fUser} placeholder="user@example.com" required />
 					</div>
 					<div class="space-y-1.5">
-						<Label for="n-ep" class="text-xs">Password <span class="text-destructive">*</span></Label>
+						<Label for="n-ep" class="text-sm">Password <span class="text-destructive">*</span></Label>
 						<Input id="n-ep" type="password" bind:value={fPass} placeholder="Password" required />
 					</div>
 				</div>
 				<div class="space-y-1.5">
-					<Label for="n-from" class="text-xs">From Address <span class="text-destructive">*</span></Label>
+					<Label for="n-from" class="text-sm">From Address <span class="text-destructive">*</span></Label>
 					<Input id="n-from" bind:value={fFrom} placeholder="alerts@example.com" required />
 				</div>
 				<div class="space-y-1.5">
-					<Label for="n-to" class="text-xs">To Addresses <span class="text-destructive">*</span></Label>
+					<Label for="n-to" class="text-sm">To Addresses <span class="text-destructive">*</span></Label>
 					<Input id="n-to" bind:value={fTo} placeholder="admin@example.com, ops@example.com" required />
 					<p class="text-[10px] text-muted-foreground">Comma-separated email addresses</p>
 				</div>
 
 			{:else if notifType === 'resend'}
 				<div class="space-y-1.5">
-					<Label for="n-rk" class="text-xs">API Key <span class="text-destructive">*</span></Label>
+					<Label for="n-rk" class="text-sm">API Key <span class="text-destructive">*</span></Label>
 					<Input id="n-rk" bind:value={fApiKey} placeholder="re_..." required />
 				</div>
 				<div class="space-y-1.5">
-					<Label for="n-rf" class="text-xs">From Address <span class="text-destructive">*</span></Label>
+					<Label for="n-rf" class="text-sm">From Address <span class="text-destructive">*</span></Label>
 					<Input id="n-rf" bind:value={fResendFrom} placeholder="alerts@example.com" required />
 				</div>
 				<div class="space-y-1.5">
-					<Label for="n-rt" class="text-xs">To Addresses <span class="text-destructive">*</span></Label>
+					<Label for="n-rt" class="text-sm">To Addresses <span class="text-destructive">*</span></Label>
 					<Input id="n-rt" bind:value={fResendTo} placeholder="admin@example.com" required />
 				</div>
 
 			{:else if notifType === 'gotify'}
 				<div class="space-y-1.5">
-					<Label for="n-gs" class="text-xs">Server URL <span class="text-destructive">*</span></Label>
+					<Label for="n-gs" class="text-sm">Server URL <span class="text-destructive">*</span></Label>
 					<Input id="n-gs" bind:value={fServerUrl} placeholder="https://gotify.example.com" required />
 				</div>
 				<div class="space-y-1.5">
-					<Label for="n-ga" class="text-xs">App Token <span class="text-destructive">*</span></Label>
+					<Label for="n-ga" class="text-sm">App Token <span class="text-destructive">*</span></Label>
 					<Input id="n-ga" bind:value={fAppToken} placeholder="App token" required />
 				</div>
 
 			{:else if notifType === 'ntfy'}
 				<div class="space-y-1.5">
-					<Label for="n-ns" class="text-xs">Server URL <span class="text-destructive">*</span></Label>
+					<Label for="n-ns" class="text-sm">Server URL <span class="text-destructive">*</span></Label>
 					<Input id="n-ns" bind:value={fServerUrl} placeholder="https://ntfy.sh" required />
 				</div>
 				<div class="space-y-1.5">
-					<Label for="n-nt" class="text-xs">Topic <span class="text-destructive">*</span></Label>
+					<Label for="n-nt" class="text-sm">Topic <span class="text-destructive">*</span></Label>
 					<Input id="n-nt" bind:value={fTopic} placeholder="my-alerts" required />
 				</div>
 				<div class="space-y-1.5">
-					<Label for="n-nat" class="text-xs">Access Token <span class="text-muted-foreground">(optional)</span></Label>
+					<Label for="n-nat" class="text-sm">Access Token <span class="text-muted-foreground">(optional)</span></Label>
 					<Input id="n-nat" bind:value={fAccessToken} placeholder="tk_..." />
 				</div>
 
 			{:else if notifType === 'custom'}
 				<div class="space-y-1.5">
-					<Label for="n-ep2" class="text-xs">Endpoint URL <span class="text-destructive">*</span></Label>
+					<Label for="n-ep2" class="text-sm">Endpoint URL <span class="text-destructive">*</span></Label>
 					<Input id="n-ep2" bind:value={fEndpoint} placeholder="https://example.com/webhook" required />
 				</div>
 			{/if}
@@ -403,7 +403,7 @@
 				</div>
 				<div>
 					<h2 class="text-sm font-semibold">Delete Notification</h2>
-					<p class="text-xs text-muted-foreground mt-0.5">
+					<p class="text-sm text-muted-foreground mt-0.5">
 						Are you sure you want to delete <strong class="text-foreground">{target?.name}</strong>?
 						This cannot be undone.
 					</p>

@@ -97,7 +97,7 @@
 						Memory
 					</div>
 					<p class="text-2xl font-semibold">{fmtPercent(stats.memory_percent)}</p>
-					<p class="text-xs text-muted-foreground mt-1">{formatBytes(stats.memory_usage)} / {formatBytes(stats.memory_limit)}</p>
+					<p class="text-sm text-muted-foreground mt-1">{formatBytes(stats.memory_usage)} / {formatBytes(stats.memory_limit)}</p>
 				</div>
 				<div class="bg-secondary rounded-lg p-4">
 					<div class="flex items-center gap-2 text-muted-foreground text-xs uppercase tracking-wide mb-2">

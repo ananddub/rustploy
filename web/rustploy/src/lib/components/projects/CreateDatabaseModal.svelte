@@ -107,7 +107,7 @@
 			<div class="flex flex-col gap-1.5">
 				<label for="db-image" class="text-sm font-medium text-muted-foreground">Docker Image</label>
 				<input id="db-image" class={inputCls} bind:value={dockerImage} />
-				<p class="text-xs text-muted-foreground">Leave default or pin a specific version</p>
+				<p class="text-sm text-muted-foreground">Leave default or pin a specific version</p>
 			</div>
 
 			{#if selectedKind !== 'redis' && selectedKind !== 'libsql'}
@@ -130,7 +130,7 @@
 			<div class="flex flex-col gap-1.5">
 				<label for="db-port" class="text-sm font-medium text-muted-foreground">External Port</label>
 				<input id="db-port" class={inputCls} type="number" placeholder="Leave empty to auto-assign" bind:value={externalPort} />
-				<p class="text-xs text-muted-foreground">Expose on host port (optional)</p>
+				<p class="text-sm text-muted-foreground">Expose on host port (optional)</p>
 			</div>
 
 			{#if error}

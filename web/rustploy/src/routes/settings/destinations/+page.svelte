@@ -210,7 +210,7 @@
 			<div class="flex items-start justify-between">
 				<div>
 					<h2 class="text-base font-semibold">{editingId ? 'Update' : 'Add'} Destination</h2>
-					<p class="text-xs text-muted-foreground mt-0.5">
+					<p class="text-sm text-muted-foreground mt-0.5">
 						{editingId ? 'Update destination configuration' : 'Add a new S3-compatible storage destination'}
 					</p>
 				</div>
@@ -220,13 +220,13 @@
 
 			<!-- Name -->
 			<div class="space-y-1.5">
-				<Label for="d-name" class="text-xs">Name <span class="text-destructive">*</span></Label>
+				<Label for="d-name" class="text-sm">Name <span class="text-destructive">*</span></Label>
 				<Input id="d-name" bind:value={fName} placeholder="AWS S3 Backups" required />
 			</div>
 
 			<!-- Provider -->
 			<div class="space-y-1.5">
-				<Label class="text-xs">Provider <span class="text-destructive">*</span></Label>
+				<Label class="text-sm">Provider <span class="text-destructive">*</span></Label>
 				<Select.Root type="single" value={fProvider} onValueChange={(v) => (fProvider = v ?? 'AWS')}>
 					<Select.Trigger class="w-full">
 						<span class="text-sm">{providerName(fProvider)}</span>
@@ -242,29 +242,29 @@
 			<!-- Access Key + Secret -->
 			<div class="grid grid-cols-2 gap-3">
 				<div class="space-y-1.5">
-					<Label for="d-ak" class="text-xs">Access Key ID <span class="text-destructive">*</span></Label>
+					<Label for="d-ak" class="text-sm">Access Key ID <span class="text-destructive">*</span></Label>
 					<Input id="d-ak" bind:value={fAccessKey} placeholder="AKIAIOSFODNN7EXAMPLE" required />
 				</div>
 				<div class="space-y-1.5">
-					<Label for="d-sk" class="text-xs">Secret Access Key</Label>
+					<Label for="d-sk" class="text-sm">Secret Access Key</Label>
 					<Input id="d-sk" type="password" bind:value={fSecretKey} placeholder="Secret key" />
 				</div>
 			</div>
 
 			<!-- Bucket -->
 			<div class="space-y-1.5">
-				<Label for="d-bucket" class="text-xs">Bucket <span class="text-destructive">*</span></Label>
+				<Label for="d-bucket" class="text-sm">Bucket <span class="text-destructive">*</span></Label>
 				<Input id="d-bucket" bind:value={fBucket} placeholder="my-backup-bucket" required />
 			</div>
 
 			<!-- Region + Endpoint -->
 			<div class="grid grid-cols-2 gap-3">
 				<div class="space-y-1.5">
-					<Label for="d-region" class="text-xs">Region</Label>
+					<Label for="d-region" class="text-sm">Region</Label>
 					<Input id="d-region" bind:value={fRegion} placeholder="us-east-1" />
 				</div>
 				<div class="space-y-1.5">
-					<Label for="d-endpoint" class="text-xs">Endpoint <span class="text-destructive">*</span></Label>
+					<Label for="d-endpoint" class="text-sm">Endpoint <span class="text-destructive">*</span></Label>
 					<Input id="d-endpoint" bind:value={fEndpoint} placeholder="s3.amazonaws.com" class="font-mono text-sm" required />
 				</div>
 			</div>
@@ -272,7 +272,7 @@
 			<!-- Additional Flags -->
 			<div class="space-y-2">
 				<div class="flex items-center justify-between">
-					<Label class="text-xs">Additional Flags <span class="text-muted-foreground font-normal">(optional)</span></Label>
+					<Label class="text-sm">Additional Flags <span class="text-muted-foreground font-normal">(optional)</span></Label>
 					<Button type="button" variant="outline" size="sm" class="gap-1.5 h-7 text-xs" onclick={addFlag}>
 						<Plus class="w-3 h-3" /> Add Flag
 					</Button>
@@ -325,7 +325,7 @@
 				</div>
 				<div>
 					<h2 class="text-sm font-semibold">Delete Destination</h2>
-					<p class="text-xs text-muted-foreground mt-0.5">
+					<p class="text-sm text-muted-foreground mt-0.5">
 						Are you sure you want to delete <strong class="text-foreground">{target?.name}</strong>?
 						This cannot be undone.
 					</p>

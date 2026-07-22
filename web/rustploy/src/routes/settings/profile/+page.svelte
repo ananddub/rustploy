@@ -146,7 +146,7 @@
 
 					<!-- Avatar picker -->
 					<div class="space-y-2">
-						<Label class="text-xs text-muted-foreground">Avatar</Label>
+						<Label class="text-sm text-muted-foreground">Avatar</Label>
 						<div class="flex flex-wrap gap-2 items-center">
 							<!-- Initials (default) -->
 							<button
@@ -211,15 +211,15 @@
 					<!-- Name + email -->
 					<div class="space-y-4">
 						<div class="space-y-1.5">
-							<Label for="first-name" class="text-xs">First Name</Label>
+							<Label for="first-name" class="text-sm">First Name</Label>
 							<Input id="first-name" bind:value={firstName} placeholder="John" />
 						</div>
 						<div class="space-y-1.5">
-							<Label for="last-name" class="text-xs">Last Name</Label>
+							<Label for="last-name" class="text-sm">Last Name</Label>
 							<Input id="last-name" bind:value={lastName} placeholder="Doe" />
 						</div>
 						<div class="space-y-1.5">
-							<Label for="email" class="text-xs">Email</Label>
+							<Label for="email" class="text-sm">Email</Label>
 							<Input id="email" bind:value={email} type="email" placeholder="john@example.com" />
 						</div>
 					</div>
@@ -227,7 +227,7 @@
 					<!-- Passwords -->
 					<div class="space-y-4">
 						<div class="space-y-1.5">
-							<Label for="current-pass" class="text-xs">Current Password</Label>
+							<Label for="current-pass" class="text-sm">Current Password</Label>
 							<div class="relative">
 								<Input id="current-pass" type={showCurrent ? 'text' : 'password'}
 									bind:value={currentPassword} placeholder="Current Password" class="pr-10" />
@@ -239,7 +239,7 @@
 							</div>
 						</div>
 						<div class="space-y-1.5">
-							<Label for="new-pass" class="text-xs">New Password</Label>
+							<Label for="new-pass" class="text-sm">New Password</Label>
 							<div class="relative">
 								<Input id="new-pass" type={showNew ? 'text' : 'password'}
 									bind:value={newPassword} placeholder="New Password" class="pr-10" />
@@ -256,7 +256,7 @@
 					<div class="flex items-center justify-between rounded-lg border border-border px-4 py-3">
 						<div>
 							<p class="text-sm font-medium">Allow Impersonation</p>
-							<p class="text-xs text-muted-foreground mt-0.5">
+							<p class="text-sm text-muted-foreground mt-0.5">
 								Enable this option to allow administrators to temporarily access your account for troubleshooting and support purposes.
 							</p>
 						</div>
@@ -297,14 +297,14 @@
 					<img src={twoFAQrUrl} alt="2FA QR Code" class="w-48 h-48" />
 				</div>
 				<div class="text-center">
-					<p class="text-xs text-muted-foreground">Or enter this secret manually:</p>
+					<p class="text-sm text-muted-foreground">Or enter this secret manually:</p>
 					<code class="text-xs font-mono bg-muted px-2 py-1 rounded mt-1 inline-block tracking-widest">{twoFASecret}</code>
 				</div>
 			</div>
 
 			<!-- Code input -->
 			<div class="space-y-1.5">
-				<Label for="totp" class="text-xs">Verification Code</Label>
+				<Label for="totp" class="text-sm">Verification Code</Label>
 				<Input id="totp" bind:value={twoFACode} placeholder="000000" maxlength={6}
 					class="text-center font-mono text-lg tracking-widest h-12"
 					oninput={(e) => { twoFACode = (e.target as HTMLInputElement).value.replace(/\D/g,'').slice(0,6); }} />

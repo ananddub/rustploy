@@ -169,29 +169,29 @@
 			<div class="flex items-start justify-between">
 				<div>
 					<h2 class="text-base font-semibold">{editingId ? 'Update' : 'Add'} Docker Registry</h2>
-					<p class="text-xs text-muted-foreground mt-0.5">{editingId ? 'Update registry configuration' : 'Add a new Docker registry configuration'}</p>
+					<p class="text-sm text-muted-foreground mt-0.5">{editingId ? 'Update registry configuration' : 'Add a new Docker registry configuration'}</p>
 				</div>
 				<button type="button" onclick={() => { showModal=false; editingId=null; }}
 					class="text-muted-foreground hover:text-foreground p-1 rounded hover:bg-accent">✕</button>
 			</div>
 
 			<div class="space-y-1.5">
-				<Label for="r-name" class="text-xs">Registry Name <span class="text-destructive">*</span></Label>
+				<Label for="r-name" class="text-sm">Registry Name <span class="text-destructive">*</span></Label>
 				<Input id="r-name" bind:value={fName} placeholder="e.g. Docker Hub" required />
 			</div>
 
 			<div class="space-y-1.5">
-				<Label for="r-user" class="text-xs">Username <span class="text-destructive">*</span></Label>
+				<Label for="r-user" class="text-sm">Username <span class="text-destructive">*</span></Label>
 				<Input id="r-user" bind:value={fUser} placeholder="registry-username" required />
 			</div>
 
 			<div class="space-y-1.5">
-				<Label for="r-pass" class="text-xs">Password</Label>
+				<Label for="r-pass" class="text-sm">Password</Label>
 				<Input id="r-pass" type="password" bind:value={fPass} placeholder="Password or access token" />
 			</div>
 
 			<div class="space-y-1.5">
-				<Label for="r-url" class="text-xs">Registry URL <span class="text-muted-foreground font-normal">(optional)</span></Label>
+				<Label for="r-url" class="text-sm">Registry URL <span class="text-muted-foreground font-normal">(optional)</span></Label>
 				<Input id="r-url" bind:value={fUrl} placeholder="e.g. ghcr.io" class="font-mono text-sm" />
 				<p class="text-[10px] text-muted-foreground">
 					Hostname only — no <code class="bg-muted px-1 rounded">https://</code> and no paths. Leave empty for Docker Hub.
@@ -199,7 +199,7 @@
 			</div>
 
 			<div class="space-y-1.5">
-				<Label for="r-prefix" class="text-xs">Image Prefix <span class="text-muted-foreground font-normal">(optional)</span></Label>
+				<Label for="r-prefix" class="text-sm">Image Prefix <span class="text-muted-foreground font-normal">(optional)</span></Label>
 				<Input id="r-prefix" bind:value={fPrefix} placeholder="e.g. ghcr.io/my-org" class="font-mono text-sm" />
 				<p class="text-[10px] text-muted-foreground">Used as a prefix when pulling images from this registry</p>
 			</div>
@@ -250,7 +250,7 @@
 				</div>
 				<div>
 					<h2 class="text-sm font-semibold">Delete Registry</h2>
-					<p class="text-xs text-muted-foreground mt-0.5">
+					<p class="text-sm text-muted-foreground mt-0.5">
 						Are you sure you want to delete <strong class="text-foreground">{target?.registryName}</strong>?
 						This cannot be undone.
 					</p>
