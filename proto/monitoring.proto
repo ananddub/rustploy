@@ -2,11 +2,19 @@ syntax = "proto3";
 
 package monitoring;
 
+// Dedicated Real-time gRPC Streaming Monitoring Service
 service MonitoringService {
-  rpc PushSystemMetrics (SystemMetricsRequest) returns (MetricsResponse);
-  rpc PushContainerMetrics (ContainerMetricsRequest) returns (MetricsResponse);
+  // Bi-directional real-time hardware system metrics stream
+  rpc StreamSystemMetrics (stream SystemMetricsRequest) returns (stream MetricsAck);
+
+  // Bi-directional real-time Docker container metrics stream
+  rpc StreamContainerMetrics (stream ContainerMetricsRequest) returns (stream MetricsAck);
+
+  // Server-side real-time container log streaming
   rpc StreamLogs (LogStreamRequest) returns (stream LogChunk);
-  rpc ReportHealth (HealthReportRequest) returns (HealthReportResponse);
+
+  // Bi-directional real-time health probe status stream
+  rpc StreamHealth (stream HealthReportRequest) returns (stream HealthAck);
 }
 
 message SystemMetricsRequest {
@@ -37,9 +45,10 @@ message ContainerMetricsRequest {
   int64 timestamp = 11;
 }
 
-message MetricsResponse {
+message MetricsAck {
   bool success = 1;
-  string message = 2;
+  int64 received_timestamp = 2;
+  string message = 3;
 }
 
 message LogStreamRequest {
@@ -50,10 +59,10 @@ message LogStreamRequest {
 }
 
 message LogChunk {
-  string container_id = 5;
-  string log_line = 6;
-  int64 timestamp = 7;
-  bool is_stderr = 8;
+  string container_id = 1;
+  string log_line = 2;
+  int64 timestamp = 3;
+  bool is_stderr = 4;
 }
 
 message HealthReportRequest {
@@ -65,6 +74,7 @@ message HealthReportRequest {
   int64 timestamp = 6;
 }
 
-message HealthReportResponse {
+message HealthAck {
   bool acknowledged = 1;
+  int64 timestamp = 2;
 }

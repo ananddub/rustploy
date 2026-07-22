@@ -10,6 +10,7 @@ members = [
     "auto_socket",
     "auto_route",
     "rustploy_sh_macros",
+    "rustploy_monitor",
 ]
 
 

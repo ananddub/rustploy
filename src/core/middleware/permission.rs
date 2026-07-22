@@ -148,3 +148,18 @@ pub struct OrgWritePermission;
 impl ActionPermission for OrgWritePermission {
     const ACTION: PolicyAction = PolicyAction::OrgWrite;
 }
+
+pub struct ServerMonitorPermission;
+impl ActionPermission for ServerMonitorPermission {
+    const ACTION: PolicyAction = PolicyAction::ServerMonitor;
+}
+
+pub struct AppMonitorPermission;
+impl ActionPermission for AppMonitorPermission {
+    const ACTION: PolicyAction = PolicyAction::AppMonitor;
+}
+
+pub struct AlertWritePermission;
+impl ActionPermission for AlertWritePermission {
+    const ACTION: PolicyAction = PolicyAction::AlertWrite;
+}

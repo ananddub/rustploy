@@ -68,5 +68,9 @@ string_enum! {
 
         UsersRead => "users:read",
         UsersWrite => "users:write",
+
+        ServerMonitor => "server:monitor",
+        AppMonitor => "app:monitor",
+        AlertWrite => "alert:write",
     }
 }

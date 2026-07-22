@@ -121,3 +121,15 @@ db-gen:
 
 run: gen-mod
     cargo run
+
+# Build standalone rustploy_monitor binary
+build-monitor:
+    cargo build --release -p rustploy_monitor
+
+# Run standalone rustploy_monitor binary locally
+run-monitor:
+    cargo run -p rustploy_monitor
+
+# Build standalone rustploy_monitor Docker image
+docker-build-monitor:
+    docker build -f Dockerfile.monitor -t rustploy-monitor:latest .

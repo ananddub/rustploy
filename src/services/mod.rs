@@ -7,6 +7,7 @@ pub mod deployment;
 pub mod destination;
 pub mod domain;
 pub mod environment;
+pub mod monitoring;
 pub mod organization;
 pub mod permission;
 pub mod project;

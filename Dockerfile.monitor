@@ -1,0 +1,45 @@
+# Multi-stage Dockerfile for Standalone rustploy_monitor Agent
+FROM rust:1.85-bookworm AS builder
+
+WORKDIR /usr/src/rustploy
+
+# Copy workspace manifests
+COPY Cargo.toml Cargo.lock ./
+COPY rustploy_sh_macros ./rustploy_sh_macros
+COPY auto_route ./auto_route
+COPY auto_route_macros ./auto_route_macros
+COPY auto_socket ./auto_socket
+COPY auto_socket_macros ./auto_socket_macros
+COPY proto ./proto
+COPY db ./db
+COPY src ./src
+COPY rustploy_monitor ./rustploy_monitor
+
+# Build optimized standalone release binary for rustploy_monitor
+RUN cargo build --release -p rustploy_monitor
+
+# Minimal Runtime Image
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    docker.io \
+    sqlite3 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy release binary from builder
+COPY --from=builder /usr/src/rustploy/target/release/rustploy_monitor /usr/local/bin/rustploy_monitor
+
+# Default environment variables
+ENV PORT=3001
+ENV MONITOR_DATABASE_URL="sqlite:///app/data/monitor.db"
+ENV REFRESH_RATE=60
+ENV RETENTION_DAYS=7
+
+EXPOSE 3001
+
+# Run the standalone binary
+CMD ["rustploy_monitor"]

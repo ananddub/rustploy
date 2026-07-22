@@ -65,5 +65,7 @@ pub mod two_factor;
 pub mod types;
 pub mod resource_access;
 pub mod user_policy;
+pub mod alert_rule;
+pub mod health_report;
 pub mod users;
 pub mod volume_backups;

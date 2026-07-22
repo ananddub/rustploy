@@ -22,6 +22,16 @@ impl ServerMetricRepository {
         .await
     }
 
+    pub async fn get_latest(&self, limit: i64) -> Result<Vec<ServerMetric>, sqlx::Error> {
+        sqlx::query_as!(
+            ServerMetric,
+            r#"SELECT timestamp AS "timestamp?: i64", cpu AS "cpu: f64", cpu_model AS "cpu_model: String", cpu_cores AS "cpu_cores: i64", cpu_physical_cores AS "cpu_physical_cores: i64", cpu_speed AS "cpu_speed: f64", os AS "os: String", distro AS "distro: String", kernel AS "kernel: String", arch AS "arch: String", mem_used AS "mem_used: f64", mem_used_gb AS "mem_used_gb: f64", mem_total AS "mem_total: f64", uptime AS "uptime: i64", disk_used AS "disk_used: f64", total_disk AS "total_disk: f64", network_in AS "network_in: f64", network_out AS "network_out: f64" FROM server_metrics ORDER BY timestamp DESC LIMIT ?"#,
+            limit
+        )
+        .fetch_all(self.pool.as_ref())
+        .await
+    }
+
     pub async fn get_by_id(&self, timestamp: i64) -> Result<Option<ServerMetric>, sqlx::Error> {
         sqlx::query_as!(
             ServerMetric,
