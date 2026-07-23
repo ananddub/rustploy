@@ -30,7 +30,8 @@ import {
 	ChevronsUpDown,
 	Moon,
 	LogOut,
-	Building2
+	Building2,
+	Activity
 } from 'lucide-react';
 import { useSidebarState } from '$lib/sidebar';
 import { getAuthSession, clearAuthSession } from '$lib/auth';
@@ -45,6 +46,7 @@ interface SidebarItem {
 const navHome: SidebarItem[] = [
 	{ label: 'Home', icon: Home, path: '/dashboard' },
 	{ label: 'Projects', icon: FolderOpen, path: '/projects' },
+	{ label: 'Monitoring', icon: Activity, path: '/monitoring' },
 	{ label: 'Deployments', icon: Zap, path: '/deployments' },
 	{ label: 'Schedules', icon: Clock, path: '/schedules' },
 	{ label: 'Traefik', icon: Globe, path: '/traefik' },

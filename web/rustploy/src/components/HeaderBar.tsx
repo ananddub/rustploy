@@ -25,7 +25,8 @@ import {
 	Bell,
 	Building2,
 	Settings,
-	Plus
+	Plus,
+	Activity
 } from 'lucide-react';
 import { useSidebarState } from '$lib/sidebar';
 import { USE_MOCK_DATA } from '$lib/mocks';
@@ -33,6 +34,7 @@ import { USE_MOCK_DATA } from '$lib/mocks';
 const routeTitleMap: Record<string, { title: string; icon: React.ComponentType<{ className?: string }> }> = {
 	'/dashboard': { title: 'Home', icon: Home },
 	'/projects': { title: 'Projects', icon: FolderOpen },
+	'/monitoring': { title: 'Real-Time Monitoring Telemetry', icon: Activity },
 	'/deployments': { title: 'Deployments', icon: Zap },
 	'/schedules': { title: 'Schedules', icon: Clock },
 	'/traefik': { title: 'Traefik File System', icon: Globe },
