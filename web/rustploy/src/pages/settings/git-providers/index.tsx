@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { GitBranch, Plus, Trash2, CheckCircle2 } from 'lucide-react';
+import { GitBranch, Plus, Trash2 } from 'lucide-react';
 import { PageLayout } from '$lib/../components/PageLayout';
 import { getAuthSession } from '$lib/auth';
-import { USE_MOCK_DATA, getGitProvidersMock, type GitProviderMock } from '$lib/mocks';
+import { getGitProvidersMock, type GitProviderMock } from '$lib/mocks';
 import { Card } from '$lib/../components/ui/card';
 import { Button } from '$lib/../components/ui/button';
 import { Badge } from '$lib/../components/ui/badge';
@@ -17,7 +17,6 @@ export default function GitProvidersPage() {
 		setTimeout(() => navigate('/auth', { replace: true }), 0);
 	}
 
-	const [useMock, setUseMock] = useState(USE_MOCK_DATA);
 	const [providers, setProviders] = useState<GitProviderMock[]>(getGitProvidersMock());
 
 	function disconnect(id: string) {
@@ -27,27 +26,6 @@ export default function GitProvidersPage() {
 
 	return (
 		<PageLayout>
-			<header className="flex items-center justify-between px-6 py-3 border-b border-[#262626] text-xs bg-[#0A0A0A] shrink-0">
-				<div className="flex items-center gap-2">
-					<GitBranch className="w-3.5 h-3.5 text-[#a1a1aa]" />
-					<span className="font-medium text-[#FAFAFA]">Git Integrations</span>
-				</div>
-
-				<div className="flex items-center gap-2 px-3 py-1 rounded-full bg-[#141414] border border-[#262626]">
-					<span className="text-[11px] text-[#a1a1aa]">Data Source:</span>
-					<button
-						onClick={() => setUseMock(!useMock)}
-						className={`text-[11px] font-semibold px-2 py-0.5 rounded transition-colors cursor-pointer ${
-							useMock
-								? 'bg-[#262626] text-[#FAFAFA] border border-white/10'
-								: 'text-[#737373] hover:text-[#FAFAFA]'
-						}`}
-					>
-						{useMock ? 'Mock Demo Data' : 'Live Rust Backend API'}
-					</button>
-				</div>
-			</header>
-
 			<main className="flex-1 m-3.5 overflow-y-auto p-7 animate-fade-up min-h-0">
 				<div className="max-w-5xl mx-auto space-y-6">
 					<div className="flex items-center justify-between">

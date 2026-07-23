@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, Search, Shield, Clock } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { PageLayout } from '$lib/../components/PageLayout';
 import { getAuthSession } from '$lib/auth';
-import { USE_MOCK_DATA, getAuditLogsMock, type AuditLogMock } from '$lib/mocks';
+import { getAuditLogsMock, type AuditLogMock } from '$lib/mocks';
 import { Card, CardContent } from '$lib/../components/ui/card';
 import { Input } from '$lib/../components/ui/input';
 import { Badge } from '$lib/../components/ui/badge';
@@ -16,7 +16,6 @@ export default function AuditLogsPage() {
 		setTimeout(() => navigate('/auth', { replace: true }), 0);
 	}
 
-	const [useMock, setUseMock] = useState(USE_MOCK_DATA);
 	const [logs] = useState<AuditLogMock[]>(getAuditLogsMock());
 	const [searchQuery, setSearchQuery] = useState('');
 
@@ -35,27 +34,6 @@ export default function AuditLogsPage() {
 
 	return (
 		<PageLayout>
-			<header className="flex items-center justify-between px-6 py-3 border-b border-[#262626] text-xs bg-[#0A0A0A] shrink-0">
-				<div className="flex items-center gap-2">
-					<FileText className="w-3.5 h-3.5 text-[#a1a1aa]" />
-					<span className="font-medium text-[#FAFAFA]">Audit Logs</span>
-				</div>
-
-				<div className="flex items-center gap-2 px-3 py-1 rounded-full bg-[#141414] border border-[#262626]">
-					<span className="text-[11px] text-[#a1a1aa]">Data Source:</span>
-					<button
-						onClick={() => setUseMock(!useMock)}
-						className={`text-[11px] font-semibold px-2 py-0.5 rounded transition-colors cursor-pointer ${
-							useMock
-								? 'bg-[#262626] text-[#FAFAFA] border border-white/10'
-								: 'text-[#737373] hover:text-[#FAFAFA]'
-						}`}
-					>
-						{useMock ? 'Mock Demo Data' : 'Live Rust Backend API'}
-					</button>
-				</div>
-			</header>
-
 			<main className="flex-1 m-3.5 overflow-y-auto p-7 animate-fade-up min-h-0">
 				<div className="max-w-5xl mx-auto space-y-6">
 					<div className="flex items-center justify-between">

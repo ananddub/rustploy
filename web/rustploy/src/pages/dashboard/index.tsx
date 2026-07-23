@@ -3,11 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import {
 	Rocket,
 	ArrowRight,
-	Plus,
 	Cpu
 } from 'lucide-react';
 import { PageLayout } from '$lib/../components/PageLayout';
-import { HeaderBar } from '$lib/../components/HeaderBar';
 import { getAuthSession } from '$lib/auth';
 import { getDeploymentsMock, type DeploymentMock } from '$lib/mocks';
 import { Card, CardContent, CardHeader, CardTitle } from '$lib/../components/ui/card';
@@ -39,8 +37,6 @@ export default function DashboardPage() {
 
 	return (
 		<PageLayout>
-			<HeaderBar title="Home" icon={Rocket} />
-
 			<div className="flex-1 m-3.5 overflow-y-auto p-7 animate-fade-up flex flex-col min-h-0 bg-[#171717] border border-[#262626] rounded-2xl shadow-md space-y-7">
 				{/* Greeting Header */}
 				<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

@@ -2,6 +2,7 @@ import React from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { Sidebar } from '$lib/../components/Sidebar';
+import { HeaderBar } from '$lib/../components/HeaderBar';
 import { CommandPalette } from '$lib/../components/CommandPalette';
 
 export default function AppLayout() {
@@ -21,7 +22,10 @@ export default function AppLayout() {
 		<div className="h-screen w-screen flex bg-[#0A0A0A] text-[#FAFAFA] overflow-hidden font-sans antialiased box-border">
 			<Sidebar />
 			<div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden bg-[#0A0A0A]">
-				<Outlet />
+				<HeaderBar />
+				<div className="flex-1 flex flex-col min-h-0 overflow-y-auto custom-scrollbar">
+					<Outlet />
+				</div>
 			</div>
 			<CommandPalette />
 			<Toaster theme="dark" position="top-right" />
