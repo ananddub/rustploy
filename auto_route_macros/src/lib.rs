@@ -587,7 +587,13 @@ fn is_sse_response_type(ty: &Type) -> bool {
         Type::Paren(paren) => is_sse_response_type(&paren.elem),
         Type::Reference(reference) => is_sse_response_type(&reference.elem),
         Type::Path(type_path) => type_path.path.segments.last().is_some_and(|segment| {
-            segment.ident == "Sse" || segment.ident.to_string().ends_with("Sse")
+            let ident = segment.ident.to_string();
+            ident == "Sse"
+                || ident.ends_with("Sse")
+                || ident.ends_with("EventStream")
+                || ident.ends_with("EventStreamResponse")
+                || ident.ends_with("EventsStream")
+                || ident.ends_with("EventsStreamResponse")
         }),
         _ => false,
     }

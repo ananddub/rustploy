@@ -17,14 +17,14 @@
 		ComposeResponseDto,
 		DatabaseResponseDto
 	} from '$lib/client/types.gen';
-	import ServiceCard from '$lib/components/projects/ServiceCard.svelte';
-	import EnvDropdown from '$lib/components/projects/EnvDropdown.svelte';
-	import CreateEnvModal from '$lib/components/projects/CreateEnvModal.svelte';
-	import CreateApplicationModal from '$lib/components/projects/CreateApplicationModal.svelte';
-	import CreateComposeModal from '$lib/components/projects/CreateComposeModal.svelte';
-	import ProjectEnvironmentModal from '$lib/components/projects/ProjectEnvironmentModal.svelte';
-	import CreateServiceDropdown from '$lib/components/projects/CreateServiceDropdown.svelte';
-	import CreateDatabaseModal from '$lib/components/projects/CreateDatabaseModal.svelte';
+	import ServiceCard from '$lib/components/projects/service/ServiceCard.svelte';
+	import EnvDropdown from '$lib/components/projects/env/EnvDropdown.svelte';
+	import CreateEnvModal from '$lib/components/projects/env/CreateEnvModal.svelte';
+	import CreateApplicationModal from '$lib/components/projects/app/CreateApplicationModal.svelte';
+	import CreateComposeModal from '$lib/components/projects/compose/CreateComposeModal.svelte';
+	import ProjectEnvironmentModal from '$lib/components/projects/env/ProjectEnvironmentModal.svelte';
+	import CreateServiceDropdown from '$lib/components/projects/service/CreateServiceDropdown.svelte';
+	import CreateDatabaseModal from '$lib/components/projects/database/CreateDatabaseModal.svelte';
 	import { appStatusDot } from '$lib/helpers';
 
 	const session = getAuthSession();

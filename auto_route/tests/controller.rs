@@ -11,8 +11,11 @@ use futures_util::stream;
 use http_body_util::BodyExt;
 use serde::Deserialize;
 use serde_json::{Value, json};
-use std::convert::Infallible;
+use std::{convert::Infallible, pin::Pin};
 use tower::ServiceExt;
+
+type TestEventStream = Pin<Box<dyn futures_util::Stream<Item = Result<Event, Infallible>> + Send>>;
+type TestSse = Sse<TestEventStream>;
 
 struct UserController {
     prefix: String,
@@ -87,6 +90,24 @@ fn generates_openapi_from_registered_routes() {
         events["responses"]["200"]["content"]["text/event-stream"]["schema"].is_object(),
         "SSE handlers should expose text/event-stream response content"
     );
+    assert!(
+        events["responses"]["200"]["content"]["application/json"].is_null(),
+        "SSE handlers should not be documented as JSON responses"
+    );
+    assert_eq!(
+        events["responses"]["200"]["content"]["text/event-stream"]["schema"]["format"],
+        "event-stream"
+    );
+
+    let aliased_events = &spec["paths"]["/aliased-events"]["get"];
+    assert!(
+        aliased_events["responses"]["200"]["content"]["text/event-stream"]["schema"].is_object(),
+        "SSE aliases inside Result should expose text/event-stream response content"
+    );
+    assert_eq!(
+        aliased_events["responses"]["200"]["content"]["text/event-stream"]["schema"]["format"],
+        "event-stream"
+    );
 }
 
 #[get("/health")]
@@ -107,6 +128,12 @@ async fn login(Form(_form): Form<LoginForm>) -> Json<Value> {
 #[get("/events")]
 async fn events() -> Sse<impl futures_util::Stream<Item = Result<Event, Infallible>>> {
     Sse::new(stream::empty())
+}
+
+#[get("/aliased-events")]
+async fn aliased_events() -> Result<TestSse, (StatusCode, String)> {
+    let stream: TestEventStream = Box::pin(stream::empty());
+    Ok(Sse::new(stream))
 }
 
 #[controller("/module")]

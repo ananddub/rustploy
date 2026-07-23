@@ -10,8 +10,8 @@
 		projectControllerCreate
 	} from '$lib/client/sdk.gen';
 	import type { ProjectResponseDto } from '$lib/client/types.gen';
-	import ProjectCard from '$lib/components/projects/ProjectCard.svelte';
-	import CreateProjectModal from '$lib/components/projects/CreateProjectModal.svelte';
+	import ProjectCard from '$lib/components/projects/dashboard/ProjectCard.svelte';
+	import CreateProjectModal from '$lib/components/projects/dashboard/CreateProjectModal.svelte';
 
 	const session = getAuthSession();
 	if (!session) goto('/auth', { replaceState: true });

@@ -103,8 +103,8 @@ impl OpenApiSchemaDescriptor {
     #[doc(hidden)]
     pub const fn sse() -> Self {
         Self {
-            schema_ref: schema_ref::<String>,
-            register: register_type::<String>,
+            schema_ref: sse_schema_ref,
+            register: noop_register,
             content_type: "text/event-stream",
         }
     }
@@ -157,6 +157,17 @@ fn schema_ref<T: Type>() -> MetaSchemaRef {
 
 fn register_type<T: Type>(registry: &mut Registry) {
     T::register(registry);
+}
+
+fn noop_register(_registry: &mut Registry) {}
+
+fn sse_schema_ref() -> MetaSchemaRef {
+    let mut schema = poem_openapi::registry::MetaSchema::new_with_format("string", "event-stream");
+    schema.description = Some("Server-sent events stream. Each message is encoded as text/event-stream frames.");
+    schema.example = Some(serde_json::json!(
+        "event: message\ndata: {\"type\":\"message\"}\n\n"
+    ));
+    MetaSchemaRef::Inline(Box::new(schema))
 }
 
 /// Resolves every registered controller from `container` and merges its routes.
