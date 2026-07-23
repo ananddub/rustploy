@@ -9,7 +9,12 @@ import {
 	Cpu,
 	ArrowUpRight,
 	ChevronsUpDown,
-	Check
+	Check,
+	Sliders,
+	Layers,
+	Zap,
+	HardDrive,
+	Radio
 } from 'lucide-react';
 import { PageLayout } from '@/components/PageLayout';
 import { getAuthSession } from '$lib/auth';
@@ -31,6 +36,10 @@ export default function MonitoringPage() {
 	const [selectedNode, setSelectedNode] = useState('production-01');
 	const [nodeMenuOpen, setNodeMenuOpen] = useState(false);
 	const [timeRange, setTimeRange] = useState<'1m' | '5m' | '15m' | '1h'>('1m');
+
+	// Advanced Viz Controls
+	const [chartMode, setChartMode] = useState<'spline' | 'stepped' | 'area'>('spline');
+	const [activeCoreFilter, setActiveCoreFilter] = useState<'all' | 'c1' | 'c3' | 'c5' | 'c7'>('all');
 
 	// Hover interactive tooltips state for each graph
 	const [cpuHoverIdx, setCpuHoverIdx] = useState<number | null>(null);
@@ -70,15 +79,21 @@ export default function MonitoringPage() {
 		return () => clearInterval(interval);
 	}, [isStreaming, selectedNode]);
 
-	// Convert numeric series to smooth SVG cubic path with strict padding boundaries
-	const createSvgPath = (data: (number | undefined)[], width: number, height: number, maxVal = 100) => {
+	// Convert numeric series to smooth SVG path (supporting Spline cubic curves or Stepped lines)
+	const createSvgPath = (
+		data: (number | undefined)[],
+		width: number,
+		height: number,
+		maxVal = 100,
+		mode: 'spline' | 'stepped' | 'area' = 'spline'
+	) => {
 		if (!data || data.length < 2) return '';
 		const safeMax = maxVal <= 0 ? 100 : maxVal;
 		const step = width / (data.length - 1);
 		const paddingTop = 12;
 		const paddingBottom = 12;
 		const availableHeight = height - paddingTop - paddingBottom;
-		
+
 		const points = data.map((val, i) => {
 			const numVal = typeof val === 'number' && !isNaN(val) ? val : 0;
 			const clampedVal = Math.min(safeMax, Math.max(0, numVal));
@@ -86,6 +101,16 @@ export default function MonitoringPage() {
 			const y = height - paddingBottom - (clampedVal / safeMax) * availableHeight;
 			return { x: isNaN(x) ? 0 : x, y: isNaN(y) ? height / 2 : y };
 		});
+
+		if (mode === 'stepped') {
+			let d = `M ${points[0].x},${points[0].y}`;
+			for (let i = 0; i < points.length - 1; i++) {
+				const curr = points[i];
+				const next = points[i + 1];
+				d += ` H ${next.x} V ${next.y}`;
+			}
+			return d;
+		}
 
 		let d = `M ${points[0].x},${points[0].y}`;
 		for (let i = 0; i < points.length - 1; i++) {
@@ -138,7 +163,7 @@ export default function MonitoringPage() {
 				httpRps: 850, httpLatencyP95Ms: 14
 		  };
 
-	// Data Science Metrics Calculations (Min, Max, Avg)
+	// Data Science Metrics Calculations
 	const cpuValues = telemetryBuffer.map((d) => d.cpuAvg);
 	const cpuMin = Math.min(...cpuValues).toFixed(1);
 	const cpuMax = Math.max(...cpuValues).toFixed(1);
@@ -150,25 +175,51 @@ export default function MonitoringPage() {
 
 	const iopsValues = telemetryBuffer.map((d) => d.diskReadIops);
 	const iopsMax = Math.max(...iopsValues).toFixed(0);
-	const iopsAvg = (iopsValues.reduce((a, b) => a + b, 0) / Math.max(1, iopsValues.length)).toFixed(0);
+
+	// CPU 8-Core Live Heatmap Array
+	const coresData = [
+		{ name: 'C1', val: latest.cpuCore1, col: 'bg-blue-500' },
+		{ name: 'C2', val: latest.cpuCore2, col: 'bg-blue-400' },
+		{ name: 'C3', val: latest.cpuCore3, col: 'bg-emerald-500' },
+		{ name: 'C4', val: latest.cpuCore4, col: 'bg-emerald-400' },
+		{ name: 'C5', val: latest.cpuCore5, col: 'bg-purple-500' },
+		{ name: 'C6', val: latest.cpuCore6, col: 'bg-purple-400' },
+		{ name: 'C7', val: latest.cpuCore7, col: 'bg-amber-500' },
+		{ name: 'C8', val: latest.cpuCore8, col: 'bg-amber-400' }
+	];
 
 	return (
 		<PageLayout>
 			<div className="m-3.5 flex-1 flex flex-col min-h-0 bg-[#171717] border border-[#272727] rounded-2xl shadow-xl p-5 space-y-4 overflow-hidden select-none animate-fade-up">
-				{/* Top Controls Header */}
+				{/* Top Controls & Viz Controls Header */}
 				<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
 					<div>
 						<h1 className="text-2xl font-extrabold tracking-tight text-[#FAFAFA] flex items-center gap-2.5">
 							<Activity className="w-6 h-6 text-green-400" />
-							Real-Time Telemetry & Monitoring
+							Real-Time Telemetry & Data Science Analytics
 						</h1>
 						<p className="text-xs text-[#a1a1aa] mt-0.5">
-							Continuous live telemetry loop · 1,000ms updates · Responsive crosshair analytics
+							Interactive glow curves · 8-Core workload matrix · Per-core focus filters · Crosshair analytics
 						</p>
 					</div>
 
 					<div className="flex flex-wrap items-center gap-2.5">
-						{/* Custom Dark Node Selector Menu */}
+						{/* Chart Render Style Switcher */}
+						<div className="flex items-center gap-1 bg-[#141414] p-1 rounded-xl border border-[#272727]">
+							{(['spline', 'stepped', 'area'] as const).map((mode) => (
+								<button
+									key={mode}
+									onClick={() => setChartMode(mode)}
+									className={`px-2.5 py-1 text-xs font-semibold rounded-lg capitalize transition-all cursor-pointer ${
+										chartMode === mode ? 'bg-[#272727] text-[#FAFAFA] shadow-xs' : 'text-[#737373] hover:text-[#FAFAFA]'
+									}`}
+								>
+									{mode}
+								</button>
+							))}
+						</div>
+
+						{/* Node Selector Menu */}
 						<div className="relative">
 							<button
 								onClick={() => setNodeMenuOpen(!nodeMenuOpen)}
@@ -200,21 +251,6 @@ export default function MonitoringPage() {
 									))}
 								</div>
 							)}
-						</div>
-
-						{/* Time Range Selector */}
-						<div className="flex items-center gap-1 bg-[#141414] p-1 rounded-xl border border-[#272727]">
-							{(['1m', '5m', '15m', '1h'] as const).map((r) => (
-								<button
-									key={r}
-									onClick={() => setTimeRange(r)}
-									className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
-										timeRange === r ? 'bg-[#272727] text-[#FAFAFA] shadow-xs' : 'text-[#737373] hover:text-[#FAFAFA]'
-									}`}
-								>
-									{r}
-								</button>
-							))}
 						</div>
 
 						{/* Stream Toggle Button */}
@@ -261,8 +297,8 @@ export default function MonitoringPage() {
 					</div>
 				</div>
 
-				{/* Quick Stats Summary Grid */}
-				<div className="grid grid-cols-2 lg:grid-cols-4 gap-3 shrink-0">
+				{/* Quick Stats Summary Grid & 8-Core Heatmap Matrix Strip */}
+				<div className="grid grid-cols-2 lg:grid-cols-5 gap-3 shrink-0">
 					<Card className="bg-[#141414] border border-[#272727] rounded-xl p-3.5 shadow-md">
 						<p className="text-[10px] font-semibold text-[#a1a1aa] uppercase tracking-wider">CPU AVG LOAD</p>
 						<p className="text-2xl font-extrabold text-[#FAFAFA] font-mono mt-0.5">{latest.cpuAvg}%</p>
@@ -283,16 +319,39 @@ export default function MonitoringPage() {
 						<p className="text-[10px] text-[#737373] font-mono mt-0.5">Avg: {netRxAvg} MB/s · Peak: {netRxMax} MB/s</p>
 					</Card>
 
-					<Card className="bg-[#141414] border border-[#272727] rounded-xl p-4 shadow-md">
+					<Card className="bg-[#141414] border border-[#272727] rounded-xl p-3.5 shadow-md">
 						<p className="text-[10px] font-semibold text-[#a1a1aa] uppercase tracking-wider">LATENCY (P95)</p>
 						<p className="text-2xl font-extrabold text-green-400 font-mono mt-0.5">{latest.httpLatencyP95Ms} ms</p>
 						<p className="text-[10px] text-[#737373] font-mono mt-0.5">{latest.httpRps} RPS Traefik Ingress</p>
 					</Card>
+
+					{/* NEW: Live 8-Core Workload Heatmap Tile */}
+					<Card className="col-span-2 lg:col-span-1 bg-[#141414] border border-[#272727] rounded-xl p-3 shadow-md flex flex-col justify-between">
+						<div className="flex items-center justify-between">
+							<p className="text-[10px] font-semibold text-[#a1a1aa] uppercase tracking-wider">8-CORE HEATMAP</p>
+							<span className="text-[10px] font-mono text-green-400">8 Threads</span>
+						</div>
+						<div className="grid grid-cols-4 gap-1.5 mt-1">
+							{coresData.map((c, i) => (
+								<div
+									key={i}
+									className="flex flex-col items-center bg-[#1c1c1f] p-1 rounded-md border border-white/5"
+									title={`${c.name}: ${c.val}%`}
+								>
+									<span className="text-[9px] font-mono text-[#a1a1aa]">{c.name}</span>
+									<span className="text-[10px] font-mono font-bold text-[#FAFAFA]">{Math.round(c.val)}%</span>
+									<div className="w-full bg-[#272727] h-1 rounded-full mt-0.5 overflow-hidden">
+										<div className={`h-full ${c.col}`} style={{ width: `${c.val}%` }} />
+									</div>
+								</div>
+							))}
+						</div>
+					</Card>
 				</div>
 
-				{/* 1. CPU Core Multi-Line Graph (Fits center nicely) */}
+				{/* 1. CPU Core Multi-Line Graph (With Glow Effects & Per-Core Interactive Filters) */}
 				<Card className="bg-[#141414] border border-[#272727] rounded-xl p-4 shadow-md flex-1 flex flex-col min-h-0 overflow-hidden relative">
-					<div className="flex items-center justify-between mb-2 shrink-0">
+					<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2 shrink-0">
 						<div className="flex items-center gap-2">
 							<Cpu className="w-4 h-4 text-blue-400" />
 							<div className="flex items-center gap-2">
@@ -302,11 +361,63 @@ export default function MonitoringPage() {
 								</span>
 							</div>
 						</div>
-						<div className="flex items-center gap-3 text-[11px] font-mono">
-							<span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-400" /> Core 1-2</span>
-							<span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-400" /> Core 3-4</span>
-							<span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-purple-400" /> Core 5-6</span>
-							<span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400" /> Core 7-8</span>
+
+						{/* Interactive Per-Core Filter Buttons */}
+						<div className="flex items-center gap-1.5 text-[11px] font-mono">
+							<button
+								onClick={() => setActiveCoreFilter('all')}
+								className={`px-2 py-0.5 rounded-lg border transition-colors cursor-pointer ${
+									activeCoreFilter === 'all'
+										? 'bg-[#272727] text-[#FAFAFA] border-white/20 font-bold'
+										: 'text-[#737373] border-transparent hover:text-[#FAFAFA]'
+								}`}
+							>
+								All Cores
+							</button>
+
+							<button
+								onClick={() => setActiveCoreFilter(activeCoreFilter === 'c1' ? 'all' : 'c1')}
+								className={`flex items-center gap-1 px-2 py-0.5 rounded-lg border transition-colors cursor-pointer ${
+									activeCoreFilter === 'c1'
+										? 'bg-blue-500/20 text-blue-400 border-blue-500/40 font-bold'
+										: 'text-blue-400/70 border-transparent hover:text-blue-400'
+								}`}
+							>
+								<span className="w-2 h-2 rounded-full bg-blue-400" /> Core 1-2
+							</button>
+
+							<button
+								onClick={() => setActiveCoreFilter(activeCoreFilter === 'c3' ? 'all' : 'c3')}
+								className={`flex items-center gap-1 px-2 py-0.5 rounded-lg border transition-colors cursor-pointer ${
+									activeCoreFilter === 'c3'
+										? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 font-bold'
+										: 'text-emerald-400/70 border-transparent hover:text-emerald-400'
+								}`}
+							>
+								<span className="w-2 h-2 rounded-full bg-emerald-400" /> Core 3-4
+							</button>
+
+							<button
+								onClick={() => setActiveCoreFilter(activeCoreFilter === 'c5' ? 'all' : 'c5')}
+								className={`flex items-center gap-1 px-2 py-0.5 rounded-lg border transition-colors cursor-pointer ${
+									activeCoreFilter === 'c5'
+										? 'bg-purple-500/20 text-purple-400 border-purple-500/40 font-bold'
+										: 'text-purple-400/70 border-transparent hover:text-purple-400'
+								}`}
+							>
+								<span className="w-2 h-2 rounded-full bg-purple-400" /> Core 5-6
+							</button>
+
+							<button
+								onClick={() => setActiveCoreFilter(activeCoreFilter === 'c7' ? 'all' : 'c7')}
+								className={`flex items-center gap-1 px-2 py-0.5 rounded-lg border transition-colors cursor-pointer ${
+									activeCoreFilter === 'c7'
+										? 'bg-amber-500/20 text-amber-400 border-amber-500/40 font-bold'
+										: 'text-amber-400/70 border-transparent hover:text-amber-400'
+								}`}
+							>
+								<span className="w-2 h-2 rounded-full bg-amber-400" /> Core 7-8
+							</button>
 						</div>
 					</div>
 
@@ -332,8 +443,18 @@ export default function MonitoringPage() {
 									onMouseLeave={() => setCpuHoverIdx(null)}
 								>
 									<defs>
+										{/* Glow Shadow Filters */}
+										<filter id="glow-blue" x="-20%" y="-20%" width="140%" height="140%">
+											<feGaussianBlur stdDeviation="3" result="blur" />
+											<feComposite in="SourceGraphic" in2="blur" operator="over" />
+										</filter>
+										<filter id="glow-emerald" x="-20%" y="-20%" width="140%" height="140%">
+											<feGaussianBlur stdDeviation="3" result="blur" />
+											<feComposite in="SourceGraphic" in2="blur" operator="over" />
+										</filter>
+
 										<linearGradient id="cpuGrad1" x1="0" y1="0" x2="0" y2="1">
-											<stop offset="0%" stopColor="#60a5fa" stopOpacity="0.25" />
+											<stop offset="0%" stopColor="#60a5fa" stopOpacity="0.3" />
 											<stop offset="100%" stopColor="#60a5fa" stopOpacity="0" />
 										</linearGradient>
 									</defs>
@@ -349,47 +470,63 @@ export default function MonitoringPage() {
 									))}
 
 									{/* Gradient Area under Core 1 */}
-									<path
-										d={createAreaPath(createSvgPath(telemetryBuffer.map((d) => d.cpuCore1), 800, 200), 800, 200)}
-										fill="url(#cpuGrad1)"
-									/>
+									{(chartMode === 'area' || activeCoreFilter === 'c1') && (
+										<path
+											d={createAreaPath(createSvgPath(telemetryBuffer.map((d) => d.cpuCore1), 800, 200, 100, chartMode), 800, 200)}
+											fill="url(#cpuGrad1)"
+										/>
+									)}
 
 									{/* Multi-Line 1 (Core 1-2 Blue) */}
-									<path
-										d={createSvgPath(telemetryBuffer.map((d) => d.cpuCore1), 800, 200)}
-										fill="none"
-										stroke="#60a5fa"
-										strokeWidth="2.5"
-										strokeLinecap="round"
-									/>
+									{(activeCoreFilter === 'all' || activeCoreFilter === 'c1') && (
+										<path
+											d={createSvgPath(telemetryBuffer.map((d) => d.cpuCore1), 800, 200, 100, chartMode)}
+											fill="none"
+											stroke="#60a5fa"
+											strokeWidth={activeCoreFilter === 'c1' ? '3.5' : '2.5'}
+											strokeLinecap="round"
+											filter="url(#glow-blue)"
+											opacity={activeCoreFilter === 'all' || activeCoreFilter === 'c1' ? 1 : 0.15}
+										/>
+									)}
 
 									{/* Multi-Line 2 (Core 3-4 Emerald) */}
-									<path
-										d={createSvgPath(telemetryBuffer.map((d) => d.cpuCore3), 800, 200)}
-										fill="none"
-										stroke="#34d399"
-										strokeWidth="2.5"
-										strokeLinecap="round"
-									/>
+									{(activeCoreFilter === 'all' || activeCoreFilter === 'c3') && (
+										<path
+											d={createSvgPath(telemetryBuffer.map((d) => d.cpuCore3), 800, 200, 100, chartMode)}
+											fill="none"
+											stroke="#34d399"
+											strokeWidth={activeCoreFilter === 'c3' ? '3.5' : '2.5'}
+											strokeLinecap="round"
+											filter="url(#glow-emerald)"
+											opacity={activeCoreFilter === 'all' || activeCoreFilter === 'c3' ? 1 : 0.15}
+										/>
+									)}
 
 									{/* Multi-Line 3 (Core 5-6 Purple) */}
-									<path
-										d={createSvgPath(telemetryBuffer.map((d) => d.cpuCore5), 800, 200)}
-										fill="none"
-										stroke="#c084fc"
-										strokeWidth="2"
-										strokeDasharray="5 3"
-										strokeLinecap="round"
-									/>
+									{(activeCoreFilter === 'all' || activeCoreFilter === 'c5') && (
+										<path
+											d={createSvgPath(telemetryBuffer.map((d) => d.cpuCore5), 800, 200, 100, chartMode)}
+											fill="none"
+											stroke="#c084fc"
+											strokeWidth={activeCoreFilter === 'c5' ? '3.5' : '2'}
+											strokeDasharray={chartMode === 'stepped' ? undefined : '5 3'}
+											strokeLinecap="round"
+											opacity={activeCoreFilter === 'all' || activeCoreFilter === 'c5' ? 1 : 0.15}
+										/>
+									)}
 
 									{/* Multi-Line 4 (Core 7-8 Amber) */}
-									<path
-										d={createSvgPath(telemetryBuffer.map((d) => d.cpuCore7), 800, 200)}
-										fill="none"
-										stroke="#fbbf24"
-										strokeWidth="2"
-										strokeLinecap="round"
-									/>
+									{(activeCoreFilter === 'all' || activeCoreFilter === 'c7') && (
+										<path
+											d={createSvgPath(telemetryBuffer.map((d) => d.cpuCore7), 800, 200, 100, chartMode)}
+											fill="none"
+											stroke="#fbbf24"
+											strokeWidth={activeCoreFilter === 'c7' ? '3.5' : '2'}
+											strokeLinecap="round"
+											opacity={activeCoreFilter === 'all' || activeCoreFilter === 'c7' ? 1 : 0.15}
+										/>
+									)}
 
 									{/* Interactive Hover Crosshair & Data Dots */}
 									{cpuHoverIdx !== null && telemetryBuffer[cpuHoverIdx] && (() => {
@@ -402,10 +539,10 @@ export default function MonitoringPage() {
 										return (
 											<g>
 												<line x1={c1.x} y1="0" x2={c1.x} y2="200" stroke="#737373" strokeDasharray="3 3" strokeWidth="1.5" />
-												<circle cx={c1.x} cy={c1.y} r="4.5" fill="#60a5fa" stroke="#FFFFFF" strokeWidth="2" />
-												<circle cx={c3.x} cy={c3.y} r="4.5" fill="#34d399" stroke="#FFFFFF" strokeWidth="2" />
-												<circle cx={c5.x} cy={c5.y} r="4.5" fill="#c084fc" stroke="#FFFFFF" strokeWidth="2" />
-												<circle cx={c7.x} cy={c7.y} r="4.5" fill="#fbbf24" stroke="#FFFFFF" strokeWidth="2" />
+												<circle cx={c1.x} cy={c1.y} r="5" fill="#60a5fa" stroke="#FFFFFF" strokeWidth="2" />
+												<circle cx={c3.x} cy={c3.y} r="5" fill="#34d399" stroke="#FFFFFF" strokeWidth="2" />
+												<circle cx={c5.x} cy={c5.y} r="5" fill="#c084fc" stroke="#FFFFFF" strokeWidth="2" />
+												<circle cx={c7.x} cy={c7.y} r="5" fill="#fbbf24" stroke="#FFFFFF" strokeWidth="2" />
 											</g>
 										);
 									})()}
@@ -484,23 +621,37 @@ export default function MonitoringPage() {
 										onMouseMove={(e) => handleMouseMove(e, telemetryBuffer.length, setNetHoverIdx)}
 										onMouseLeave={() => setNetHoverIdx(null)}
 									>
+										<defs>
+											<linearGradient id="netGrad" x1="0" y1="0" x2="0" y2="1">
+												<stop offset="0%" stopColor="#22d3ee" stopOpacity="0.25" />
+												<stop offset="100%" stopColor="#22d3ee" stopOpacity="0" />
+											</linearGradient>
+										</defs>
+
 										{[10, 60, 110].map((y) => (
 											<line key={y} x1="0" y1={y} x2="400" y2={y} stroke="#272727" strokeDasharray="3 3" strokeWidth="1" />
 										))}
 
+										{chartMode === 'area' && (
+											<path
+												d={createAreaPath(createSvgPath(telemetryBuffer.map((d) => d.netRxMbps), 400, 120, 100, chartMode), 400, 120)}
+												fill="url(#netGrad)"
+											/>
+										)}
+
 										<path
-											d={createSvgPath(telemetryBuffer.map((d) => d.netRxMbps), 400, 120)}
+											d={createSvgPath(telemetryBuffer.map((d) => d.netRxMbps), 400, 120, 100, chartMode)}
 											fill="none"
 											stroke="#22d3ee"
-											strokeWidth="2"
+											strokeWidth="2.5"
 											strokeLinecap="round"
 										/>
 
 										<path
-											d={createSvgPath(telemetryBuffer.map((d) => d.netTxMbps), 400, 120)}
+											d={createSvgPath(telemetryBuffer.map((d) => d.netTxMbps), 400, 120, 100, chartMode)}
 											fill="none"
 											stroke="#f472b6"
-											strokeWidth="2"
+											strokeWidth="2.5"
 											strokeLinecap="round"
 										/>
 
@@ -511,8 +662,8 @@ export default function MonitoringPage() {
 											return (
 												<g>
 													<line x1={rx.x} y1="0" x2={rx.x} y2="120" stroke="#737373" strokeDasharray="3 3" strokeWidth="1.5" />
-													<circle cx={rx.x} cy={rx.y} r="4" fill="#22d3ee" stroke="#FFFFFF" strokeWidth="1.5" />
-													<circle cx={tx.x} cy={tx.y} r="4" fill="#f472b6" stroke="#FFFFFF" strokeWidth="1.5" />
+													<circle cx={rx.x} cy={rx.y} r="4.5" fill="#22d3ee" stroke="#FFFFFF" strokeWidth="1.5" />
+													<circle cx={tx.x} cy={tx.y} r="4.5" fill="#f472b6" stroke="#FFFFFF" strokeWidth="1.5" />
 												</g>
 											);
 										})()}
@@ -577,18 +728,18 @@ export default function MonitoringPage() {
 										))}
 
 										<path
-											d={createSvgPath(telemetryBuffer.map((d) => d.diskReadIops), 400, 120, 2000)}
+											d={createSvgPath(telemetryBuffer.map((d) => d.diskReadIops), 400, 120, 2000, chartMode)}
 											fill="none"
 											stroke="#818cf8"
-											strokeWidth="2"
+											strokeWidth="2.5"
 											strokeLinecap="round"
 										/>
 
 										<path
-											d={createSvgPath(telemetryBuffer.map((d) => d.diskWriteIops), 400, 120, 2000)}
+											d={createSvgPath(telemetryBuffer.map((d) => d.diskWriteIops), 400, 120, 2000, chartMode)}
 											fill="none"
 											stroke="#fb923c"
-											strokeWidth="2"
+											strokeWidth="2.5"
 											strokeLinecap="round"
 										/>
 
@@ -599,8 +750,8 @@ export default function MonitoringPage() {
 											return (
 												<g>
 													<line x1={r.x} y1="0" x2={r.x} y2="120" stroke="#737373" strokeDasharray="3 3" strokeWidth="1.5" />
-													<circle cx={r.x} cy={r.y} r="4" fill="#818cf8" stroke="#FFFFFF" strokeWidth="1.5" />
-													<circle cx={w.x} cy={w.y} r="4" fill="#fb923c" stroke="#FFFFFF" strokeWidth="1.5" />
+													<circle cx={r.x} cy={r.y} r="4.5" fill="#818cf8" stroke="#FFFFFF" strokeWidth="1.5" />
+													<circle cx={w.x} cy={w.y} r="4.5" fill="#fb923c" stroke="#FFFFFF" strokeWidth="1.5" />
 												</g>
 											);
 										})()}
