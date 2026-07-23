@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { Shield, Plus, Trash2, RefreshCw, AlertTriangle } from 'lucide-react';
 import { PageLayout } from '$lib/../components/PageLayout';
 import { getAuthSession } from '$lib/auth';
+import { USE_MOCK_DATA, getCertificatesMock, type CertificateMock } from '$lib/mocks';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '$lib/../components/ui/card';
 import { Button } from '$lib/../components/ui/button';
 import { Badge } from '$lib/../components/ui/badge';
+import { toastSuccess } from '$lib/toast';
 
 export default function CertificatesPage() {
 	const navigate = useNavigate();
@@ -15,20 +17,18 @@ export default function CertificatesPage() {
 		setTimeout(() => navigate('/auth', { replace: true }), 0);
 	}
 
-	const [certificates, setCertificates] = useState([
-		{ id: 'cert1', name: 'Wildcard Production', domain: '*.example.com', type: 'Wildcard', status: 'valid', expires: '2027-03-15', autoRenew: true, issuer: "Let's Encrypt", isChain: true, chainLength: 3 },
-		{ id: 'cert2', name: 'API Certificate', domain: 'api.example.com', type: 'Single', status: 'valid', expires: '2027-01-20', autoRenew: true, issuer: "Let's Encrypt", isChain: false, chainLength: 1 },
-		{ id: 'cert3', name: 'Staging Cert', domain: 'staging.example.com', type: 'Single', status: 'expiring', expires: '2026-08-01', autoRenew: false, issuer: "Let's Encrypt", isChain: false, chainLength: 1 }
-	]);
+	const [useMock, setUseMock] = useState(USE_MOCK_DATA);
+	const [certificates, setCertificates] = useState<CertificateMock[]>(getCertificatesMock());
 
 	function statusColor(status: string): string {
 		if (status === 'valid') return 'text-green-400';
-		if (status === 'expiring') return 'text-yellow-400';
+		if (status === 'expiring') return 'text-amber-400';
 		return 'text-red-400';
 	}
 
 	function deleteCert(id: string) {
 		setCertificates((prev) => prev.filter((c) => c.id !== id));
+		toastSuccess('Certificate removed');
 	}
 
 	return (
@@ -37,6 +37,20 @@ export default function CertificatesPage() {
 				<div className="flex items-center gap-2">
 					<Shield className="w-3.5 h-3.5 text-[#a1a1aa]" />
 					<span className="font-medium text-[#FAFAFA]">Certificates</span>
+				</div>
+
+				<div className="flex items-center gap-2 px-3 py-1 rounded-full bg-[#141414] border border-[#262626]">
+					<span className="text-[11px] text-[#a1a1aa]">Data Source:</span>
+					<button
+						onClick={() => setUseMock(!useMock)}
+						className={`text-[11px] font-semibold px-2 py-0.5 rounded transition-colors cursor-pointer ${
+							useMock
+								? 'bg-[#262626] text-[#FAFAFA] border border-white/10'
+								: 'text-[#737373] hover:text-[#FAFAFA]'
+						}`}
+					>
+						{useMock ? 'Mock Demo Data' : 'Live Rust Backend API'}
+					</button>
 				</div>
 			</header>
 
@@ -48,9 +62,9 @@ export default function CertificatesPage() {
 								<div>
 									<CardTitle className="text-lg font-semibold text-[#FAFAFA] flex items-center gap-2">
 										<Shield className="w-5 h-5 text-[#a1a1aa]" />
-										Certificates
+										TLS / SSL Certificates
 									</CardTitle>
-									<CardDescription className="text-xs text-[#a1a1aa] mt-1">Create certificates in the Traefik directory</CardDescription>
+									<CardDescription className="text-xs text-[#a1a1aa] mt-1">Managed Let's Encrypt and custom SSL certificates in Traefik directory</CardDescription>
 								</div>
 								<Button size="sm" className="gap-1.5 text-xs font-semibold bg-[#FAFAFA] hover:bg-[#e4e4e7] text-[#0A0A0A] cursor-pointer">
 									<Plus className="w-3.5 h-3.5" />
@@ -58,12 +72,12 @@ export default function CertificatesPage() {
 								</Button>
 							</div>
 
-							<div className="mt-4 p-3.5 rounded-lg bg-orange-500/10 border border-orange-500/20 flex items-start gap-3 text-orange-400">
+							<div className="mt-4 p-3.5 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-start gap-3 text-amber-400">
 								<AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
 								<div>
 									<p className="text-xs font-semibold">Warning</p>
-									<p className="text-[11px] text-orange-400/90 mt-0.5 leading-relaxed">
-										Certificates are created in the Traefik directory. Using invalid certificates can break your Traefik instance, preventing access to your applications.
+									<p className="text-[11px] text-amber-400/90 mt-0.5 leading-relaxed">
+										Certificates are stored in the Traefik directory. Using invalid certificates can break your Traefik proxy instance, preventing access to host routes.
 									</p>
 								</div>
 							</div>
@@ -95,14 +109,11 @@ export default function CertificatesPage() {
 												<p className={`text-xs ${statusColor(cert.status)} font-semibold font-mono`}>
 													{cert.status === 'valid' ? 'Valid' : 'Expiring Soon'}
 												</p>
-												<p className="text-[10px] text-[#737373] font-mono">{cert.expires}</p>
+												<p className="text-[10px] text-[#737373] font-mono">Expires {cert.expiresAt}</p>
 											</div>
 											{cert.autoRenew && (
 												<Badge variant="outline" className="text-[9px] text-green-400 border-green-500/30 bg-green-500/10 font-mono">Auto-Renew</Badge>
 											)}
-											<button className="p-1.5 rounded-lg border border-[#262626] text-[#a1a1aa] hover:text-[#FAFAFA] hover:bg-[#262626] transition-colors cursor-pointer">
-												<RefreshCw className="w-3.5 h-3.5" />
-											</button>
 											<button onClick={() => deleteCert(cert.id)} className="p-1.5 rounded-lg border border-[#262626] text-[#a1a1aa] hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer">
 												<Trash2 className="w-3.5 h-3.5" />
 											</button>

@@ -118,3 +118,7 @@ export const MOCK_PROJECTS: ProjectMock[] = [
 		createdAt: '2026-05-10'
 	}
 ];
+
+export function getProjectsMock(): ProjectMock[] {
+	return MOCK_PROJECTS;
+}

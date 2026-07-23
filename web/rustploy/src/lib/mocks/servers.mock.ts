@@ -56,3 +56,7 @@ export const MOCK_SERVERS: ServerMock[] = [
 		lastPing: '45s ago'
 	}
 ];
+
+export function getServersMock(): ServerMock[] {
+	return MOCK_SERVERS;
+}

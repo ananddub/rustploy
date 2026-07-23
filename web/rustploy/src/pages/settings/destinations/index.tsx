@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Layers, Plus, Trash2 } from 'lucide-react';
 import { PageLayout } from '$lib/../components/PageLayout';
 import { getAuthSession } from '$lib/auth';
+import { USE_MOCK_DATA, getDestinationsMock, type DestinationMock } from '$lib/mocks';
 import { Card } from '$lib/../components/ui/card';
 import { Button } from '$lib/../components/ui/button';
 import { toastSuccess } from '$lib/toast';
@@ -15,10 +16,8 @@ export default function DestinationsPage() {
 		setTimeout(() => navigate('/auth', { replace: true }), 0);
 	}
 
-	const [destinations, setDestinations] = useState([
-		{ id: 'dest-1', name: 'AWS S3 Production Backups', bucket: 'rustploy-db-backups-prod', region: 'us-east-1', provider: 'Amazon S3' },
-		{ id: 'dest-2', name: 'Cloudflare R2 Storage', bucket: 'rustploy-static-assets', region: 'auto', provider: 'Cloudflare R2' }
-	]);
+	const [useMock, setUseMock] = useState(USE_MOCK_DATA);
+	const [destinations, setDestinations] = useState<DestinationMock[]>(getDestinationsMock());
 
 	function removeDest(id: string) {
 		setDestinations(destinations.filter((d) => d.id !== id));
@@ -31,6 +30,20 @@ export default function DestinationsPage() {
 				<div className="flex items-center gap-2">
 					<Layers className="w-3.5 h-3.5 text-[#a1a1aa]" />
 					<span className="font-medium text-[#FAFAFA]">S3 Destinations</span>
+				</div>
+
+				<div className="flex items-center gap-2 px-3 py-1 rounded-full bg-[#141414] border border-[#262626]">
+					<span className="text-[11px] text-[#a1a1aa]">Data Source:</span>
+					<button
+						onClick={() => setUseMock(!useMock)}
+						className={`text-[11px] font-semibold px-2 py-0.5 rounded transition-colors cursor-pointer ${
+							useMock
+								? 'bg-[#262626] text-[#FAFAFA] border border-white/10'
+								: 'text-[#737373] hover:text-[#FAFAFA]'
+						}`}
+					>
+						{useMock ? 'Mock Demo Data' : 'Live Rust Backend API'}
+					</button>
 				</div>
 			</header>
 
@@ -48,14 +61,16 @@ export default function DestinationsPage() {
 
 					<div className="grid grid-cols-1 gap-4">
 						{destinations.map((d) => (
-							<Card key={d.id} className="bg-[#171717] border border-[#262626] rounded-xl p-5 flex items-center justify-between">
+							<Card key={d.id} className="bg-[#171717] border border-[#262626] rounded-xl p-5 flex items-center justify-between hover:border-[#3f3f46] transition-all">
 								<div className="flex items-center gap-4">
 									<div className="w-10 h-10 rounded-lg bg-[#262626] border border-white/10 flex items-center justify-center font-bold text-sm text-[#FAFAFA]">
 										<Layers className="w-5 h-5" />
 									</div>
 									<div>
 										<h2 className="text-base font-semibold text-[#FAFAFA]">{d.name}</h2>
-										<p className="text-xs text-[#a1a1aa] font-mono mt-0.5">{d.provider} · Bucket: s3://{d.bucket} ({d.region})</p>
+										<p className="text-xs text-[#a1a1aa] font-mono mt-0.5">
+											{d.provider} · Bucket: s3://{d.bucketName} ({d.region}) · {d.storageUsedGb} GB ({d.backupsCount} backups)
+										</p>
 									</div>
 								</div>
 								<button onClick={() => removeDest(d.id)} className="p-2 rounded-lg border border-[#262626] bg-[#262626] text-[#a1a1aa] hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer">

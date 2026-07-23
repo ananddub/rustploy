@@ -1,13 +1,12 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, Save, Plus, Trash2 } from 'lucide-react';
+import { Bell, Plus, Trash2, CheckCircle2 } from 'lucide-react';
 import { PageLayout } from '$lib/../components/PageLayout';
 import { getAuthSession } from '$lib/auth';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '$lib/../components/ui/card';
+import { USE_MOCK_DATA, getNotificationsMock, type NotificationChannelMock } from '$lib/mocks';
+import { Card, CardContent } from '$lib/../components/ui/card';
 import { Button } from '$lib/../components/ui/button';
-import { Input } from '$lib/../components/ui/input';
-import { Label } from '$lib/../components/ui/label';
-import { Switch } from '$lib/../components/ui/switch';
+import { Badge } from '$lib/../components/ui/badge';
 import { toastSuccess } from '$lib/toast';
 
 export default function NotificationsPage() {
@@ -18,18 +17,12 @@ export default function NotificationsPage() {
 		setTimeout(() => navigate('/auth', { replace: true }), 0);
 	}
 
-	const [discordWebhook, setDiscordWebhook] = useState('https://discord.com/api/webhooks/12345/abcde');
-	const [slackWebhook, setSlackWebhook] = useState('');
-	const [notifyOnSuccess, setNotifyOnSuccess] = useState(true);
-	const [notifyOnError, setNotifyOnError] = useState(true);
-	const [saving, setSaving] = useState(false);
+	const [useMock, setUseMock] = useState(USE_MOCK_DATA);
+	const [channels, setChannels] = useState<NotificationChannelMock[]>(getNotificationsMock());
 
-	function save() {
-		setSaving(true);
-		setTimeout(() => {
-			toastSuccess('Notification webhooks updated');
-			setSaving(false);
-		}, 400);
+	function removeChannel(id: string) {
+		setChannels(channels.filter((c) => c.id !== id));
+		toastSuccess('Notification channel removed');
 	}
 
 	return (
@@ -39,51 +32,57 @@ export default function NotificationsPage() {
 					<Bell className="w-3.5 h-3.5 text-[#a1a1aa]" />
 					<span className="font-medium text-[#FAFAFA]">Notifications</span>
 				</div>
+
+				<div className="flex items-center gap-2 px-3 py-1 rounded-full bg-[#141414] border border-[#262626]">
+					<span className="text-[11px] text-[#a1a1aa]">Data Source:</span>
+					<button
+						onClick={() => setUseMock(!useMock)}
+						className={`text-[11px] font-semibold px-2 py-0.5 rounded transition-colors cursor-pointer ${
+							useMock
+								? 'bg-[#262626] text-[#FAFAFA] border border-white/10'
+								: 'text-[#737373] hover:text-[#FAFAFA]'
+						}`}
+					>
+						{useMock ? 'Mock Demo Data' : 'Live Rust Backend API'}
+					</button>
+				</div>
 			</header>
 
 			<main className="flex-1 m-3.5 overflow-y-auto p-7 animate-fade-up min-h-0">
 				<div className="max-w-5xl mx-auto space-y-6">
-					<Card className="bg-[#171717] border border-[#262626] rounded-xl shadow-md overflow-hidden">
-						<CardHeader className="p-6">
-							<CardTitle className="text-base font-semibold text-[#FAFAFA] flex items-center gap-2">
-								<Bell className="w-4 h-4 text-[#a1a1aa]" />
-								Notification Channels & Webhooks
-							</CardTitle>
-							<CardDescription className="text-xs text-[#a1a1aa] mt-1">Receive real-time build notifications in Discord, Slack, Telegram, or custom webhooks</CardDescription>
-						</CardHeader>
-						<CardContent className="p-6 pt-0 space-y-5">
-							<div className="flex items-center justify-between">
-								<div>
-									<p className="text-xs font-semibold text-[#FAFAFA]">Notify on Successful Deployment</p>
-									<p className="text-[11px] text-[#737373]">Send a message whenever a service builds and deploys cleanly</p>
+					<div className="flex items-center justify-between">
+						<div>
+							<h1 className="text-3xl font-bold tracking-tight text-[#FAFAFA]">Notification Channels & Webhooks</h1>
+							<p className="text-sm text-[#a1a1aa] mt-1">Configure Discord, Slack, Telegram, or custom webhooks for real-time build alerts</p>
+						</div>
+						<Button size="sm" className="gap-1.5 text-xs font-semibold bg-[#FAFAFA] hover:bg-[#e4e4e7] text-[#0A0A0A] cursor-pointer">
+							<Plus className="w-4 h-4" /> Add Channel
+						</Button>
+					</div>
+
+					<div className="grid grid-cols-1 gap-4">
+						{channels.map((c) => (
+							<Card key={c.id} className="bg-[#171717] border border-[#262626] rounded-xl p-5 flex items-center justify-between hover:border-[#3f3f46] transition-all">
+								<div className="flex items-center gap-4">
+									<div className="w-10 h-10 rounded-lg bg-[#262626] border border-white/10 flex items-center justify-center font-bold text-sm text-[#FAFAFA]">
+										<Bell className="w-5 h-5" />
+									</div>
+									<div>
+										<div className="flex items-center gap-2">
+											<h2 className="text-base font-semibold text-[#FAFAFA]">{c.name}</h2>
+											<Badge variant="outline" className="text-[10px] border-green-500/30 text-green-400 bg-green-500/10">{c.provider}</Badge>
+										</div>
+										<p className="text-xs text-[#a1a1aa] font-mono mt-0.5">
+											Target: {c.targetUrl.slice(0, 45)}… · {c.notifyOnSuccess ? 'Success & Errors' : 'Errors Only'}
+										</p>
+									</div>
 								</div>
-								<Switch checked={notifyOnSuccess} onCheckedChange={(val) => setNotifyOnSuccess(val)} />
-							</div>
-
-							<div className="flex items-center justify-between">
-								<div>
-									<p className="text-xs font-semibold text-[#FAFAFA]">Notify on Deployment Error</p>
-									<p className="text-[11px] text-[#737373]">Send an urgent message when a build fails or container crashes</p>
-								</div>
-								<Switch checked={notifyOnError} onCheckedChange={(val) => setNotifyOnError(val)} />
-							</div>
-
-							<div className="space-y-1.5">
-								<Label htmlFor="discord" className="text-xs text-[#a1a1aa]">Discord Webhook URL</Label>
-								<Input id="discord" value={discordWebhook} onChange={(e) => setDiscordWebhook(e.target.value)} placeholder="https://discord.com/api/webhooks/..." className="bg-[#141414] border-[#262626] text-[#FAFAFA]" />
-							</div>
-
-							<div className="space-y-1.5">
-								<Label htmlFor="slack" className="text-xs text-[#a1a1aa]">Slack Webhook URL</Label>
-								<Input id="slack" value={slackWebhook} onChange={(e) => setSlackWebhook(e.target.value)} placeholder="https://hooks.slack.com/services/..." className="bg-[#141414] border-[#262626] text-[#FAFAFA]" />
-							</div>
-						</CardContent>
-						<CardFooter className="border-t border-[#262626] p-4 flex justify-end bg-[#141414]">
-							<Button onClick={save} disabled={saving} size="sm" className="gap-1.5 text-xs font-semibold bg-[#FAFAFA] hover:bg-[#e4e4e7] text-[#0A0A0A] cursor-pointer">
-								<Save className="w-3.5 h-3.5" /> {saving ? 'Saving…' : 'Save Notification Rules'}
-							</Button>
-						</CardFooter>
-					</Card>
+								<button onClick={() => removeChannel(c.id)} className="p-2 rounded-lg border border-[#262626] bg-[#262626] text-[#a1a1aa] hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer">
+									<Trash2 className="w-4 h-4" />
+								</button>
+							</Card>
+						))}
+					</div>
 				</div>
 			</main>
 		</PageLayout>

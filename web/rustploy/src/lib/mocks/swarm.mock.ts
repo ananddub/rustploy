@@ -39,3 +39,11 @@ export const MOCK_SSH_KEYS: SshKeyMock[] = [
 		createdAt: '2026-06-15'
 	}
 ];
+
+export function getSwarmNodesMock(): SwarmNodeMock[] {
+	return MOCK_SWARM_NODES;
+}
+
+export function getSshKeysMock(): SshKeyMock[] {
+	return MOCK_SSH_KEYS;
+}

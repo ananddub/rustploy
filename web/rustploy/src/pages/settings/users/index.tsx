@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Plus, Shield, Mail, Trash2, UserPlus } from 'lucide-react';
+import { Users, Search, UserPlus, Trash2, Shield, Clock } from 'lucide-react';
 import { PageLayout } from '$lib/../components/PageLayout';
 import { getAuthSession } from '$lib/auth';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '$lib/../components/ui/card';
+import { USE_MOCK_DATA, getUsersMock, type UserMock } from '$lib/mocks';
+import { Card, CardContent } from '$lib/../components/ui/card';
 import { Button } from '$lib/../components/ui/button';
+import { Input } from '$lib/../components/ui/input';
 import { Badge } from '$lib/../components/ui/badge';
 import { toastSuccess } from '$lib/toast';
 
@@ -16,11 +18,16 @@ export default function UsersPage() {
 		setTimeout(() => navigate('/auth', { replace: true }), 0);
 	}
 
-	const [users, setUsers] = useState([
-		{ id: 'usr-1', name: 'Aditya Sahu', email: 'admin@rustploy.dev', role: 'Owner', status: 'Active', joinedAt: 'Jun 12, 2026' },
-		{ id: 'usr-2', name: 'Aman Kumar', email: 'aman@example.com', role: 'Admin', status: 'Active', joinedAt: 'Jun 15, 2026' },
-		{ id: 'usr-3', name: 'Sarah Chen', email: 'sarah@example.com', role: 'Developer', status: 'Pending', joinedAt: 'Jul 01, 2026' }
-	]);
+	const [useMock, setUseMock] = useState(USE_MOCK_DATA);
+	const [users, setUsers] = useState<UserMock[]>(getUsersMock());
+	const [searchQuery, setSearchQuery] = useState('');
+
+	const filteredUsers = users.filter((u) =>
+		!searchQuery ||
+		u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+		u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+		u.role.toLowerCase().includes(searchQuery.toLowerCase())
+	);
 
 	function removeUser(id: string) {
 		setUsers((prev) => prev.filter((u) => u.id !== id));
@@ -34,18 +41,42 @@ export default function UsersPage() {
 					<Users className="w-3.5 h-3.5 text-[#a1a1aa]" />
 					<span className="font-medium text-[#FAFAFA]">Users & Roles</span>
 				</div>
+
+				<div className="flex items-center gap-2 px-3 py-1 rounded-full bg-[#141414] border border-[#262626]">
+					<span className="text-[11px] text-[#a1a1aa]">Data Source:</span>
+					<button
+						onClick={() => setUseMock(!useMock)}
+						className={`text-[11px] font-semibold px-2 py-0.5 rounded transition-colors cursor-pointer ${
+							useMock
+								? 'bg-[#262626] text-[#FAFAFA] border border-white/10'
+								: 'text-[#737373] hover:text-[#FAFAFA]'
+						}`}
+					>
+						{useMock ? 'Mock Demo Data' : 'Live Rust Backend API'}
+					</button>
+				</div>
 			</header>
 
 			<main className="flex-1 m-3.5 overflow-y-auto p-7 animate-fade-up min-h-0">
 				<div className="max-w-5xl mx-auto space-y-6">
-					<div className="flex items-center justify-between">
+					<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
 						<div>
 							<h1 className="text-3xl font-bold tracking-tight text-[#FAFAFA]">Users & Access Control</h1>
-							<p className="text-sm text-[#a1a1aa] mt-1">Manage team members, roles, and invitation status</p>
+							<p className="text-sm text-[#a1a1aa] mt-1">Manage team members, RBAC roles, and invitation status</p>
 						</div>
-						<Button size="sm" className="gap-1.5 text-xs font-semibold bg-[#FAFAFA] hover:bg-[#e4e4e7] text-[#0A0A0A] cursor-pointer">
+						<Button size="sm" className="gap-1.5 text-xs font-semibold bg-[#FAFAFA] hover:bg-[#e4e4e7] text-[#0A0A0A] cursor-pointer self-start sm:self-auto">
 							<UserPlus className="w-4 h-4" /> Invite Member
 						</Button>
+					</div>
+
+					<div className="relative max-w-sm">
+						<Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#737373]" />
+						<Input
+							value={searchQuery}
+							onChange={(e) => setSearchQuery(e.target.value)}
+							placeholder="Search by user name or email..."
+							className="pl-9 text-xs h-9 bg-[#141414] border-[#262626] text-[#FAFAFA]"
+						/>
 					</div>
 
 					<Card className="bg-[#171717] border border-[#262626] rounded-xl shadow-md overflow-hidden">
@@ -56,20 +87,21 @@ export default function UsersPage() {
 										<th className="px-5 py-3">MEMBER</th>
 										<th className="px-5 py-3">ROLE</th>
 										<th className="px-5 py-3">STATUS</th>
+										<th className="px-5 py-3">LAST ACTIVE</th>
 										<th className="px-5 py-3">JOINED</th>
 										<th className="px-5 py-3 text-right">ACTION</th>
 									</tr>
 								</thead>
 								<tbody className="divide-y divide-[#262626]">
-									{users.map((u) => (
+									{filteredUsers.map((u) => (
 										<tr key={u.id} className="hover:bg-[#262626]/30 transition-colors">
 											<td className="px-5 py-3.5 font-semibold text-[#FAFAFA]">
 												<div className="flex items-center gap-2.5">
-													<div className="w-7 h-7 rounded-full bg-[#262626] border border-white/10 flex items-center justify-center font-bold text-xs text-[#FAFAFA]">
+													<div className="w-8 h-8 rounded-full bg-[#262626] border border-white/10 flex items-center justify-center font-bold text-xs text-[#FAFAFA]">
 														{u.name[0]}
 													</div>
 													<div>
-														<p>{u.name}</p>
+														<p className="text-xs">{u.name}</p>
 														<p className="text-[10px] font-mono text-[#737373]">{u.email}</p>
 													</div>
 												</div>
@@ -80,11 +112,19 @@ export default function UsersPage() {
 												</Badge>
 											</td>
 											<td className="px-5 py-3.5">
-												<Badge variant="outline" className={`text-[10px] ${u.status === 'Active' ? 'border-green-500/30 text-green-400 bg-green-500/10' : 'border-amber-500/30 text-amber-400 bg-amber-500/10'}`}>
+												<Badge
+													variant="outline"
+													className={`text-[10px] ${
+														u.status === 'Active'
+															? 'border-green-500/30 text-green-400 bg-green-500/10'
+															: 'border-amber-500/30 text-amber-400 bg-amber-500/10'
+													}`}
+												>
 													{u.status}
 												</Badge>
 											</td>
-											<td className="px-5 py-3.5 font-mono text-[#a1a1aa]">{u.joinedAt}</td>
+											<td className="px-5 py-3.5 font-mono text-[#a1a1aa]">{u.lastActive}</td>
+											<td className="px-5 py-3.5 font-mono text-[#737373]">{u.joinedAt}</td>
 											<td className="px-5 py-3.5 text-right">
 												{u.role !== 'Owner' && (
 													<button onClick={() => removeUser(u.id)} className="p-1.5 rounded-lg border border-[#262626] text-[#a1a1aa] hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer">

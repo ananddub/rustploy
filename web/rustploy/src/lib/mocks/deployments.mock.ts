@@ -81,3 +81,7 @@ export const MOCK_DEPLOYMENTS: DeploymentMock[] = [
 		createdAt: '45m ago'
 	}
 ];
+
+export function getDeploymentsMock(): DeploymentMock[] {
+	return MOCK_DEPLOYMENTS;
+}

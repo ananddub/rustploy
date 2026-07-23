@@ -35,3 +35,7 @@ export const MOCK_SCHEDULES: ScheduleMock[] = [
 		command: 'curl -X POST http://localhost:8080/api/cache/warmup'
 	}
 ];
+
+export function getSchedulesMock(): ScheduleMock[] {
+	return MOCK_SCHEDULES;
+}

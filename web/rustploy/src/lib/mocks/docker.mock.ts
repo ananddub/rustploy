@@ -32,3 +32,7 @@ export const MOCK_DOCKER_CONTAINERS: DockerContainerMock[] = [
 		memUsageMb: 240.5
 	}
 ];
+
+export function getDockerContainersMock(): DockerContainerMock[] {
+	return MOCK_DOCKER_CONTAINERS;
+}

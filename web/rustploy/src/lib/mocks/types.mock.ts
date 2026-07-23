@@ -125,3 +125,81 @@ export interface SshKeyMock {
 	keyType: 'ed25519' | 'rsa';
 	createdAt: string;
 }
+
+export interface UserMock {
+	id: string;
+	name: string;
+	email: string;
+	role: 'Owner' | 'Admin' | 'Developer' | 'Viewer';
+	status: 'Active' | 'Pending' | 'Suspended';
+	avatarUrl?: string;
+	joinedAt: string;
+	lastActive: string;
+}
+
+export interface AuditLogMock {
+	id: string;
+	action: 'PROJECT_CREATE' | 'SSH_KEY_ADD' | 'DEPLOY_TRIGGER' | 'TRAEFIK_UPDATE' | 'USER_ROLE_CHANGE' | 'SERVER_CONNECT';
+	actor: string;
+	target: string;
+	ipAddress: string;
+	severity: 'info' | 'warn' | 'error';
+	timestamp: string;
+}
+
+export interface GitProviderMock {
+	id: string;
+	provider: 'GitHub' | 'GitLab' | 'Bitbucket';
+	username: string;
+	authType: 'OAuth App' | 'Personal Access Token' | 'SSH Key';
+	status: 'connected' | 'error';
+	repositoriesCount: number;
+	connectedAt: string;
+}
+
+export interface RegistryMock {
+	id: string;
+	name: string;
+	registryUrl: string;
+	username: string;
+	isDefault: boolean;
+	status: 'connected' | 'error';
+	pushedImagesCount: number;
+	createdAt: string;
+}
+
+export interface DestinationMock {
+	id: string;
+	name: string;
+	provider: 'Amazon S3' | 'Cloudflare R2' | 'MinIO' | 'DigitalOcean Spaces';
+	bucketName: string;
+	region: string;
+	accessKeyId: string;
+	storageUsedGb: number;
+	backupsCount: number;
+	createdAt: string;
+}
+
+export interface CertificateMock {
+	id: string;
+	name: string;
+	domain: string;
+	type: 'Wildcard' | 'Single Domain';
+	status: 'valid' | 'expiring' | 'expired';
+	expiresAt: string;
+	autoRenew: boolean;
+	issuer: string;
+	isChain: boolean;
+	chainLength: number;
+}
+
+export interface NotificationChannelMock {
+	id: string;
+	name: string;
+	provider: 'Discord' | 'Slack' | 'Telegram' | 'Email' | 'Webhook';
+	targetUrl: string;
+	notifyOnSuccess: boolean;
+	notifyOnError: boolean;
+	notifyOnWarning: boolean;
+	status: 'active' | 'disabled';
+}
