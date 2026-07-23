@@ -100,7 +100,7 @@ export default function MonitoringPage() {
 
 	return (
 		<PageLayout>
-			<div className="flex-1 m-3.5 overflow-y-auto no-scrollbar p-7 flex flex-col min-h-0 bg-[#171717] border border-[#272727] rounded-2xl shadow-xl space-y-6 animate-fade-up">
+			<div className="m-3.5 min-h-[calc(100vh-80px)] p-7 flex flex-col bg-[#171717] border border-[#272727] rounded-2xl shadow-xl space-y-6 animate-fade-up">
 				{/* Top Controls Header */}
 				<div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
 					<div>
