@@ -7,5 +7,6 @@ export * from './traefik.mock';
 export * from './docker.mock';
 export * from './swarm.mock';
 export * from './settings.mock';
+export * from './monitoring.mock';
 
 export const USE_MOCK_DATA = true;

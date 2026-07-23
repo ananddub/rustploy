@@ -8,27 +8,16 @@ import {
 	RefreshCw,
 	Server,
 	Cpu,
-	HardDrive,
 	ArrowUpRight,
-	ArrowDownRight,
 	Zap,
-	ShieldAlert,
-	Sliders
+	ShieldAlert
 } from 'lucide-react';
 import { PageLayout } from '$lib/../components/PageLayout';
 import { getAuthSession } from '$lib/auth';
-import { Card, CardContent, CardHeader, CardTitle } from '$lib/../components/ui/card';
+import { getMonitoringMock, generateLoopingTick, type TelemetrySeriesPoint } from '$lib/mocks';
+import { Card } from '$lib/../components/ui/card';
 import { Button } from '$lib/../components/ui/button';
-import { Badge } from '$lib/../components/ui/badge';
 import { toastSuccess, toastInfo } from '$lib/toast';
-
-interface TelemetryPoint {
-	timestamp: string;
-	v1: number;
-	v2: number;
-	v3?: number;
-	v4?: number;
-}
 
 export default function MonitoringPage() {
 	const navigate = useNavigate();
@@ -42,64 +31,31 @@ export default function MonitoringPage() {
 	const [selectedNode, setSelectedNode] = useState('production-01');
 	const [timeRange, setTimeRange] = useState<'1m' | '5m' | '15m' | '1h'>('1m');
 
-	// Initial data points generator for real-time streaming
-	const generateInitialSeries = (base1: number, base2: number, count = 30): TelemetryPoint[] => {
-		const now = Date.now();
-		return Array.from({ length: count }, (_, i) => {
-			const time = new Date(now - (count - i) * 1000).toLocaleTimeString([], {
-				hour: '2-digit',
-				minute: '2-digit',
-				second: '2-digit'
-			});
-			return {
-				timestamp: time,
-				v1: Math.min(100, Math.max(5, base1 + Math.sin(i * 0.4) * 15 + (Math.random() * 8 - 4))),
-				v2: Math.min(100, Math.max(5, base2 + Math.cos(i * 0.4) * 12 + (Math.random() * 6 - 3))),
-				v3: Math.min(100, Math.max(5, (base1 + base2) / 2 + Math.sin(i * 0.2) * 10 + (Math.random() * 4 - 2))),
-				v4: Math.min(100, Math.max(5, base1 * 0.7 + Math.cos(i * 0.3) * 14 + (Math.random() * 10 - 5)))
-			};
-		});
-	};
+	// Initial dataset loaded from mock provider
+	const [telemetryBuffer, setTelemetryBuffer] = useState<TelemetrySeriesPoint[]>(() =>
+		getMonitoringMock(selectedNode, 40)
+	);
 
-	const [cpuData, setCpuData] = useState<TelemetryPoint[]>(() => generateInitialSeries(18, 35));
-	const [ramData, setRamData] = useState<TelemetryPoint[]>(() => generateInitialSeries(32, 48));
-	const [netData, setNetData] = useState<TelemetryPoint[]>(() => generateInitialSeries(42, 24));
-	const [iopsData, setIopsData] = useState<TelemetryPoint[]>(() => generateInitialSeries(55, 30));
-	const [latencyData, setLatencyData] = useState<TelemetryPoint[]>(() => generateInitialSeries(14, 28));
+	const tickIndexRef = useRef(40);
 
-	// Real-time live interval tick effect (runs every 1000ms when streaming)
+	// When node changes, reset telemetry stream with host mock
+	useEffect(() => {
+		setTelemetryBuffer(getMonitoringMock(selectedNode, 40));
+		tickIndexRef.current = 40;
+	}, [selectedNode]);
+
+	// Real-time live looping tick interval (runs continuously every 1000ms)
 	useEffect(() => {
 		if (!isStreaming) return;
 
 		const interval = setInterval(() => {
-			const timeStr = new Date().toLocaleTimeString([], {
-				hour: '2-digit',
-				minute: '2-digit',
-				second: '2-digit'
-			});
-
-			const updateSeries = (prev: TelemetryPoint[], base1: number, base2: number) => {
-				const last = prev[prev.length - 1] || { v1: base1, v2: base2, v3: 20, v4: 25 };
-				const nextV1 = Math.min(100, Math.max(5, last.v1 + (Math.random() * 10 - 5)));
-				const nextV2 = Math.min(100, Math.max(5, last.v2 + (Math.random() * 8 - 4)));
-				const nextV3 = Math.min(100, Math.max(5, (last.v3 || 20) + (Math.random() * 6 - 3)));
-				const nextV4 = Math.min(100, Math.max(5, (last.v4 || 25) + (Math.random() * 12 - 6)));
-
-				const nextPoint: TelemetryPoint = {
-					timestamp: timeStr,
-					v1: Number(nextV1.toFixed(1)),
-					v2: Number(nextV2.toFixed(1)),
-					v3: Number(nextV3.toFixed(1)),
-					v4: Number(nextV4.toFixed(1))
-				};
+			tickIndexRef.current += 1;
+			setTelemetryBuffer((prev) => {
+				const lastPoint = prev[prev.length - 1];
+				const nextPoint = generateLoopingTick(lastPoint, tickIndexRef.current);
+				// Keep rolling 40-point window running infinitely on loop
 				return [...prev.slice(1), nextPoint];
-			};
-
-			setCpuData((prev) => updateSeries(prev, 20, 38));
-			setRamData((prev) => updateSeries(prev, 34, 52));
-			setNetData((prev) => updateSeries(prev, 45, 26));
-			setIopsData((prev) => updateSeries(prev, 50, 32));
-			setLatencyData((prev) => updateSeries(prev, 16, 30));
+			});
 		}, 1000);
 
 		return () => clearInterval(interval);
@@ -133,11 +89,7 @@ export default function MonitoringPage() {
 		return `${linePath} L ${width},${height} L 0,${height} Z`;
 	};
 
-	const latestCpu = cpuData[cpuData.length - 1]?.v1 || 18.4;
-	const latestRam = ramData[ramData.length - 1]?.v1 || 32.1;
-	const latestNetIn = netData[netData.length - 1]?.v1 || 42.8;
-	const latestNetOut = netData[netData.length - 1]?.v2 || 18.4;
-	const latestLatency = latencyData[latencyData.length - 1]?.v1 || 14;
+	const latest = telemetryBuffer[telemetryBuffer.length - 1] || telemetryBuffer[0];
 
 	return (
 		<PageLayout>
@@ -155,7 +107,7 @@ export default function MonitoringPage() {
 							Real-Time Telemetry & Monitoring
 						</h1>
 						<p className="text-xs text-[#a1a1aa] mt-1 flex items-center gap-2">
-							High-frequency live metrics stream · Updating every 1,000ms
+							High-frequency looping mock telemetry stream · Updating live every 1,000ms
 						</p>
 					</div>
 
@@ -210,7 +162,7 @@ export default function MonitoringPage() {
 										<span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
 										<span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
 									</span>
-									Live (1s)
+									Live Loop (1s)
 								</>
 							) : (
 								<>
@@ -221,9 +173,9 @@ export default function MonitoringPage() {
 
 						<button
 							onClick={() => {
-								setCpuData(generateInitialSeries(20, 35));
-								setRamData(generateInitialSeries(30, 50));
-								toastSuccess('Telemetry history reset');
+								setTelemetryBuffer(getMonitoringMock(selectedNode, 40));
+								tickIndexRef.current = 40;
+								toastSuccess('Telemetry stream buffer reset');
 							}}
 							className="p-2 rounded-xl border border-[#272727] bg-[#141414] text-[#a1a1aa] hover:text-[#FAFAFA] hover:bg-[#272727] transition-colors cursor-pointer"
 							title="Reset Telemetry Buffer"
@@ -237,28 +189,28 @@ export default function MonitoringPage() {
 				<div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
 					<Card className="bg-[#141414] border border-[#272727] rounded-xl p-4 shadow-md">
 						<p className="text-[11px] font-semibold text-[#a1a1aa] uppercase tracking-wider">CPU AVG LOAD</p>
-						<p className="text-3xl font-extrabold text-[#FAFAFA] font-mono mt-1">{latestCpu}%</p>
+						<p className="text-3xl font-extrabold text-[#FAFAFA] font-mono mt-1">{latest.cpuAvg}%</p>
 						<div className="flex items-center gap-1 mt-1 text-[11px] text-green-400 font-mono">
-							<ArrowUpRight className="w-3.5 h-3.5" /> +1.2% vs last 5m
+							<ArrowUpRight className="w-3.5 h-3.5" /> Live telemetry loop active
 						</div>
 					</Card>
 
 					<Card className="bg-[#141414] border border-[#272727] rounded-xl p-4 shadow-md">
 						<p className="text-[11px] font-semibold text-[#a1a1aa] uppercase tracking-wider">RAM ALLOCATION</p>
-						<p className="text-3xl font-extrabold text-[#FAFAFA] font-mono mt-1">{(latestRam * 0.16).toFixed(2)} GB</p>
-						<p className="text-[11px] text-[#737373] font-mono mt-1">{latestRam}% of 16.0 GB total</p>
+						<p className="text-3xl font-extrabold text-[#FAFAFA] font-mono mt-1">{latest.ramUsedGb} GB</p>
+						<p className="text-[11px] text-[#737373] font-mono mt-1">{latest.ramPercent}% of 16.0 GB total</p>
 					</Card>
 
 					<Card className="bg-[#141414] border border-[#272727] rounded-xl p-4 shadow-md">
 						<p className="text-[11px] font-semibold text-[#a1a1aa] uppercase tracking-wider">BANDWIDTH (IN / OUT)</p>
-						<p className="text-3xl font-extrabold text-[#FAFAFA] font-mono mt-1">{latestNetIn.toFixed(1)} MB/s</p>
-						<p className="text-[11px] text-[#737373] font-mono mt-1">Egress: {latestNetOut.toFixed(1)} MB/s</p>
+						<p className="text-3xl font-extrabold text-[#FAFAFA] font-mono mt-1">{latest.netRxMbps} MB/s</p>
+						<p className="text-[11px] text-[#737373] font-mono mt-1">Egress: {latest.netTxMbps} MB/s</p>
 					</Card>
 
 					<Card className="bg-[#141414] border border-[#272727] rounded-xl p-4 shadow-md">
 						<p className="text-[11px] font-semibold text-[#a1a1aa] uppercase tracking-wider">LATENCY (P95)</p>
-						<p className="text-3xl font-extrabold text-green-400 font-mono mt-1">{latestLatency.toFixed(0)} ms</p>
-						<p className="text-[11px] text-[#737373] font-mono mt-1">HTTP Traefik Ingress</p>
+						<p className="text-3xl font-extrabold text-green-400 font-mono mt-1">{latest.httpLatencyP95Ms} ms</p>
+						<p className="text-[11px] text-[#737373] font-mono mt-1">{latest.httpRps} RPS Traefik Ingress</p>
 					</Card>
 				</div>
 
@@ -269,14 +221,14 @@ export default function MonitoringPage() {
 							<Cpu className="w-5 h-5 text-blue-400" />
 							<div>
 								<h2 className="text-base font-bold text-[#FAFAFA]">CPU Core Utilization Streams (8 Cores)</h2>
-								<p className="text-xs text-[#a1a1aa]">Real-time per-core thread utilization lines with noise frequency variance</p>
+								<p className="text-xs text-[#a1a1aa]">Real-time per-core thread utilization lines with continuous loop telemetry</p>
 							</div>
 						</div>
 						<div className="flex items-center gap-3 text-xs font-mono">
-							<span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-blue-400" /> Core 0-1</span>
-							<span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-400" /> Core 2-3</span>
-							<span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-purple-400" /> Core 4-5</span>
-							<span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-400" /> Core 6-7</span>
+							<span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-blue-400" /> Core 1-2</span>
+							<span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-400" /> Core 3-4</span>
+							<span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-purple-400" /> Core 5-6</span>
+							<span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-400" /> Core 7-8</span>
 						</div>
 					</div>
 
@@ -287,10 +239,6 @@ export default function MonitoringPage() {
 									<stop offset="0%" stopColor="#60a5fa" stopOpacity="0.25" />
 									<stop offset="100%" stopColor="#60a5fa" stopOpacity="0" />
 								</linearGradient>
-								<linearGradient id="cpuGrad2" x1="0" y1="0" x2="0" y2="1">
-									<stop offset="0%" stopColor="#34d399" stopOpacity="0.2" />
-									<stop offset="100%" stopColor="#34d399" stopOpacity="0" />
-								</linearGradient>
 							</defs>
 
 							{/* Horizontal Grid lines */}
@@ -300,31 +248,31 @@ export default function MonitoringPage() {
 
 							{/* Gradient Area under line 1 */}
 							<path
-								d={createAreaPath(createSvgPath(cpuData.map((d) => d.v1), 800, 200), 800, 200)}
+								d={createAreaPath(createSvgPath(telemetryBuffer.map((d) => d.cpuCore1), 800, 200), 800, 200)}
 								fill="url(#cpuGrad1)"
 							/>
 
-							{/* Multi-Line 1 (Core 0-1 Blue) */}
+							{/* Multi-Line 1 (Core 1 Blue) */}
 							<path
-								d={createSvgPath(cpuData.map((d) => d.v1), 800, 200)}
+								d={createSvgPath(telemetryBuffer.map((d) => d.cpuCore1), 800, 200)}
 								fill="none"
 								stroke="#60a5fa"
 								strokeWidth="2.5"
 								strokeLinecap="round"
 							/>
 
-							{/* Multi-Line 2 (Core 2-3 Emerald) */}
+							{/* Multi-Line 2 (Core 3 Emerald) */}
 							<path
-								d={createSvgPath(cpuData.map((d) => d.v2), 800, 200)}
+								d={createSvgPath(telemetryBuffer.map((d) => d.cpuCore3), 800, 200)}
 								fill="none"
 								stroke="#34d399"
 								strokeWidth="2.5"
 								strokeLinecap="round"
 							/>
 
-							{/* Multi-Line 3 (Core 4-5 Purple) */}
+							{/* Multi-Line 3 (Core 5 Purple) */}
 							<path
-								d={createSvgPath(cpuData.map((d) => d.v3 || 20), 800, 200)}
+								d={createSvgPath(telemetryBuffer.map((d) => d.cpuCore5), 800, 200)}
 								fill="none"
 								stroke="#c084fc"
 								strokeWidth="2"
@@ -332,9 +280,9 @@ export default function MonitoringPage() {
 								strokeLinecap="round"
 							/>
 
-							{/* Multi-Line 4 (Core 6-7 Amber) */}
+							{/* Multi-Line 4 (Core 7 Amber) */}
 							<path
-								d={createSvgPath(cpuData.map((d) => d.v4 || 25), 800, 200)}
+								d={createSvgPath(telemetryBuffer.map((d) => d.cpuCore7), 800, 200)}
 								fill="none"
 								stroke="#fbbf24"
 								strokeWidth="2"
@@ -344,9 +292,9 @@ export default function MonitoringPage() {
 					</div>
 
 					<div className="flex items-center justify-between text-[11px] font-mono text-[#737373] mt-3 border-t border-[#272727] pt-2">
-						<span>{cpuData[0]?.timestamp || '12:00:00'}</span>
-						<span>{cpuData[Math.floor(cpuData.length / 2)]?.timestamp || '12:00:15'}</span>
-						<span>{cpuData[cpuData.length - 1]?.timestamp || '12:00:30'}</span>
+						<span>{telemetryBuffer[0]?.timestamp || '12:00:00'}</span>
+						<span>{telemetryBuffer[Math.floor(telemetryBuffer.length / 2)]?.timestamp || '12:00:20'}</span>
+						<span>{telemetryBuffer[telemetryBuffer.length - 1]?.timestamp || '12:00:40'}</span>
 					</div>
 				</Card>
 
@@ -360,8 +308,8 @@ export default function MonitoringPage() {
 								<p className="text-xs text-[#a1a1aa]">Real-time ingress (rx) vs egress (tx) throughput</p>
 							</div>
 							<div className="flex items-center gap-3 text-xs font-mono">
-								<span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-cyan-400" /> In: {latestNetIn.toFixed(1)} MB/s</span>
-								<span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-pink-400" /> Out: {latestNetOut.toFixed(1)} MB/s</span>
+								<span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-cyan-400" /> In: {latest.netRxMbps} MB/s</span>
+								<span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-pink-400" /> Out: {latest.netTxMbps} MB/s</span>
 							</div>
 						</div>
 
@@ -372,7 +320,7 @@ export default function MonitoringPage() {
 								))}
 
 								<path
-									d={createSvgPath(netData.map((d) => d.v1), 400, 160)}
+									d={createSvgPath(telemetryBuffer.map((d) => d.netRxMbps), 400, 160)}
 									fill="none"
 									stroke="#22d3ee"
 									strokeWidth="2.5"
@@ -380,7 +328,7 @@ export default function MonitoringPage() {
 								/>
 
 								<path
-									d={createSvgPath(netData.map((d) => d.v2), 400, 160)}
+									d={createSvgPath(telemetryBuffer.map((d) => d.netTxMbps), 400, 160)}
 									fill="none"
 									stroke="#f472b6"
 									strokeWidth="2.5"
@@ -398,8 +346,8 @@ export default function MonitoringPage() {
 								<p className="text-xs text-[#a1a1aa]">Storage controller read/write IOPS activity</p>
 							</div>
 							<div className="flex items-center gap-3 text-xs font-mono">
-								<span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-indigo-400" /> Read IOPS</span>
-								<span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-orange-400" /> Write IOPS</span>
+								<span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-indigo-400" /> Read: {latest.diskReadIops}</span>
+								<span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-orange-400" /> Write: {latest.diskWriteIops}</span>
 							</div>
 						</div>
 
@@ -410,7 +358,7 @@ export default function MonitoringPage() {
 								))}
 
 								<path
-									d={createSvgPath(iopsData.map((d) => d.v1), 400, 160)}
+									d={createSvgPath(telemetryBuffer.map((d) => d.diskReadIops), 400, 160, 2000)}
 									fill="none"
 									stroke="#818cf8"
 									strokeWidth="2.5"
@@ -418,7 +366,7 @@ export default function MonitoringPage() {
 								/>
 
 								<path
-									d={createSvgPath(iopsData.map((d) => d.v2), 400, 160)}
+									d={createSvgPath(telemetryBuffer.map((d) => d.diskWriteIops), 400, 160, 2000)}
 									fill="none"
 									stroke="#fb923c"
 									strokeWidth="2.5"
