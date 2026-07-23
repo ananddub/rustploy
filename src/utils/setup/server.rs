@@ -17,7 +17,9 @@ pub enum SetupStep {
     Network,
     TraefikConfig,
     Traefik,
+    Monitoring,
 }
+
 #[derive(Clone, Debug, Default)]
 pub struct SetupOutcome {
     pub completed: Vec<SetupStep>,
@@ -29,6 +31,7 @@ pub struct ServerSetup {
     executor: CommandExecutor,
     pub config: SetupConfig,
 }
+
 impl ServerSetup {
     pub fn new(executor: CommandExecutor, config: SetupConfig) -> Self {
         Self { executor, config }
@@ -229,6 +232,35 @@ fi
             .await?;
         Ok(())
     }
+
+    pub async fn ensure_monitoring(&self) -> ExecResult<()> {
+        let docker = DockerCli::from_executor(self.executor.clone());
+        let name = "rustploy-monitor";
+        if docker.containers().inspect(name).await.is_ok() {
+            docker.containers().start(name).run().await?;
+            return Ok(());
+        }
+
+        let image = "dubeyanand/rustploy-monitor:latest";
+        docker.images().pull(image).pull().await?;
+
+        let docker_socket_mount = Mount::bind_ro("/var/run/docker.sock", "/var/run/docker.sock");
+
+        let p_grpc = Port::tcp(50051, 50051);
+
+        docker
+            .containers()
+            .create(image)
+            .detach()
+            .name(name)
+            .restart(RestartPolicy::Always)
+            .mount(docker_socket_mount)
+            .publish(p_grpc)
+            .run()
+            .await?;
+        Ok(())
+    }
+
     pub async fn setup_all(&self, install_dependencies: bool) -> ExecResult<SetupOutcome> {
         let mut completed = Vec::new();
         if install_dependencies {
@@ -247,6 +279,8 @@ fi
         completed.push(SetupStep::TraefikConfig);
         self.ensure_traefik().await?;
         completed.push(SetupStep::Traefik);
+        self.ensure_monitoring().await?;
+        completed.push(SetupStep::Monitoring);
         let audit = self.audit().await?;
         Ok(SetupOutcome { completed, audit })
     }

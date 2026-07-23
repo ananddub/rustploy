@@ -15,6 +15,12 @@ service MonitoringService {
 
   // Bi-directional real-time health probe status stream
   rpc StreamHealth (stream HealthReportRequest) returns (stream HealthAck);
+
+  // Query historical server metrics
+  rpc GetServerMetrics (GetMetricsRequest) returns (ServerMetricsResponse);
+
+  // Query historical container metrics
+  rpc GetContainerMetrics (GetContainerMetricsRequest) returns (ContainerMetricsResponse);
 }
 
 message SystemMetricsRequest {
@@ -77,4 +83,60 @@ message HealthReportRequest {
 message HealthAck {
   bool acknowledged = 1;
   int64 timestamp = 2;
+}
+
+message ServerMetricPoint {
+  int64 id = 1;
+  string timestamp = 2;
+  double cpu = 3;
+  string cpu_model = 4;
+  int32 cpu_cores = 5;
+  int32 cpu_physical_cores = 6;
+  double cpu_speed = 7;
+  string os = 8;
+  string distro = 9;
+  string kernel = 10;
+  string arch = 11;
+  double mem_used = 12;
+  double mem_used_gb = 13;
+  double mem_total = 14;
+  uint64 uptime = 15;
+  double disk_used = 16;
+  double total_disk = 17;
+  double network_in = 18;
+  double network_out = 19;
+}
+
+message ContainerMetricPoint {
+  int64 id = 1;
+  string timestamp = 2;
+  string container_id = 3;
+  string name = 4;
+  double cpu_perc = 5;
+  double mem_perc = 6;
+  double mem_used_mb = 7;
+  double mem_total_mb = 8;
+  double net_in_mb = 9;
+  double net_out_mb = 10;
+  double block_read_mb = 11;
+  double block_write_mb = 12;
+}
+
+message GetMetricsRequest {
+  int64 server_id = 1;
+  int32 limit = 2;
+}
+
+message ServerMetricsResponse {
+  repeated ServerMetricPoint metrics = 1;
+}
+
+message GetContainerMetricsRequest {
+  int64 server_id = 1;
+  string app_name = 2;
+  int32 limit = 3;
+}
+
+message ContainerMetricsResponse {
+  repeated ContainerMetricPoint metrics = 1;
 }

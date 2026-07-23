@@ -20,3 +20,8 @@ tonic = "0.12.3"
 prost = "0.13.5"
 http = "1.1"
 axum = { version = "0.8.9", features = ["macros"] }
+
+[build-dependencies]
+tonic-build = "0.12.3"
+prost-build = "0.13.5"
+protoc-bin-vendored = "3.0.0"

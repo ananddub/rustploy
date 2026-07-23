@@ -1,45 +1,42 @@
-# Multi-stage Dockerfile for Standalone rustploy_monitor Agent
-FROM rust:1.85-bookworm AS builder
+# Multi-stage Dockerfile for Minimal rustploy_monitor
+FROM rust:alpine AS builder
+
+RUN apk add --no-cache musl-dev gcc make build-base ca-certificates binutils
 
 WORKDIR /usr/src/rustploy
 
-# Copy workspace manifests
+# Copy workspace manifests and member crates
 COPY Cargo.toml Cargo.lock ./
-COPY rustploy_sh_macros ./rustploy_sh_macros
 COPY auto_route ./auto_route
 COPY auto_route_macros ./auto_route_macros
 COPY auto_socket ./auto_socket
 COPY auto_socket_macros ./auto_socket_macros
-COPY proto ./proto
+COPY rustploy_sh_macros ./rustploy_sh_macros
 COPY db ./db
 COPY src ./src
+COPY proto ./proto
 COPY rustploy_monitor ./rustploy_monitor
 
-# Build optimized standalone release binary for rustploy_monitor
-RUN cargo build --release -p rustploy_monitor
+# Build optimized static release binary & strip symbols
+RUN cargo build --release -p rustploy_monitor && \
+    strip /usr/src/rustploy/target/release/rustploy_monitor
 
-# Minimal Runtime Image
-FROM debian:bookworm-slim
+# Minimal Alpine Runner Image with docker-cli dependency
+FROM alpine:latest
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
-    curl \
-    docker.io \
-    sqlite3 \
-    && rm -rf /var/lib/apt/lists/*
+# Install CA certificates and Docker CLI
+RUN apk add --no-cache ca-certificates docker-cli
 
-WORKDIR /app
-
-# Copy release binary from builder
-COPY --from=builder /usr/src/rustploy/target/release/rustploy_monitor /usr/local/bin/rustploy_monitor
+# Copy stripped static Rust binary
+COPY --from=builder /usr/src/rustploy/target/release/rustploy_monitor /rustploy_monitor
 
 # Default environment variables
-ENV PORT=3001
+ENV GRPC_PORT=50051
 ENV MONITOR_DATABASE_URL="sqlite:///app/data/monitor.db"
 ENV REFRESH_RATE=60
 ENV RETENTION_DAYS=7
 
-EXPOSE 3001
+EXPOSE 50051
 
-# Run the standalone binary
-CMD ["rustploy_monitor"]
+# Run binary directly
+ENTRYPOINT ["/rustploy_monitor"]

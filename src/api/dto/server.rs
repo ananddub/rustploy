@@ -104,6 +104,7 @@ impl From<SetupOutcome> for SetupOutcomeDto {
                         SetupStep::Network => "network",
                         SetupStep::TraefikConfig => "traefik-config",
                         SetupStep::Traefik => "traefik",
+                        SetupStep::Monitoring => "monitoring",
                     }
                     .into()
                 })

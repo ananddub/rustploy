@@ -1,7 +1,7 @@
 use crate::db::ContainerMetricRow;
 use serde::Deserialize;
 use std::process::Command;
-use tracing::{error, info};
+use tracing::error;
 
 #[derive(Debug, Deserialize)]
 pub struct DockerStatsJson {
@@ -97,6 +97,22 @@ pub fn collect_docker_container_metrics() -> Vec<ContainerMetricRow> {
     }
 
     metrics
+}
+
+pub fn tail_container_logs(container_id: &str, tail_lines: usize) -> Vec<String> {
+    let output = match Command::new("docker")
+        .args(["logs", "--tail", &tail_lines.to_string(), container_id])
+        .output()
+    {
+        Ok(out) => {
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            let stderr = String::from_utf8_lossy(&out.stderr);
+            format!("{}{}", stdout, stderr)
+        }
+        Err(_) => String::new(),
+    };
+
+    output.lines().map(|s| s.to_string()).collect()
 }
 
 fn parse_memory_mb(val: &str) -> f64 {

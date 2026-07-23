@@ -1,0 +1,9 @@
+target/
+.git/
+.direnv/
+.idea/
+.vscode/
+web/rustploy/node_modules/
+web/rustploy/.svelte-kit/
+web/rustploy/dist/
+web/rustploy/build/

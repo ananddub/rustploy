@@ -4,56 +4,33 @@ mod grpc_client;
 mod grpc_server;
 mod monitoring;
 
-use axum::{
-    extract::{Query, State},
-    http::{HeaderMap, StatusCode},
-    response::IntoResponse,
-    routing::get,
-    Json, Router,
-};
 use db::Db;
+use grpc_server::{MonitoringGrpcServer, MonitoringServiceServer};
 use monitoring::ServerMetricsMonitor;
-use serde::Deserialize;
+use std::net::SocketAddr;
 use std::sync::Arc;
-use tokio::net::TcpListener;
 use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
-
-#[derive(Clone)]
-struct AppState {
-    db: Arc<Db>,
-    server_token: String,
-}
-
-#[derive(Deserialize)]
-struct MetricsQuery {
-    limit: Option<String>,
-}
-
-#[derive(Deserialize)]
-struct ContainerMetricsQuery {
-    #[serde(rename = "appName")]
-    app_name: Option<String>,
-    limit: Option<String>,
-}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenvy::dotenv().ok();
 
     tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env().add_directive("rustploy_monitor=info".parse()?))
+        .with_env_filter(
+            EnvFilter::from_default_env().add_directive("rustploy_monitor=info".parse()?),
+        )
         .init();
 
-    info!("Starting Dokploy-compatible Rustploy Dedicated Monitoring Service...");
+    info!("Starting Rustploy Dedicated gRPC Monitoring Service...");
 
     let db_url = std::env::var("MONITOR_DATABASE_URL")
         .unwrap_or_else(|_| "sqlite://monitor.db".to_string());
 
-    let port = std::env::var("PORT")
+    let grpc_port = std::env::var("GRPC_PORT")
         .ok()
         .and_then(|p| p.parse::<u16>().ok())
-        .unwrap_or(3001);
+        .unwrap_or(50051);
 
     let server_token = std::env::var("METRICS_TOKEN").unwrap_or_default();
     let callback_url = std::env::var("METRICS_URL_CALLBACK").unwrap_or_default();
@@ -71,14 +48,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or(60);
 
     let db = Arc::new(Db::init(&db_url).await?);
-    let state = AppState {
-        db: db.clone(),
-        server_token: server_token.clone(),
-    };
-
     let server_monitor = Arc::new(ServerMetricsMonitor::new());
 
-    // 1. Background loop for Server Metrics collection & Alert threshold checks
+    // 1. gRPC Server on 0.0.0.0:50051
+    let grpc_db = db.clone();
+    let grpc_addr: SocketAddr = format!("0.0.0.0:{}", grpc_port).parse()?;
+    
+    let grpc_server_handle = tokio::spawn(async move {
+        info!("Starting gRPC Telemetry Server listening on gRPC://{}", grpc_addr);
+        let grpc_service = MonitoringGrpcServer::new(grpc_db);
+        if let Err(err) = tonic::transport::Server::builder()
+            .add_service(MonitoringServiceServer::new(grpc_service))
+            .serve(grpc_addr)
+            .await
+        {
+            error!("gRPC Telemetry Server failed: {:?}", err);
+        }
+    });
+
+    // 2. Background loop for Server Metrics collection & Alert threshold checks
     let db_clone = db.clone();
     let monitor_clone = server_monitor.clone();
     let cb_url = callback_url.clone();
@@ -91,12 +79,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             if let Err(err) = db_clone.save_server_metric(&metric).await {
                 error!("Error saving server metrics to SQLite: {:?}", err);
             }
-            monitor_clone.check_thresholds(&metric, cpu_threshold, mem_threshold, &cb_url, &token, "DOKPLOY").await;
+            monitor_clone
+                .check_thresholds(
+                    &metric,
+                    cpu_threshold,
+                    mem_threshold,
+                    &cb_url,
+                    &token,
+                    "DOKPLOY",
+                )
+                .await;
         }
     });
 
-    // 2. Background loop for Docker Container Metrics collection
+    // 3. Background loop for Docker Container Metrics collection & real-time SSE stream forwarding
     let db_clone2 = db.clone();
+    let rustploy_url = std::env::var("RUSTPLOY_SERVER_URL")
+        .unwrap_or_else(|_| "http://127.0.0.1:4000".to_string());
+    let req_client = reqwest::Client::new();
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(refresh_rate));
         loop {
@@ -106,11 +106,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if let Err(err) = db_clone2.save_container_metric(&c_metric).await {
                     error!("Error saving container metric: {:?}", err);
                 }
+
+                let payload = serde_json::json!({
+                    "server_id": 1,
+                    "application_id": 0,
+                    "compose_id": 0,
+                    "container_id": c_metric.container_id,
+                    "container_name": c_metric.name,
+                    "cpu_percent": c_metric.cpu_perc,
+                    "memory_used_mb": c_metric.mem_used_mb,
+                    "memory_limit_mb": c_metric.mem_total_mb,
+                    "net_rx_kbps": c_metric.net_in_mb * 1024.0,
+                    "net_tx_kbps": c_metric.net_out_mb * 1024.0,
+                    "timestamp": chrono::Utc::now().timestamp(),
+                });
+
+                let _ = req_client
+                    .post(format!("{}/api/monitoring/containers", rustploy_url))
+                    .json(&payload)
+                    .send()
+                    .await;
             }
         }
     });
 
-    // 3. Background metrics cleanup task (Runs every 24h)
+    // 4. Background metrics cleanup task (Runs every 24h)
     let db_clone3 = db.clone();
     let retention_days = std::env::var("RETENTION_DAYS")
         .ok()
@@ -121,91 +141,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         loop {
             interval.tick().await;
             if let Ok(affected) = db_clone3.cleanup_old_metrics(retention_days).await {
-                info!("Cleaned up {} old metrics records older than {} days", affected, retention_days);
+                info!(
+                    "Cleaned up {} old metrics records older than {} days",
+                    affected, retention_days
+                );
             }
         }
     });
 
-    // 4. Router & REST API Handlers matching Dokploy Specification
-    let app = Router::new()
-        .route("/health", get(health_handler))
-        .route("/metrics", get(metrics_handler))
-        .route("/metrics/containers", get(container_metrics_handler))
-        .with_state(state);
-
-    let listener = TcpListener::bind(format!("0.0.0.0:{}", port)).await?;
-    info!("Dedicated Monitoring Service listening on http://0.0.0.0:{}", port);
-
-    axum::serve(listener, app).await?;
+    // Wait for gRPC server to finish (runs forever)
+    let _ = grpc_server_handle.await;
     Ok(())
-}
-
-async fn health_handler() -> impl IntoResponse {
-    (StatusCode::OK, Json(serde_json::json!({ "status": "ok" })))
-}
-
-async fn metrics_handler(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-    Query(query): Query<MetricsQuery>,
-) -> Result<impl IntoResponse, (StatusCode, String)> {
-    verify_auth(&headers, &state.server_token)?;
-
-    let limit_num = match query.limit.as_deref() {
-        Some("all") => 10000,
-        Some(val) => val.parse::<i64>().unwrap_or(50),
-        None => 50,
-    };
-
-    let metrics = state
-        .db
-        .get_last_n_server_metrics(limit_num)
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-
-    Ok(Json(metrics))
-}
-
-async fn container_metrics_handler(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-    Query(query): Query<ContainerMetricsQuery>,
-) -> Result<impl IntoResponse, (StatusCode, String)> {
-    verify_auth(&headers, &state.server_token)?;
-
-    let app_name = match query.app_name {
-        Some(ref name) if !name.is_empty() => name,
-        _ => return Ok(Json(serde_json::json!([]))),
-    };
-
-    let limit_num = match query.limit.as_deref() {
-        Some("all") => 10000,
-        Some(val) => val.parse::<i64>().unwrap_or(50),
-        None => 50,
-    };
-
-    let metrics = state
-        .db
-        .get_last_n_container_metrics(app_name, limit_num)
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-
-    Ok(Json(serde_json::json!(metrics)))
-}
-
-fn verify_auth(headers: &HeaderMap, token: &str) -> Result<(), (StatusCode, String)> {
-    if token.is_empty() {
-        return Ok(());
-    }
-
-    if let Some(auth_header) = headers.get("Authorization") {
-        if let Ok(auth_str) = auth_header.to_str() {
-            let token_val = auth_str.strip_prefix("Bearer ").unwrap_or(auth_str);
-            if token_val == token {
-                return Ok(());
-            }
-        }
-    }
-
-    Err((StatusCode::UNAUTHORIZED, "Unauthorized".to_string()))
 }

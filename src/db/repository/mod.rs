@@ -7,6 +7,8 @@ pub use redis::RedisRepository;
 pub use libsql::LibsqlRepository;
 pub use mount::MountRepository;
 
+pub use alert_rule::AlertRuleRepository;
+pub use health_report::HealthReportRepository;
 pub use ai_settings::AiSettingRepository;
 pub use applications::ApplicationRepository;
 pub use atlas_schema_revisions::AtlasSchemaRevisionRepository;
@@ -64,6 +66,8 @@ pub use resource_access::ResourceAccessRepository;
 pub use users::UserRepository;
 pub use volume_backups::VolumeBackupRepository;
 
+pub mod alert_rule;
+pub mod health_report;
 pub mod ai_settings;
 pub mod applications;
 pub mod atlas_schema_revisions;
