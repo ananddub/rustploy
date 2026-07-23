@@ -31,6 +31,44 @@
 	}
 }
 
+/* Custom Sleek Dark Monotone Scrollbar */
+* {
+	scrollbar-width: thin;
+	scrollbar-color: #262626 transparent;
+}
+
+::-webkit-scrollbar {
+	width: 5px;
+	height: 5px;
+}
+
+::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+	background: #262626;
+	border-radius: 9999px;
+	transition: background-color 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+	background: #525252;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+	width: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+	background: #262626;
+	border-radius: 9999px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+	background: #525252;
+}
+
 @keyframes fadeUp {
 	from {
 		opacity: 0;

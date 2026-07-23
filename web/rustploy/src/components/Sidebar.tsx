@@ -159,7 +159,7 @@ export function Sidebar() {
 				</div>
 
 				{/* Scrollable Navigation Menu */}
-				<nav className="flex-1 overflow-y-auto px-2 py-3 space-y-4 font-sans text-sm font-bold">
+				<nav className="flex-1 overflow-y-auto custom-scrollbar px-2 py-3 space-y-4 font-sans text-sm font-bold">
 					{/* Main Home Section */}
 					<div>
 						{!collapsed && (
