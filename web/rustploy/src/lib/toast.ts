@@ -1,4 +1,4 @@
-import { toast } from 'svelte-sonner';
+import { toast } from 'sonner';
 
 export function toastSuccess(message: string, description?: string) {
 	toast.success(message, { description });
@@ -20,7 +20,6 @@ export function toastDismiss(id: string | number) {
 	toast.dismiss(id);
 }
 
-/** Wrap an async action with loading → success/error toasts */
 export async function withToast<T>(
 	fn: () => Promise<T>,
 	opts: {
