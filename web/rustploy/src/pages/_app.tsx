@@ -1,9 +1,9 @@
 import React from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Toaster } from 'sonner';
-import { Sidebar } from '$lib/../components/Sidebar';
-import { HeaderBar } from '$lib/../components/HeaderBar';
-import { CommandPalette } from '$lib/../components/CommandPalette';
+import { Sidebar } from '@/components/Sidebar';
+import { HeaderBar } from '@/components/HeaderBar';
+import { CommandPalette } from '@/components/CommandPalette';
 
 export default function AppLayout() {
 	const location = useLocation();

@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Globe2, Server } from 'lucide-react';
-import { PageLayout } from '$lib/../components/PageLayout';
+import { PageLayout } from '@/components/PageLayout';
 import { getAuthSession } from '$lib/auth';
 import { USE_MOCK_DATA, getSwarmNodesMock, type SwarmNodeMock } from '$lib/mocks';
-import { Badge } from '$lib/../components/ui/badge';
+import { Badge } from '@/components/ui/badge';
 
 export default function SwarmPage() {
 	const navigate = useNavigate();

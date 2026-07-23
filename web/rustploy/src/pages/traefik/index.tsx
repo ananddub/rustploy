@@ -2,9 +2,9 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Globe, FileCode, Folder, FolderOpen, ChevronRight, ChevronDown, Lock, LockOpen, Save } from 'lucide-react';
 import Editor from '@monaco-editor/react';
-import { PageLayout } from '$lib/../components/PageLayout';
+import { PageLayout } from '@/components/PageLayout';
 import { getAuthSession } from '$lib/auth';
-import { Button } from '$lib/../components/ui/button';
+import { Button } from '@/components/ui/button';
 import { toastSuccess } from '$lib/toast';
 
 type TreeNode = { id: string; name: string; type: 'file' | 'dir'; children?: TreeNode[] };

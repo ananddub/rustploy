@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Layers, Plus, Trash2 } from 'lucide-react';
-import { PageLayout } from '$lib/../components/PageLayout';
+import { PageLayout } from '@/components/PageLayout';
 import { getAuthSession } from '$lib/auth';
 import { getDestinationsMock, type DestinationMock } from '$lib/mocks';
-import { Card } from '$lib/../components/ui/card';
-import { Button } from '$lib/../components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { toastSuccess } from '$lib/toast';
 
 export default function DestinationsPage() {

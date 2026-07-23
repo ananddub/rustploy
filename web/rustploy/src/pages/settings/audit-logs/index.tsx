@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search } from 'lucide-react';
-import { PageLayout } from '$lib/../components/PageLayout';
+import { PageLayout } from '@/components/PageLayout';
 import { getAuthSession } from '$lib/auth';
 import { getAuditLogsMock, type AuditLogMock } from '$lib/mocks';
-import { Card, CardContent } from '$lib/../components/ui/card';
-import { Input } from '$lib/../components/ui/input';
-import { Badge } from '$lib/../components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 
 export default function AuditLogsPage() {
 	const navigate = useNavigate();

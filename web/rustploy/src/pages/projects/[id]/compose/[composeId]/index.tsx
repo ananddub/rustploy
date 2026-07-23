@@ -2,11 +2,11 @@ import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Boxes, ArrowLeft, RefreshCw, FileCode } from 'lucide-react';
 import Editor from '@monaco-editor/react';
-import { PageLayout } from '$lib/../components/PageLayout';
+import { PageLayout } from '@/components/PageLayout';
 import { getAuthSession } from '$lib/auth';
-import { Card } from '$lib/../components/ui/card';
-import { Button } from '$lib/../components/ui/button';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '$lib/../components/ui/tabs';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { toastSuccess } from '$lib/toast';
 
 export default function ComposeDetailPage() {

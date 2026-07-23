@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Rocket, Server, Plus, Globe, FileKey, Trash2, Power, TestTube } from 'lucide-react';
-import { PageLayout } from '$lib/../components/PageLayout';
+import { PageLayout } from '@/components/PageLayout';
 import { getAuthSession } from '$lib/auth';
 import { USE_MOCK_DATA, getServersMock, type ServerMock } from '$lib/mocks';
-import { Progress } from '$lib/../components/ui/progress';
+import { Progress } from '@/components/ui/progress';
 
 export default function RemoteServersPage() {
 	const navigate = useNavigate();

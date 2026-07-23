@@ -10,13 +10,13 @@ import {
 	GitBranch,
 	ArrowRight
 } from 'lucide-react';
-import { PageLayout } from '$lib/../components/PageLayout';
+import { PageLayout } from '@/components/PageLayout';
 import { getAuthSession } from '$lib/auth';
 import { USE_MOCK_DATA, getProjectsMock, type ProjectMock } from '$lib/mocks';
-import { Button } from '$lib/../components/ui/button';
-import { Input } from '$lib/../components/ui/input';
-import { Badge } from '$lib/../components/ui/badge';
-import { Card } from '$lib/../components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
 
 export default function ProjectsPage() {
 	const navigate = useNavigate();

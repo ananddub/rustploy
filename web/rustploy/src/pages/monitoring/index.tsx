@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import {
 	Activity,
 	Play,
@@ -10,16 +9,15 @@ import {
 	Cpu,
 	ArrowUpRight
 } from 'lucide-react';
-import { PageLayout } from '$lib/../components/PageLayout';
+import { PageLayout } from '@/components/PageLayout';
 import { getAuthSession } from '$lib/auth';
 import { getMonitoringMock, generateLoopingTick, type TelemetrySeriesPoint } from '$lib/mocks';
-import { Card } from '$lib/../components/ui/card';
-import { Button } from '$lib/../components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { toastSuccess, toastInfo } from '$lib/toast';
 
 export default function MonitoringPage() {
 	const navigate = useNavigate();
-	const session = getAuthSession();
 
 	const [isStreaming, setIsStreaming] = useState(true);
 	const [selectedNode, setSelectedNode] = useState('production-01');

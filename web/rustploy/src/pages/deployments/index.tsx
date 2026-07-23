@@ -10,13 +10,13 @@ import {
 	CircleX,
 	GitBranch
 } from 'lucide-react';
-import { PageLayout } from '$lib/../components/PageLayout';
-import { StatusBadge } from '$lib/../components/shared/StatusBadge';
+import { PageLayout } from '@/components/PageLayout';
+import { StatusBadge } from '@/components/shared/StatusBadge';
 import { getAuthSession } from '$lib/auth';
 import { USE_MOCK_DATA, getDeploymentsMock, type DeploymentMock } from '$lib/mocks';
-import { Card, CardContent } from '$lib/../components/ui/card';
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '$lib/../components/ui/table';
-import { Input } from '$lib/../components/ui/input';
+import { Card, CardContent } from '@/components/ui/card';
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
+import { Input } from '@/components/ui/input';
 
 export default function DeploymentsPage() {
 	const navigate = useNavigate();

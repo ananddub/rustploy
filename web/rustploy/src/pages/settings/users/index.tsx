@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, UserPlus, Trash2 } from 'lucide-react';
-import { PageLayout } from '$lib/../components/PageLayout';
+import { PageLayout } from '@/components/PageLayout';
 import { getAuthSession } from '$lib/auth';
 import { getUsersMock, type UserMock } from '$lib/mocks';
-import { Card, CardContent } from '$lib/../components/ui/card';
-import { Button } from '$lib/../components/ui/button';
-import { Input } from '$lib/../components/ui/input';
-import { Badge } from '$lib/../components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import { toastSuccess } from '$lib/toast';
 
 export default function UsersPage() {

@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Calendar, Plus, Play, Clock, Terminal, Loader2 } from 'lucide-react';
-import { PageLayout } from '$lib/../components/PageLayout';
+import { PageLayout } from '@/components/PageLayout';
 import { getAuthSession } from '$lib/auth';
 import { USE_MOCK_DATA, getSchedulesMock, type ScheduleMock } from '$lib/mocks';
-import { Button } from '$lib/../components/ui/button';
-import { Badge } from '$lib/../components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { toastSuccess } from '$lib/toast';
 
 export default function SchedulesPage() {

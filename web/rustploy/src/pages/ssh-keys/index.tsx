@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Key, Plus, FileKey, CheckCircle, Copy, Clock, Trash2 } from 'lucide-react';
-import { PageLayout } from '$lib/../components/PageLayout';
+import { PageLayout } from '@/components/PageLayout';
 import { getAuthSession } from '$lib/auth';
 import { USE_MOCK_DATA, getSshKeysMock, type SshKeyMock } from '$lib/mocks';
 import { toastSuccess } from '$lib/toast';

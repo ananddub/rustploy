@@ -11,13 +11,13 @@ import {
 	AlertCircle,
 	Clock
 } from 'lucide-react';
-import { PageLayout } from '$lib/../components/PageLayout';
+import { PageLayout } from '@/components/PageLayout';
 import { getAuthSession } from '$lib/auth';
 import { getDeploymentsMock, type DeploymentMock } from '$lib/mocks';
-import { Card, CardContent, CardHeader, CardTitle } from '$lib/../components/ui/card';
-import { Button } from '$lib/../components/ui/button';
-import { Badge } from '$lib/../components/ui/badge';
-import { Progress } from '$lib/../components/ui/progress';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 
 export default function DashboardPage() {
 	const navigate = useNavigate();

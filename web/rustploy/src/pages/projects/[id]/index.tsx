@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FolderOpen, Rocket, Plus, Boxes, Database, Shield, Terminal, ArrowLeft } from 'lucide-react';
-import { PageLayout } from '$lib/../components/PageLayout';
+import { PageLayout } from '@/components/PageLayout';
 import { getAuthSession } from '$lib/auth';
 import { getProjectsMock } from '$lib/mocks';
-import { Card, CardContent, CardHeader, CardTitle } from '$lib/../components/ui/card';
-import { Button } from '$lib/../components/ui/button';
-import { Badge } from '$lib/../components/ui/badge';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '$lib/../components/ui/tabs';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 
 export default function ProjectDetailPage() {
 	const { id } = useParams<{ id: string }>();
