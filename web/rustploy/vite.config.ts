@@ -15,5 +15,32 @@ export default defineConfig({
 			'@': path.resolve(__dirname, './src'),
 			'$lib': path.resolve(__dirname, './src/lib')
 		}
+	},
+	build: {
+		chunkSizeWarningLimit: 600,
+		rollupOptions: {
+			output: {
+				manualChunks(id) {
+					if (id.includes('node_modules')) {
+						if (id.includes('/react/') || id.includes('/react-dom/') || id.includes('/react-router/') || id.includes('/react-router-dom/')) {
+							return 'vendor-react';
+						}
+						if (id.includes('lucide-react')) {
+							return 'vendor-lucide';
+						}
+						if (id.includes('framer-motion') || id.includes('motion-dom') || id.includes('motion-utils')) {
+							return 'vendor-motion';
+						}
+						if (id.includes('@monaco-editor')) {
+							return 'vendor-monaco';
+						}
+						if (id.includes('@radix-ui')) {
+							return 'vendor-radix';
+						}
+						return 'vendor-deps';
+					}
+				}
+			}
+		}
 	}
 });
