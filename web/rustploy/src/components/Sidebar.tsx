@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
 	Home,
@@ -22,7 +22,6 @@ import {
 	Cpu,
 	Bell,
 	Building2,
-	ChevronDown,
 	Check,
 	ChevronsUpDown,
 	Settings
@@ -76,6 +75,7 @@ export function Sidebar() {
 	const { collapsed } = useSidebarState();
 	const session = getAuthSession();
 
+	const navRef = useRef<HTMLElement>(null);
 	const [activeOrg, setActiveOrg] = useState(mockOrganizations[0]);
 	const [orgMenuOpen, setOrgMenuOpen] = useState(false);
 
@@ -158,8 +158,8 @@ export function Sidebar() {
 					)}
 				</div>
 
-				{/* Scrollable Navigation Menu */}
-				<nav className="flex-1 overflow-y-auto custom-scrollbar px-2 py-3 space-y-4 font-sans text-sm font-bold">
+				{/* Persistent Scrollable Navigation Menu */}
+				<nav ref={navRef} className="flex-1 overflow-y-auto custom-scrollbar px-2 py-3 space-y-4 font-sans text-sm font-bold">
 					{/* Main Home Section */}
 					<div>
 						{!collapsed && (
