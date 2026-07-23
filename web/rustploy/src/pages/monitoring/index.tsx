@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
 	Activity,
 	Play,
@@ -8,9 +8,7 @@ import {
 	RefreshCw,
 	Server,
 	Cpu,
-	ArrowUpRight,
-	Zap,
-	ShieldAlert
+	ArrowUpRight
 } from 'lucide-react';
 import { PageLayout } from '$lib/../components/PageLayout';
 import { getAuthSession } from '$lib/auth';
@@ -22,10 +20,6 @@ import { toastSuccess, toastInfo } from '$lib/toast';
 export default function MonitoringPage() {
 	const navigate = useNavigate();
 	const session = getAuthSession();
-
-	if (!session) {
-		setTimeout(() => navigate('/auth', { replace: true }), 0);
-	}
 
 	const [isStreaming, setIsStreaming] = useState(true);
 	const [selectedNode, setSelectedNode] = useState('production-01');
@@ -40,7 +34,8 @@ export default function MonitoringPage() {
 
 	// When node changes, reset telemetry stream with host mock
 	useEffect(() => {
-		setTelemetryBuffer(getMonitoringMock(selectedNode, 40));
+		const mockData = getMonitoringMock(selectedNode, 40);
+		setTelemetryBuffer(mockData);
 		tickIndexRef.current = 40;
 	}, [selectedNode]);
 
@@ -51,24 +46,29 @@ export default function MonitoringPage() {
 		const interval = setInterval(() => {
 			tickIndexRef.current += 1;
 			setTelemetryBuffer((prev) => {
+				if (!prev || prev.length === 0) {
+					return getMonitoringMock(selectedNode, 40);
+				}
 				const lastPoint = prev[prev.length - 1];
 				const nextPoint = generateLoopingTick(lastPoint, tickIndexRef.current);
-				// Keep rolling 40-point window running infinitely on loop
 				return [...prev.slice(1), nextPoint];
 			});
 		}, 1000);
 
 		return () => clearInterval(interval);
-	}, [isStreaming]);
+	}, [isStreaming, selectedNode]);
 
-	// Convert numeric series to smooth SVG cubic path
-	const createSvgPath = (data: number[], width: number, height: number, maxVal = 100) => {
+	// Convert numeric series to smooth SVG cubic path with bulletproof NaN protection
+	const createSvgPath = (data: (number | undefined)[], width: number, height: number, maxVal = 100) => {
 		if (!data || data.length < 2) return '';
+		const safeMax = maxVal <= 0 ? 100 : maxVal;
 		const step = width / (data.length - 1);
+		
 		const points = data.map((val, i) => {
+			const numVal = typeof val === 'number' && !isNaN(val) ? val : 0;
 			const x = i * step;
-			const y = height - (val / maxVal) * (height - 10) - 5;
-			return { x, y };
+			const y = height - (Math.min(safeMax, Math.max(0, numVal)) / safeMax) * (height - 15) - 5;
+			return { x: isNaN(x) ? 0 : x, y: isNaN(y) ? height / 2 : y };
 		});
 
 		let d = `M ${points[0].x},${points[0].y}`;
@@ -89,16 +89,20 @@ export default function MonitoringPage() {
 		return `${linePath} L ${width},${height} L 0,${height} Z`;
 	};
 
-	const latest = telemetryBuffer[telemetryBuffer.length - 1] || telemetryBuffer[0];
+	const latest: TelemetrySeriesPoint = telemetryBuffer && telemetryBuffer.length > 0
+		? telemetryBuffer[telemetryBuffer.length - 1]
+		: {
+				timestamp: '12:00:00',
+				cpuCore1: 18, cpuCore2: 22, cpuCore3: 20, cpuCore4: 25,
+				cpuCore5: 16, cpuCore6: 21, cpuCore7: 28, cpuCore8: 15,
+				cpuAvg: 20.6, ramUsedGb: 5.12, ramTotalGb: 16.0, ramPercent: 32,
+				netRxMbps: 42.8, netTxMbps: 18.4, diskReadIops: 1200, diskWriteIops: 650,
+				httpRps: 840, httpLatencyP95Ms: 14
+		  };
 
 	return (
 		<PageLayout>
-			<motion.div
-				initial={{ opacity: 0, y: 15 }}
-				animate={{ opacity: 1, y: 0 }}
-				transition={{ duration: 0.35 }}
-				className="flex-1 m-3.5 overflow-y-auto no-scrollbar p-7 flex flex-col min-h-0 bg-[#171717] border border-[#272727] rounded-2xl shadow-xl space-y-6"
-			>
+			<div className="flex-1 m-3.5 overflow-y-auto no-scrollbar p-7 flex flex-col min-h-0 bg-[#171717] border border-[#272727] rounded-2xl shadow-xl space-y-6 animate-fade-up">
 				{/* Top Controls Header */}
 				<div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
 					<div>
@@ -376,7 +380,7 @@ export default function MonitoringPage() {
 						</div>
 					</Card>
 				</div>
-			</motion.div>
+			</div>
 		</PageLayout>
 	);
 }
