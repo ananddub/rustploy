@@ -112,7 +112,7 @@ export function Sidebar() {
 	return (
 		<aside
 			className={`h-screen shrink-0 border-r border-[#272727] bg-[#121212] text-[#FAFAFA] flex flex-col justify-between select-none transition-all duration-200 ${
-				collapsed ? 'w-[52px]' : 'w-64'
+				collapsed ? 'w-[56px]' : 'w-64'
 			}`}
 		>
 			<div className="flex flex-col min-h-0 flex-1">
@@ -120,7 +120,7 @@ export function Sidebar() {
 				<div className={`p-2.5 border-b border-[#272727] relative ${collapsed ? 'px-2' : 'px-3'}`}>
 					{collapsed ? (
 						<div
-							className="w-7 h-7 mx-auto rounded-lg bg-[#1c1c1c] border border-[#272727] flex items-center justify-center cursor-pointer text-xs font-bold text-[#FAFAFA]"
+							className="w-8 h-8 mx-auto rounded-lg bg-[#1c1c1c] border border-[#272727] flex items-center justify-center cursor-pointer text-sm font-bold text-[#FAFAFA]"
 							title={activeOrg.name}
 							onClick={() => setOrgMenuOpen(!orgMenuOpen)}
 						>
@@ -133,14 +133,14 @@ export function Sidebar() {
 								className="flex-1 flex items-center justify-between p-2 rounded-lg bg-[#1c1c1c] hover:bg-[#272727] border border-[#272727] transition-colors cursor-pointer text-left min-w-0"
 							>
 								<div className="flex items-center gap-2.5 min-w-0">
-									<div className="w-6 h-6 rounded-md bg-[#272727] border border-white/10 flex items-center justify-center shrink-0 font-bold text-xs text-[#FAFAFA]">
-										<Building2 className="w-3.5 h-3.5 text-[#FAFAFA]" />
+									<div className="w-6.5 h-6.5 rounded-md bg-[#272727] border border-white/10 flex items-center justify-center shrink-0 font-bold text-xs text-[#FAFAFA]">
+										<Building2 className="w-4 h-4 text-[#FAFAFA]" />
 									</div>
-									<p className="text-xs font-bold text-[#FAFAFA] leading-tight truncate">
+									<p className="text-sm font-bold text-[#FAFAFA] leading-tight truncate">
 										{activeOrg.name}
 									</p>
 								</div>
-								<ChevronsUpDown className="w-3.5 h-3.5 text-[#a1a1aa] shrink-0 ml-1" />
+								<ChevronsUpDown className="w-4 h-4 text-[#a1a1aa] shrink-0 ml-1" />
 							</button>
 
 							<button
@@ -156,7 +156,7 @@ export function Sidebar() {
 					{/* Org Switcher Dropdown Menu */}
 					{orgMenuOpen && (
 						<div className="absolute top-full left-2 right-2 mt-1 z-50 bg-[#18181b] border border-[#272727] rounded-xl shadow-2xl p-1.5 space-y-1">
-							<p className="text-[10px] font-semibold uppercase tracking-wider text-[#a1a1aa] px-2 py-1">
+							<p className="text-[11px] font-semibold uppercase tracking-wider text-[#a1a1aa] px-2 py-1">
 								Organizations
 							</p>
 							{mockOrganizations.map((org) => (
@@ -166,31 +166,31 @@ export function Sidebar() {
 										setActiveOrg(org);
 										setOrgMenuOpen(false);
 									}}
-									className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
+									className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-sm transition-colors cursor-pointer ${
 										activeOrg.id === org.id
 											? 'bg-[#272727] text-[#FAFAFA] font-semibold'
 											: 'text-[#a1a1aa] hover:bg-[#272727]/60 hover:text-[#FAFAFA]'
 									}`}
 								>
 									<div className="flex items-center gap-2 min-w-0">
-										<div className="w-5 h-5 rounded bg-[#272727] flex items-center justify-center text-[10px] font-bold">
+										<div className="w-5.5 h-5.5 rounded bg-[#272727] flex items-center justify-center text-xs font-bold">
 											{org.name[0]}
 										</div>
 										<span className="truncate">{org.name}</span>
 									</div>
-									{activeOrg.id === org.id && <Check className="w-3.5 h-3.5 text-[#FAFAFA]" />}
+									{activeOrg.id === org.id && <Check className="w-4 h-4 text-[#FAFAFA]" />}
 								</button>
 							))}
 						</div>
 					)}
 				</div>
 
-				{/* Persistent Scrollable Navigation Menu without visible scrollbar */}
-				<nav ref={navRef} className="flex-1 overflow-y-auto no-scrollbar px-2 py-3 space-y-5 font-sans text-xs">
+				{/* Persistent Scrollable Navigation Menu (14px text + 18px icons) */}
+				<nav ref={navRef} className="flex-1 overflow-y-auto no-scrollbar px-2.5 py-3 space-y-5 font-sans text-sm">
 					{/* Main Home Section */}
 					<div>
 						{!collapsed && (
-							<p className="px-3 pb-1.5 text-[10px] font-semibold text-[#737373] uppercase tracking-wider">
+							<p className="px-3 pb-1.5 text-xs font-semibold text-[#737373] uppercase tracking-wider">
 								Home
 							</p>
 						)}
@@ -204,16 +204,16 @@ export function Sidebar() {
 										onClick={() => handleItemClick(item)}
 										title={collapsed ? item.label : undefined}
 										className={`w-full flex items-center gap-3 rounded-lg transition-all cursor-pointer ${
-											collapsed ? 'justify-center p-2' : 'px-3 py-1.5 text-left'
+											collapsed ? 'justify-center p-2.5' : 'px-3 py-2 text-left'
 										} ${
 											active
-												? 'bg-[#272727] text-[#FAFAFA] font-medium border border-white/10'
+												? 'bg-[#272727] text-[#FAFAFA] font-semibold border border-white/10'
 												: 'text-[#a1a1aa] hover:bg-[#272727]/60 hover:text-[#FAFAFA]'
 										}`}
 									>
-										<Icon className={`shrink-0 ${collapsed ? 'w-5 h-5' : 'w-4 h-4'}`} />
+										<Icon className={`shrink-0 ${collapsed ? 'w-5 h-5' : 'w-[18px] h-[18px]'}`} />
 										{!collapsed && (
-											<span className="text-xs font-medium truncate">{item.label}</span>
+											<span className="text-sm font-semibold truncate leading-none">{item.label}</span>
 										)}
 									</button>
 								);
@@ -224,7 +224,7 @@ export function Sidebar() {
 					{/* Settings Section */}
 					<div>
 						{!collapsed && (
-							<p className="px-3 pb-1.5 text-[10px] font-semibold text-[#737373] uppercase tracking-wider">
+							<p className="px-3 pb-1.5 text-xs font-semibold text-[#737373] uppercase tracking-wider">
 								Settings
 							</p>
 						)}
@@ -238,16 +238,16 @@ export function Sidebar() {
 										onClick={() => handleItemClick(item)}
 										title={collapsed ? item.label : undefined}
 										className={`w-full flex items-center gap-3 rounded-lg transition-all cursor-pointer ${
-											collapsed ? 'justify-center p-2' : 'px-3 py-1.5 text-left'
+											collapsed ? 'justify-center p-2.5' : 'px-3 py-2 text-left'
 										} ${
 											active
-												? 'bg-[#272727] text-[#FAFAFA] font-medium border border-white/10'
+												? 'bg-[#272727] text-[#FAFAFA] font-semibold border border-white/10'
 												: 'text-[#a1a1aa] hover:bg-[#272727]/60 hover:text-[#FAFAFA]'
 										}`}
 									>
-										<Icon className={`shrink-0 ${collapsed ? 'w-5 h-5' : 'w-4 h-4'}`} />
+										<Icon className={`shrink-0 ${collapsed ? 'w-5 h-5' : 'w-[18px] h-[18px]'}`} />
 										{!collapsed && (
-											<span className="text-xs font-medium truncate">{item.label}</span>
+											<span className="text-sm font-semibold truncate leading-none">{item.label}</span>
 										)}
 									</button>
 								);
@@ -258,7 +258,7 @@ export function Sidebar() {
 					{/* Extra Section */}
 					<div>
 						{!collapsed && (
-							<p className="px-3 pb-1.5 text-[10px] font-semibold text-[#737373] uppercase tracking-wider">
+							<p className="px-3 pb-1.5 text-xs font-semibold text-[#737373] uppercase tracking-wider">
 								Extra
 							</p>
 						)}
@@ -271,12 +271,12 @@ export function Sidebar() {
 										onClick={() => handleItemClick(item)}
 										title={collapsed ? item.label : undefined}
 										className={`w-full flex items-center gap-3 rounded-lg transition-all cursor-pointer text-[#a1a1aa] hover:bg-[#272727]/60 hover:text-[#FAFAFA] ${
-											collapsed ? 'justify-center p-2' : 'px-3 py-1.5 text-left'
+											collapsed ? 'justify-center p-2.5' : 'px-3 py-2 text-left'
 										}`}
 									>
-										<Icon className={`shrink-0 ${collapsed ? 'w-5 h-5' : 'w-4 h-4'}`} />
+										<Icon className={`shrink-0 ${collapsed ? 'w-5 h-5' : 'w-[18px] h-[18px]'}`} />
 										{!collapsed && (
-											<span className="text-xs font-medium truncate">{item.label}</span>
+											<span className="text-sm font-semibold truncate leading-none">{item.label}</span>
 										)}
 									</button>
 								);
@@ -293,15 +293,15 @@ export function Sidebar() {
 					<div className="absolute bottom-full left-2 right-2 mb-2 z-50 bg-[#18181b] border border-[#272727] rounded-xl shadow-2xl p-2 font-sans space-y-1 animate-fade-up">
 						<div className="flex items-center justify-between px-2.5 py-2">
 							<div className="min-w-0">
-								<p className="text-xs font-bold text-[#FAFAFA]">My Account</p>
-								<p className="text-[10px] text-[#a1a1aa] font-mono truncate max-w-[150px]">{userEmail}</p>
+								<p className="text-sm font-bold text-[#FAFAFA]">My Account</p>
+								<p className="text-xs text-[#a1a1aa] font-mono truncate max-w-[150px]">{userEmail}</p>
 							</div>
 							<button
 								onClick={() => toastInfo('Monotone dark theme active')}
 								className="p-1.5 rounded-lg border border-[#272727] bg-[#272727]/60 text-[#a1a1aa] hover:text-[#FAFAFA] transition-colors cursor-pointer"
 								title="Toggle Theme"
 							>
-								<Moon className="w-3.5 h-3.5" />
+								<Moon className="w-4 h-4" />
 							</button>
 						</div>
 
@@ -312,9 +312,9 @@ export function Sidebar() {
 								navigate('/settings/profile');
 								setUserMenuOpen(false);
 							}}
-							className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs text-[#FAFAFA] hover:bg-[#272727] transition-colors cursor-pointer font-medium"
+							className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm text-[#FAFAFA] hover:bg-[#272727] transition-colors cursor-pointer font-semibold"
 						>
-							<User className="w-3.5 h-3.5 text-[#a1a1aa]" />
+							<User className="w-4 h-4 text-[#a1a1aa]" />
 							Profile
 						</button>
 
@@ -323,9 +323,9 @@ export function Sidebar() {
 								navigate('/projects');
 								setUserMenuOpen(false);
 							}}
-							className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs text-[#FAFAFA] hover:bg-[#272727] transition-colors cursor-pointer font-medium"
+							className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm text-[#FAFAFA] hover:bg-[#272727] transition-colors cursor-pointer font-semibold"
 						>
-							<FolderOpen className="w-3.5 h-3.5 text-[#a1a1aa]" />
+							<FolderOpen className="w-4 h-4 text-[#a1a1aa]" />
 							Projects
 						</button>
 
@@ -334,9 +334,9 @@ export function Sidebar() {
 								navigate('/remote-servers');
 								setUserMenuOpen(false);
 							}}
-							className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs text-[#FAFAFA] hover:bg-[#272727] transition-colors cursor-pointer font-medium"
+							className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm text-[#FAFAFA] hover:bg-[#272727] transition-colors cursor-pointer font-semibold"
 						>
-							<Server className="w-3.5 h-3.5 text-[#a1a1aa]" />
+							<Server className="w-4 h-4 text-[#a1a1aa]" />
 							Servers
 						</button>
 
@@ -345,9 +345,9 @@ export function Sidebar() {
 								navigate('/settings');
 								setUserMenuOpen(false);
 							}}
-							className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs text-[#FAFAFA] hover:bg-[#272727] transition-colors cursor-pointer font-medium"
+							className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm text-[#FAFAFA] hover:bg-[#272727] transition-colors cursor-pointer font-semibold"
 						>
-							<CreditCard className="w-3.5 h-3.5 text-[#a1a1aa]" />
+							<CreditCard className="w-4 h-4 text-[#a1a1aa]" />
 							Billing
 						</button>
 
@@ -358,9 +358,9 @@ export function Sidebar() {
 								clearAuthSession();
 								navigate('/auth');
 							}}
-							className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer font-semibold"
+							className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer font-semibold"
 						>
-							<LogOut className="w-3.5 h-3.5 text-red-400" />
+							<LogOut className="w-4 h-4 text-red-400" />
 							Log out
 						</button>
 					</div>
@@ -370,7 +370,7 @@ export function Sidebar() {
 				{collapsed ? (
 					<div
 						onClick={() => setUserMenuOpen(!userMenuOpen)}
-						className="w-7 h-7 mx-auto rounded-full bg-[#272727] border border-white/20 text-white text-xs font-bold flex items-center justify-center cursor-pointer hover:bg-[#3f3f46] transition-colors"
+						className="w-8 h-8 mx-auto rounded-full bg-[#272727] border border-white/20 text-white text-sm font-bold flex items-center justify-center cursor-pointer hover:bg-[#3f3f46] transition-colors"
 						title={`Account (${userEmail})`}
 					>
 						A
@@ -382,15 +382,15 @@ export function Sidebar() {
 							className="w-full flex items-center justify-between p-2.5 rounded-xl bg-[#1c1c1c] hover:bg-[#272727] border border-[#272727] transition-all cursor-pointer text-left"
 						>
 							<div className="flex items-center gap-2.5 min-w-0">
-								<div className="w-7 h-7 rounded-full bg-[#272727] border border-white/20 text-[#FAFAFA] font-bold text-xs flex items-center justify-center shrink-0">
+								<div className="w-7.5 h-7.5 rounded-full bg-[#272727] border border-white/20 text-[#FAFAFA] font-bold text-xs flex items-center justify-center shrink-0">
 									A
 								</div>
 								<div className="min-w-0">
-									<p className="text-xs font-bold text-[#FAFAFA] leading-tight truncate">Account</p>
-									<p className="text-[11px] text-[#a1a1aa] leading-tight truncate mt-0.5 font-mono">{userEmail}</p>
+									<p className="text-sm font-bold text-[#FAFAFA] leading-tight truncate">Account</p>
+									<p className="text-xs text-[#a1a1aa] leading-tight truncate mt-0.5 font-mono">{userEmail}</p>
 								</div>
 							</div>
-							<ChevronsUpDown className="w-3.5 h-3.5 text-[#a1a1aa] shrink-0" />
+							<ChevronsUpDown className="w-4 h-4 text-[#a1a1aa] shrink-0" />
 						</button>
 						<p className="text-[10px] text-[#737373] font-mono text-center mt-2">Version v0.29.12</p>
 					</div>
