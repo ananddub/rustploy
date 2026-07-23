@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
-	House,
+	Home,
 	FolderOpen,
 	Zap,
 	Clock,
@@ -10,16 +10,34 @@ import {
 	Globe2,
 	User,
 	Server,
+	Users,
+	FileText,
 	Key,
+	Sparkles,
+	Tag,
+	GitBranch,
+	Database,
+	Layers,
 	Shield,
 	Cpu,
-	ChevronsUpDown
+	Bell,
+	Building2,
+	ChevronDown,
+	Check,
+	ChevronsUpDown,
+	Settings
 } from 'lucide-react';
 import { useSidebarState } from '$lib/sidebar';
 import { getAuthSession } from '$lib/auth';
 
-const navHome = [
-	{ label: 'Home', icon: House, path: '/dashboard' },
+interface SidebarItem {
+	label: string;
+	icon: React.ComponentType<{ className?: string }>;
+	path: string;
+}
+
+const navHome: SidebarItem[] = [
+	{ label: 'Home', icon: Home, path: '/dashboard' },
 	{ label: 'Projects', icon: FolderOpen, path: '/projects' },
 	{ label: 'Deployments', icon: Zap, path: '/deployments' },
 	{ label: 'Schedules', icon: Clock, path: '/schedules' },
@@ -28,20 +46,39 @@ const navHome = [
 	{ label: 'Swarm', icon: Globe2, path: '/swarm' }
 ];
 
-const navSettings = [
+const navSettings: SidebarItem[] = [
 	{ label: 'Profile', icon: User, path: '/settings/profile' },
 	{ label: 'Remote Servers', icon: Server, path: '/remote-servers' },
+	{ label: 'Users & Roles', icon: Users, path: '/settings/users' },
+	{ label: 'Audit Logs', icon: FileText, path: '/settings/audit-logs' },
 	{ label: 'SSH Keys', icon: Key, path: '/ssh-keys' },
+	{ label: 'AI Assistant', icon: Sparkles, path: '/settings/ai' },
+	{ label: 'Tags', icon: Tag, path: '/settings/tags' },
+	{ label: 'Git Integrations', icon: GitBranch, path: '/settings/git-providers' },
+	{ label: 'Docker Registry', icon: Database, path: '/settings/registry' },
+	{ label: 'S3 Destinations', icon: Layers, path: '/settings/destinations' },
 	{ label: 'Certificates', icon: Shield, path: '/settings/certificates' },
-	{ label: 'Organization Settings', icon: Cpu, path: '/settings' }
+	{ label: 'Cluster Config', icon: Cpu, path: '/settings/cluster' },
+	{ label: 'Notifications', icon: Bell, path: '/settings/notifications' },
+	{ label: 'Server Settings', icon: Settings, path: '/settings/server' },
+	{ label: 'Organization Settings', icon: Building2, path: '/settings' }
+];
+
+const mockOrganizations = [
+	{ id: 'org-1', name: 'My Organization', slug: 'my-org', role: 'Owner' },
+	{ id: 'org-2', name: 'Acme Corp', slug: 'acme-corp', role: 'Member' },
+	{ id: 'org-3', name: 'Staging Env', slug: 'staging-env', role: 'Admin' }
 ];
 
 export function Sidebar() {
 	const location = useLocation();
 	const navigate = useNavigate();
 	const { collapsed } = useSidebarState();
-	const [width] = useState(240);
 	const session = getAuthSession();
+
+	const [activeOrg, setActiveOrg] = useState(mockOrganizations[0]);
+	const [orgMenuOpen, setOrgMenuOpen] = useState(false);
+
 	const userEmail = session?.user.email || 'admin@rustploy.dev';
 
 	function isActive(path: string): boolean {
@@ -50,118 +87,150 @@ export function Sidebar() {
 		return location.pathname.startsWith(path);
 	}
 
-	function navItemClass(path: string): string {
-		const base =
-			'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 text-left outline-none cursor-pointer';
-		if (isActive(path))
-			return `${base} border border-white/15 bg-[#262626] text-[#FAFAFA] font-semibold shadow-2xs`;
-		return `${base} text-[#a1a1aa] hover:bg-[#262626]/40 hover:text-[#FAFAFA]`;
-	}
-
 	return (
 		<aside
-			style={{
-				width: collapsed ? '52px' : `${width}px`,
-				minWidth: collapsed ? '52px' : `${width}px`
-			}}
-			className="relative shrink-0 flex flex-col bg-[#0A0A0A] border-r border-[#262626] h-full text-[#a1a1aa] overflow-hidden transition-all duration-200 ease-in-out select-none"
+			className={`h-screen shrink-0 border-r border-[#262626] bg-[#0A0A0A] text-[#FAFAFA] flex flex-col justify-between select-none transition-all duration-200 ${
+				collapsed ? 'w-[52px]' : 'w-64'
+			}`}
 		>
-			<div className="flex items-center justify-between px-3 py-3 border-b border-[#262626] h-13 shrink-0">
-				{collapsed ? (
-					<div className="w-full flex items-center justify-center">
-						<span className="w-6 h-6 rounded bg-[#262626] border border-zinc-700/60 flex items-center justify-center text-xs font-bold text-[#FAFAFA] shrink-0">
-							R
-						</span>
+			<div className="flex flex-col min-h-0 flex-1">
+				{/* Top Header: Organization Switcher */}
+				<div className={`p-2.5 border-b border-[#262626] relative ${collapsed ? 'px-2' : 'px-3'}`}>
+					{collapsed ? (
+						<div
+							className="w-7 h-7 mx-auto rounded-lg bg-[#1c1c1c] border border-[#262626] flex items-center justify-center cursor-pointer text-xs font-bold text-[#FAFAFA]"
+							title={activeOrg.name}
+							onClick={() => setOrgMenuOpen(!orgMenuOpen)}
+						>
+							{activeOrg.name[0]}
+						</div>
+					) : (
+						<button
+							onClick={() => setOrgMenuOpen(!orgMenuOpen)}
+							className="w-full flex items-center justify-between p-2 rounded-lg bg-[#141414] hover:bg-[#262626]/80 border border-[#262626] transition-colors cursor-pointer text-left"
+						>
+							<div className="flex items-center gap-2.5 min-w-0">
+								<div className="w-6 h-6 rounded-md bg-[#262626] border border-white/10 flex items-center justify-center shrink-0 font-bold text-xs text-[#FAFAFA]">
+									{activeOrg.name[0]}
+								</div>
+								<div className="min-w-0">
+									<p className="text-sm font-bold text-[#FAFAFA] leading-tight truncate">
+										{activeOrg.name}
+									</p>
+									<p className="text-[10px] text-[#a1a1aa] leading-tight font-medium mt-0.5 truncate">
+										{activeOrg.role}
+									</p>
+								</div>
+							</div>
+							<ChevronsUpDown className="w-4 h-4 text-[#a1a1aa] shrink-0" />
+						</button>
+					)}
+
+					{/* Org Switcher Dropdown Menu */}
+					{orgMenuOpen && (
+						<div className="absolute top-full left-2 right-2 mt-1 z-50 bg-[#171717] border border-[#262626] rounded-xl shadow-xl p-1.5 space-y-1">
+							<p className="text-[10px] font-semibold uppercase tracking-wider text-[#a1a1aa] px-2 py-1">
+								Organizations
+							</p>
+							{mockOrganizations.map((org) => (
+								<button
+									key={org.id}
+									onClick={() => {
+										setActiveOrg(org);
+										setOrgMenuOpen(false);
+									}}
+									className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
+										activeOrg.id === org.id
+											? 'bg-[#262626] text-[#FAFAFA] font-semibold'
+											: 'text-[#a1a1aa] hover:bg-[#262626]/50 hover:text-[#FAFAFA]'
+									}`}
+								>
+									<div className="flex items-center gap-2 min-w-0">
+										<div className="w-5 h-5 rounded bg-[#262626] flex items-center justify-center text-[10px] font-bold">
+											{org.name[0]}
+										</div>
+										<span className="truncate">{org.name}</span>
+									</div>
+									{activeOrg.id === org.id && <Check className="w-3.5 h-3.5 text-[#FAFAFA]" />}
+								</button>
+							))}
+						</div>
+					)}
+				</div>
+
+				{/* Scrollable Navigation Menu */}
+				<nav className="flex-1 overflow-y-auto px-2 py-3 space-y-4 font-sans text-sm font-bold">
+					{/* Main Home Section */}
+					<div>
+						{!collapsed && (
+							<p className="px-3 pb-1.5 text-[11px] font-bold text-[#a1a1aa] uppercase tracking-wider">
+								Home
+							</p>
+						)}
+						<div className="space-y-0.5">
+							{navHome.map((item) => {
+								const active = isActive(item.path);
+								const Icon = item.icon;
+								return (
+									<button
+										key={item.path}
+										onClick={() => navigate(item.path)}
+										title={collapsed ? item.label : undefined}
+										className={`w-full flex items-center gap-3 rounded-lg transition-colors cursor-pointer ${
+											collapsed ? 'justify-center p-2' : 'px-3 py-2 text-left'
+										} ${
+											active
+												? 'bg-[#262626] text-[#FAFAFA] border border-white/10 font-bold'
+												: 'text-[#a1a1aa] hover:bg-[#262626]/50 hover:text-[#FAFAFA]'
+										}`}
+									>
+										<Icon className={`shrink-0 ${collapsed ? 'w-5 h-5' : 'w-4 h-4'}`} />
+										{!collapsed && (
+											<span className="text-sm font-bold truncate tracking-tight">{item.label}</span>
+										)}
+									</button>
+								);
+							})}
+						</div>
 					</div>
-				) : (
-					<button className="flex items-center gap-2.5 text-sm font-semibold text-[#FAFAFA] truncate hover:opacity-80 transition-opacity min-w-0">
-						<span className="w-6 h-6 rounded bg-[#262626] border border-zinc-700/60 flex items-center justify-center text-xs font-bold text-[#FAFAFA] shrink-0">
-							R
-						</span>
-						<span className="truncate">My Organization</span>
-						<ChevronsUpDown size={14} className="text-[#737373] shrink-0 ml-0.5" />
-					</button>
-				)}
+
+					{/* Settings & Admin Section */}
+					<div>
+						{!collapsed && (
+							<p className="px-3 pb-1.5 text-[11px] font-bold text-[#a1a1aa] uppercase tracking-wider">
+								Settings
+							</p>
+						)}
+						<div className="space-y-0.5">
+							{navSettings.map((item) => {
+								const active = isActive(item.path);
+								const Icon = item.icon;
+								return (
+									<button
+										key={item.path}
+										onClick={() => navigate(item.path)}
+										title={collapsed ? item.label : undefined}
+										className={`w-full flex items-center gap-3 rounded-lg transition-colors cursor-pointer ${
+											collapsed ? 'justify-center p-2' : 'px-3 py-2 text-left'
+										} ${
+											active
+												? 'bg-[#262626] text-[#FAFAFA] border border-white/10 font-bold'
+												: 'text-[#a1a1aa] hover:bg-[#262626]/50 hover:text-[#FAFAFA]'
+										}`}
+									>
+										<Icon className={`shrink-0 ${collapsed ? 'w-5 h-5' : 'w-4 h-4'}`} />
+										{!collapsed && (
+											<span className="text-sm font-bold truncate tracking-tight">{item.label}</span>
+										)}
+									</button>
+								);
+							})}
+						</div>
+					</div>
+				</nav>
 			</div>
 
-			<nav className="flex-1 overflow-y-auto py-2.5 px-2 space-y-1">
-				{collapsed ? (
-					<>
-						{navHome.map((item) => {
-							const Icon = item.icon;
-							return (
-								<button
-									key={item.path}
-									title={item.label}
-									onClick={() => navigate(item.path)}
-									className={`w-9 h-9 mx-auto flex items-center justify-center rounded-lg text-sm font-medium transition-all outline-none cursor-pointer ${
-										isActive(item.path)
-											? 'border border-white/15 bg-[#262626] text-[#FAFAFA]'
-											: 'text-[#a1a1aa] hover:bg-[#262626]/40 hover:text-[#FAFAFA]'
-									}`}
-								>
-									<Icon size={18} />
-								</button>
-							);
-						})}
-						<div className="py-1 px-1">
-							<div className="h-[1px] bg-[#262626] w-full" />
-						</div>
-						{navSettings.map((item) => {
-							const Icon = item.icon;
-							return (
-								<button
-									key={item.path}
-									title={item.label}
-									onClick={() => navigate(item.path)}
-									className={`w-9 h-9 mx-auto flex items-center justify-center rounded-lg text-sm font-medium transition-all outline-none cursor-pointer ${
-										isActive(item.path)
-											? 'border border-white/15 bg-[#262626] text-[#FAFAFA]'
-											: 'text-[#a1a1aa] hover:bg-[#262626]/40 hover:text-[#FAFAFA]'
-									}`}
-								>
-									<Icon size={18} />
-								</button>
-							);
-						})}
-					</>
-				) : (
-					<>
-						<p className="text-xs font-semibold text-[#737373] px-3 pt-2 pb-1">Home</p>
-						{navHome.map((item) => {
-							const Icon = item.icon;
-							return (
-								<button
-									key={item.path}
-									onClick={() => navigate(item.path)}
-									className={navItemClass(item.path)}
-								>
-									<Icon size={16} className="shrink-0" />
-									<span className="truncate">{item.label}</span>
-								</button>
-							);
-						})}
-						<div className="py-2.5 px-2">
-							<div className="h-[1px] bg-[#262626] w-full" />
-						</div>
-						<p className="text-xs font-semibold text-[#737373] px-3 pt-1 pb-1">Settings</p>
-						{navSettings.map((item) => {
-							const Icon = item.icon;
-							return (
-								<button
-									key={item.path}
-									onClick={() => navigate(item.path)}
-									className={navItemClass(item.path)}
-								>
-									<Icon size={16} className="shrink-0" />
-									<span className="truncate">{item.label}</span>
-								</button>
-							);
-						})}
-					</>
-				)}
-			</nav>
-
+			{/* User Account Footer */}
 			<div className={`border-t border-[#262626] py-3 bg-[#0A0A0A] shrink-0 ${collapsed ? 'px-2 text-center' : 'px-3'}`}>
 				{collapsed ? (
 					<div
@@ -178,12 +247,12 @@ export function Sidebar() {
 									A
 								</div>
 								<div className="min-w-0">
-									<p className="text-sm font-semibold text-[#FAFAFA] leading-tight truncate">Account</p>
-									<p className="text-xs text-[#737373] leading-tight truncate mt-0.5">{userEmail}</p>
+									<p className="text-sm font-bold text-[#FAFAFA] leading-tight truncate">Account</p>
+									<p className="text-xs text-[#a1a1aa] leading-tight truncate mt-0.5">{userEmail}</p>
 								</div>
 							</div>
 						</div>
-						<p className="text-[10px] text-[#737373] font-mono text-center mt-2">Version v0.29.12</p>
+						<p className="text-[10px] text-[#a1a1aa] font-mono text-center mt-2">Version v0.29.12</p>
 					</div>
 				)}
 			</div>
