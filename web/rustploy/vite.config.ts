@@ -17,28 +17,27 @@ export default defineConfig({
 		}
 	},
 	build: {
-		chunkSizeWarningLimit: 600,
+		chunkSizeWarningLimit: 800,
 		rollupOptions: {
 			output: {
-				manualChunks(id) {
-					if (id.includes('node_modules')) {
-						if (id.includes('/react/') || id.includes('/react-dom/') || id.includes('/react-router/') || id.includes('/react-router-dom/')) {
-							return 'vendor-react';
-						}
-						if (id.includes('lucide-react')) {
-							return 'vendor-lucide';
-						}
-						if (id.includes('framer-motion') || id.includes('motion-dom') || id.includes('motion-utils')) {
-							return 'vendor-motion';
-						}
-						if (id.includes('@monaco-editor')) {
-							return 'vendor-monaco';
-						}
-						if (id.includes('@radix-ui')) {
-							return 'vendor-radix';
-						}
-						return 'vendor-deps';
-					}
+				manualChunks: {
+					'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+					'vendor-motion': ['framer-motion'],
+					'vendor-monaco': ['@monaco-editor/react'],
+					'vendor-ui': [
+						'@radix-ui/react-avatar',
+						'@radix-ui/react-dialog',
+						'@radix-ui/react-dropdown-menu',
+						'@radix-ui/react-progress',
+						'@radix-ui/react-select',
+						'@radix-ui/react-slot',
+						'@radix-ui/react-switch',
+						'@radix-ui/react-tabs',
+						'lucide-react',
+						'sonner',
+						'clsx',
+						'tailwind-merge'
+					]
 				}
 			}
 		}
