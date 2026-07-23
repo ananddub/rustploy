@@ -9,10 +9,7 @@ import {
 	Cpu,
 	ArrowUpRight,
 	ChevronsUpDown,
-	Check,
-	BarChart3,
-	Network,
-	HardDrive
+	Check
 } from 'lucide-react';
 import { PageLayout } from '@/components/PageLayout';
 import { getAuthSession } from '$lib/auth';
@@ -73,16 +70,20 @@ export default function MonitoringPage() {
 		return () => clearInterval(interval);
 	}, [isStreaming, selectedNode]);
 
-	// Convert numeric series to smooth SVG cubic path with bulletproof NaN protection
+	// Convert numeric series to smooth SVG cubic path with strict padding boundaries
 	const createSvgPath = (data: (number | undefined)[], width: number, height: number, maxVal = 100) => {
 		if (!data || data.length < 2) return '';
 		const safeMax = maxVal <= 0 ? 100 : maxVal;
 		const step = width / (data.length - 1);
+		const paddingTop = 12;
+		const paddingBottom = 12;
+		const availableHeight = height - paddingTop - paddingBottom;
 		
 		const points = data.map((val, i) => {
 			const numVal = typeof val === 'number' && !isNaN(val) ? val : 0;
+			const clampedVal = Math.min(safeMax, Math.max(0, numVal));
 			const x = i * step;
-			const y = height - (Math.min(safeMax, Math.max(0, numVal)) / safeMax) * (height - 15) - 5;
+			const y = height - paddingBottom - (clampedVal / safeMax) * availableHeight;
 			return { x: isNaN(x) ? 0 : x, y: isNaN(y) ? height / 2 : y };
 		});
 
@@ -108,8 +109,12 @@ export default function MonitoringPage() {
 	const getPointCoords = (val: number, idx: number, total: number, width: number, height: number, maxVal = 100) => {
 		const safeMax = maxVal <= 0 ? 100 : maxVal;
 		const step = width / Math.max(1, total - 1);
+		const paddingTop = 12;
+		const paddingBottom = 12;
+		const availableHeight = height - paddingTop - paddingBottom;
+		const clampedVal = Math.min(safeMax, Math.max(0, val));
 		const x = idx * step;
-		const y = height - (Math.min(safeMax, Math.max(0, val)) / safeMax) * (height - 15) - 5;
+		const y = height - paddingBottom - (clampedVal / safeMax) * availableHeight;
 		return { x: isNaN(x) ? 0 : x, y: isNaN(y) ? height / 2 : y };
 	};
 
@@ -126,11 +131,11 @@ export default function MonitoringPage() {
 		? telemetryBuffer[telemetryBuffer.length - 1]
 		: {
 				timestamp: '12:00:00',
-				cpuCore1: 18, cpuCore2: 22, cpuCore3: 20, cpuCore4: 25,
-				cpuCore5: 16, cpuCore6: 21, cpuCore7: 28, cpuCore8: 15,
-				cpuAvg: 20.6, ramUsedGb: 5.12, ramTotalGb: 16.0, ramPercent: 32,
-				netRxMbps: 42.8, netTxMbps: 18.4, diskReadIops: 1200, diskWriteIops: 650,
-				httpRps: 840, httpLatencyP95Ms: 14
+				cpuCore1: 52, cpuCore2: 48, cpuCore3: 56, cpuCore4: 45,
+				cpuCore5: 40, cpuCore6: 46, cpuCore7: 58, cpuCore8: 38,
+				cpuAvg: 48.0, ramUsedGb: 6.72, ramTotalGb: 16.0, ramPercent: 42,
+				netRxMbps: 48.0, netTxMbps: 26.0, diskReadIops: 1100, diskWriteIops: 580,
+				httpRps: 850, httpLatencyP95Ms: 14
 		  };
 
 	// Data Science Metrics Calculations (Min, Max, Avg)
@@ -149,20 +154,20 @@ export default function MonitoringPage() {
 
 	return (
 		<PageLayout>
-			<div className="m-3.5 min-h-[calc(100vh-80px)] p-7 flex flex-col bg-[#171717] border border-[#272727] rounded-2xl shadow-xl space-y-6 animate-fade-up">
+			<div className="m-3.5 flex-1 flex flex-col min-h-0 bg-[#171717] border border-[#272727] rounded-2xl shadow-xl p-5 space-y-4 overflow-hidden select-none animate-fade-up">
 				{/* Top Controls Header */}
-				<div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+				<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
 					<div>
-						<h1 className="text-3xl font-extrabold tracking-tight text-[#FAFAFA] flex items-center gap-3">
-							<Activity className="w-8 h-8 text-green-400" />
-							Real-Time Telemetry & Data Science Analytics
+						<h1 className="text-2xl font-extrabold tracking-tight text-[#FAFAFA] flex items-center gap-2.5">
+							<Activity className="w-6 h-6 text-green-400" />
+							Real-Time Telemetry & Monitoring
 						</h1>
-						<p className="text-xs text-[#a1a1aa] mt-1 flex items-center gap-2">
-							High-frequency looping stream · Precise X/Y axes, grid lines, and interactive crosshair tooltips
+						<p className="text-xs text-[#a1a1aa] mt-0.5">
+							Continuous live telemetry loop · 1,000ms updates · Responsive crosshair analytics
 						</p>
 					</div>
 
-					<div className="flex flex-wrap items-center gap-3">
+					<div className="flex flex-wrap items-center gap-2.5">
 						{/* Custom Dark Node Selector Menu */}
 						<div className="relative">
 							<button
@@ -175,7 +180,7 @@ export default function MonitoringPage() {
 							</button>
 
 							{nodeMenuOpen && (
-								<div className="absolute top-full left-0 mt-1.5 z-50 w-64 bg-[#18181b] border border-[#272727] rounded-xl shadow-2xl p-1 space-y-0.5 animate-fade-up">
+								<div className="absolute top-full right-0 mt-1.5 z-50 w-64 bg-[#18181b] border border-[#272727] rounded-xl shadow-2xl p-1 space-y-0.5 animate-fade-up">
 									{nodesList.map((node) => (
 										<button
 											key={node.id}
@@ -257,61 +262,58 @@ export default function MonitoringPage() {
 				</div>
 
 				{/* Quick Stats Summary Grid */}
-				<div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-					<Card className="bg-[#141414] border border-[#272727] rounded-xl p-4 shadow-md">
-						<p className="text-[11px] font-semibold text-[#a1a1aa] uppercase tracking-wider">CPU AVG LOAD</p>
-						<p className="text-3xl font-extrabold text-[#FAFAFA] font-mono mt-1">{latest.cpuAvg}%</p>
-						<div className="flex items-center gap-1 mt-1 text-[11px] text-green-400 font-mono">
-							<ArrowUpRight className="w-3.5 h-3.5" /> Min: {cpuMin}% · Max: {cpuMax}%
+				<div className="grid grid-cols-2 lg:grid-cols-4 gap-3 shrink-0">
+					<Card className="bg-[#141414] border border-[#272727] rounded-xl p-3.5 shadow-md">
+						<p className="text-[10px] font-semibold text-[#a1a1aa] uppercase tracking-wider">CPU AVG LOAD</p>
+						<p className="text-2xl font-extrabold text-[#FAFAFA] font-mono mt-0.5">{latest.cpuAvg}%</p>
+						<div className="flex items-center gap-1 mt-0.5 text-[10px] text-green-400 font-mono">
+							<ArrowUpRight className="w-3 h-3" /> Min: {cpuMin}% · Max: {cpuMax}%
 						</div>
 					</Card>
 
-					<Card className="bg-[#141414] border border-[#272727] rounded-xl p-4 shadow-md">
-						<p className="text-[11px] font-semibold text-[#a1a1aa] uppercase tracking-wider">RAM ALLOCATION</p>
-						<p className="text-3xl font-extrabold text-[#FAFAFA] font-mono mt-1">{latest.ramUsedGb} GB</p>
-						<p className="text-[11px] text-[#737373] font-mono mt-1">{latest.ramPercent}% of 16.0 GB total</p>
+					<Card className="bg-[#141414] border border-[#272727] rounded-xl p-3.5 shadow-md">
+						<p className="text-[10px] font-semibold text-[#a1a1aa] uppercase tracking-wider">RAM ALLOCATION</p>
+						<p className="text-2xl font-extrabold text-[#FAFAFA] font-mono mt-0.5">{latest.ramUsedGb} GB</p>
+						<p className="text-[10px] text-[#737373] font-mono mt-0.5">{latest.ramPercent}% of 16.0 GB total</p>
+					</Card>
+
+					<Card className="bg-[#141414] border border-[#272727] rounded-xl p-3.5 shadow-md">
+						<p className="text-[10px] font-semibold text-[#a1a1aa] uppercase tracking-wider">BANDWIDTH (IN / OUT)</p>
+						<p className="text-2xl font-extrabold text-[#FAFAFA] font-mono mt-0.5">{latest.netRxMbps} MB/s</p>
+						<p className="text-[10px] text-[#737373] font-mono mt-0.5">Avg: {netRxAvg} MB/s · Peak: {netRxMax} MB/s</p>
 					</Card>
 
 					<Card className="bg-[#141414] border border-[#272727] rounded-xl p-4 shadow-md">
-						<p className="text-[11px] font-semibold text-[#a1a1aa] uppercase tracking-wider">BANDWIDTH (IN / OUT)</p>
-						<p className="text-3xl font-extrabold text-[#FAFAFA] font-mono mt-1">{latest.netRxMbps} MB/s</p>
-						<p className="text-[11px] text-[#737373] font-mono mt-1">Avg: {netRxAvg} MB/s · Peak: {netRxMax} MB/s</p>
-					</Card>
-
-					<Card className="bg-[#141414] border border-[#272727] rounded-xl p-4 shadow-md">
-						<p className="text-[11px] font-semibold text-[#a1a1aa] uppercase tracking-wider">LATENCY (P95)</p>
-						<p className="text-3xl font-extrabold text-green-400 font-mono mt-1">{latest.httpLatencyP95Ms} ms</p>
-						<p className="text-[11px] text-[#737373] font-mono mt-1">{latest.httpRps} RPS Traefik Ingress</p>
+						<p className="text-[10px] font-semibold text-[#a1a1aa] uppercase tracking-wider">LATENCY (P95)</p>
+						<p className="text-2xl font-extrabold text-green-400 font-mono mt-0.5">{latest.httpLatencyP95Ms} ms</p>
+						<p className="text-[10px] text-[#737373] font-mono mt-0.5">{latest.httpRps} RPS Traefik Ingress</p>
 					</Card>
 				</div>
 
-				{/* 1. CPU Core Multi-Line Graph with Data Science Axes & Hover Tooltips */}
-				<Card className="bg-[#141414] border border-[#272727] rounded-xl p-6 shadow-md overflow-hidden relative">
-					<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-						<div className="flex items-center gap-2.5">
-							<Cpu className="w-5 h-5 text-blue-400" />
-							<div>
-								<div className="flex items-center gap-3">
-									<h2 className="text-base font-bold text-[#FAFAFA]">CPU Core Utilization Streams (8 Cores)</h2>
-									<span className="text-xs font-mono px-2 py-0.5 rounded bg-[#272727] text-[#a1a1aa] border border-white/10">
-										Avg: {cpuAvgStats}% · Peak: {cpuMax}%
-									</span>
-								</div>
-								<p className="text-xs text-[#a1a1aa] mt-0.5">Hover over graph for interactive crosshair & per-core thread analysis</p>
+				{/* 1. CPU Core Multi-Line Graph (Fits center nicely) */}
+				<Card className="bg-[#141414] border border-[#272727] rounded-xl p-4 shadow-md flex-1 flex flex-col min-h-0 overflow-hidden relative">
+					<div className="flex items-center justify-between mb-2 shrink-0">
+						<div className="flex items-center gap-2">
+							<Cpu className="w-4 h-4 text-blue-400" />
+							<div className="flex items-center gap-2">
+								<h2 className="text-sm font-bold text-[#FAFAFA]">CPU Core Utilization Streams (8 Cores)</h2>
+								<span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#272727] text-[#a1a1aa] border border-white/10">
+									Avg: {cpuAvgStats}% · Peak: {cpuMax}%
+								</span>
 							</div>
 						</div>
-						<div className="flex items-center gap-3 text-xs font-mono">
-							<span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-blue-400" /> Core 1-2</span>
-							<span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-400" /> Core 3-4</span>
-							<span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-purple-400" /> Core 5-6</span>
-							<span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-400" /> Core 7-8</span>
+						<div className="flex items-center gap-3 text-[11px] font-mono">
+							<span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-400" /> Core 1-2</span>
+							<span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-400" /> Core 3-4</span>
+							<span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-purple-400" /> Core 5-6</span>
+							<span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400" /> Core 7-8</span>
 						</div>
 					</div>
 
 					{/* Graph Layout Grid with Left Y-Axis Scale */}
-					<div className="flex items-stretch gap-3 h-64">
+					<div className="flex-1 flex items-stretch gap-2 min-h-0 relative">
 						{/* Y-Axis Percentage Labels */}
-						<div className="flex flex-col justify-between text-[10px] font-mono text-[#737373] text-right py-1 select-none w-9 shrink-0">
+						<div className="flex flex-col justify-between text-[10px] font-mono text-[#737373] text-right py-1 select-none w-8 shrink-0">
 							<span>100%</span>
 							<span>75%</span>
 							<span>50%</span>
@@ -320,10 +322,10 @@ export default function MonitoringPage() {
 						</div>
 
 						{/* Interactive SVG Graph Container */}
-						<div className="flex-1 flex flex-col min-w-0 relative">
-							<div className="flex-1 relative">
+						<div className="flex-1 flex flex-col min-w-0 min-h-0 relative">
+							<div className="flex-1 relative overflow-hidden rounded-lg bg-[#0f0f10] border border-[#272727]/50">
 								<svg
-									className="w-full h-full overflow-visible cursor-crosshair"
+									className="w-full h-full cursor-crosshair"
 									viewBox="0 0 800 200"
 									preserveAspectRatio="none"
 									onMouseMove={(e) => handleMouseMove(e, telemetryBuffer.length, setCpuHoverIdx)}
@@ -337,7 +339,7 @@ export default function MonitoringPage() {
 									</defs>
 
 									{/* Y-Axis Horizontal Grid Lines */}
-									{[0, 50, 100, 150, 200].map((y) => (
+									{[12, 56, 100, 144, 188].map((y) => (
 										<line key={y} x1="0" y1={y} x2="800" y2={y} stroke="#272727" strokeDasharray="4 4" strokeWidth="1" />
 									))}
 
@@ -399,14 +401,11 @@ export default function MonitoringPage() {
 
 										return (
 											<g>
-												{/* Dashed Vertical Crosshair Line */}
 												<line x1={c1.x} y1="0" x2={c1.x} y2="200" stroke="#737373" strokeDasharray="3 3" strokeWidth="1.5" />
-												
-												{/* Point Pulsing Dots */}
-												<circle cx={c1.x} cy={c1.y} r="5" fill="#60a5fa" stroke="#FFFFFF" strokeWidth="2" />
-												<circle cx={c3.x} cy={c3.y} r="5" fill="#34d399" stroke="#FFFFFF" strokeWidth="2" />
-												<circle cx={c5.x} cy={c5.y} r="5" fill="#c084fc" stroke="#FFFFFF" strokeWidth="2" />
-												<circle cx={c7.x} cy={c7.y} r="5" fill="#fbbf24" stroke="#FFFFFF" strokeWidth="2" />
+												<circle cx={c1.x} cy={c1.y} r="4.5" fill="#60a5fa" stroke="#FFFFFF" strokeWidth="2" />
+												<circle cx={c3.x} cy={c3.y} r="4.5" fill="#34d399" stroke="#FFFFFF" strokeWidth="2" />
+												<circle cx={c5.x} cy={c5.y} r="4.5" fill="#c084fc" stroke="#FFFFFF" strokeWidth="2" />
+												<circle cx={c7.x} cy={c7.y} r="4.5" fill="#fbbf24" stroke="#FFFFFF" strokeWidth="2" />
 											</g>
 										);
 									})()}
@@ -419,9 +418,9 @@ export default function MonitoringPage() {
 									return (
 										<div
 											style={{ left: `${Math.min(82, Math.max(5, ratio * 100))}%` }}
-											className="absolute top-2 pointer-events-none -translate-x-1/2 z-30 bg-[#18181b] border border-[#272727] rounded-xl shadow-2xl p-3 font-mono text-xs text-[#FAFAFA] space-y-1 w-52 animate-fade-up"
+											className="absolute top-2 pointer-events-none -translate-x-1/2 z-30 bg-[#18181b] border border-[#272727] rounded-xl shadow-2xl p-2.5 font-mono text-[11px] text-[#FAFAFA] space-y-0.5 w-48 animate-fade-up"
 										>
-											<div className="flex items-center justify-between text-[11px] text-[#a1a1aa] border-b border-[#272727] pb-1 mb-1 font-bold">
+											<div className="flex items-center justify-between text-[#a1a1aa] border-b border-[#272727] pb-1 mb-1 font-bold">
 												<span>Time: {pt.timestamp}</span>
 												<span className="text-green-400">Avg: {pt.cpuAvg}%</span>
 											</div>
@@ -443,7 +442,7 @@ export default function MonitoringPage() {
 							</div>
 
 							{/* Bottom X-Axis Timestamp Axis */}
-							<div className="flex items-center justify-between text-[11px] font-mono text-[#737373] border-t border-[#272727] pt-2 mt-2 select-none">
+							<div className="flex items-center justify-between text-[10px] font-mono text-[#737373] pt-1.5 shrink-0 select-none">
 								<span>{telemetryBuffer[0]?.timestamp || '-40s'}</span>
 								<span>{telemetryBuffer[10]?.timestamp || '-30s'}</span>
 								<span>{telemetryBuffer[20]?.timestamp || '-20s'}</span>
@@ -454,71 +453,66 @@ export default function MonitoringPage() {
 					</div>
 				</Card>
 
-				{/* 2. Dual Graph Row: Network Bandwidth & Disk IOPS with Axes */}
-				<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+				{/* 2. Dual Graph Row: Network Bandwidth & Disk IOPS */}
+				<div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-48 shrink-0">
 					{/* Network Bandwidth (Ingress vs Egress with Y-Axis & Hover Tooltip) */}
-					<Card className="bg-[#141414] border border-[#272727] rounded-xl p-5 shadow-md relative">
-						<div className="flex items-center justify-between mb-3">
-							<div>
-								<div className="flex items-center gap-2">
-									<h3 className="text-sm font-bold text-[#FAFAFA]">Network I/O Bandwidth</h3>
-									<span className="text-[11px] font-mono text-[#a1a1aa]">Peak: {netRxMax} MB/s</span>
-								</div>
-								<p className="text-xs text-[#a1a1aa]">Real-time ingress (rx) vs egress (tx) throughput</p>
+					<Card className="bg-[#141414] border border-[#272727] rounded-xl p-4 shadow-md flex flex-col justify-between min-h-0 overflow-hidden relative">
+						<div className="flex items-center justify-between mb-1 shrink-0">
+							<div className="flex items-center gap-2">
+								<h3 className="text-xs font-bold text-[#FAFAFA]">Network I/O Bandwidth</h3>
+								<span className="text-[10px] font-mono text-[#a1a1aa]">Peak: {netRxMax} MB/s</span>
 							</div>
-							<div className="flex items-center gap-3 text-xs font-mono">
-								<span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-cyan-400" /> In: {latest.netRxMbps} MB/s</span>
-								<span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-pink-400" /> Out: {latest.netTxMbps} MB/s</span>
+							<div className="flex items-center gap-2.5 text-[11px] font-mono">
+								<span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-cyan-400" /> In: {latest.netRxMbps} MB/s</span>
+								<span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-pink-400" /> Out: {latest.netTxMbps} MB/s</span>
 							</div>
 						</div>
 
-						<div className="flex items-stretch gap-2 h-48">
-							<div className="flex flex-col justify-between text-[10px] font-mono text-[#737373] text-right py-1 select-none w-11 shrink-0">
-								<span>100 MB</span>
-								<span>75 MB</span>
-								<span>50 MB</span>
-								<span>25 MB</span>
-								<span>0 MB</span>
+						<div className="flex-1 flex items-stretch gap-2 min-h-0">
+							<div className="flex flex-col justify-between text-[9px] font-mono text-[#737373] text-right py-0.5 select-none w-9 shrink-0">
+								<span>100M</span>
+								<span>50M</span>
+								<span>0M</span>
 							</div>
 
-							<div className="flex-1 flex flex-col min-w-0 relative">
-								<div className="flex-1 relative">
+							<div className="flex-1 flex flex-col min-w-0 min-h-0 relative">
+								<div className="flex-1 relative overflow-hidden rounded-lg bg-[#0f0f10] border border-[#272727]/50">
 									<svg
-										className="w-full h-full overflow-visible cursor-crosshair"
-										viewBox="0 0 400 160"
+										className="w-full h-full cursor-crosshair"
+										viewBox="0 0 400 120"
 										preserveAspectRatio="none"
 										onMouseMove={(e) => handleMouseMove(e, telemetryBuffer.length, setNetHoverIdx)}
 										onMouseLeave={() => setNetHoverIdx(null)}
 									>
-										{[0, 40, 80, 120, 160].map((y) => (
+										{[10, 60, 110].map((y) => (
 											<line key={y} x1="0" y1={y} x2="400" y2={y} stroke="#272727" strokeDasharray="3 3" strokeWidth="1" />
 										))}
 
 										<path
-											d={createSvgPath(telemetryBuffer.map((d) => d.netRxMbps), 400, 160)}
+											d={createSvgPath(telemetryBuffer.map((d) => d.netRxMbps), 400, 120)}
 											fill="none"
 											stroke="#22d3ee"
-											strokeWidth="2.5"
+											strokeWidth="2"
 											strokeLinecap="round"
 										/>
 
 										<path
-											d={createSvgPath(telemetryBuffer.map((d) => d.netTxMbps), 400, 160)}
+											d={createSvgPath(telemetryBuffer.map((d) => d.netTxMbps), 400, 120)}
 											fill="none"
 											stroke="#f472b6"
-											strokeWidth="2.5"
+											strokeWidth="2"
 											strokeLinecap="round"
 										/>
 
 										{netHoverIdx !== null && telemetryBuffer[netHoverIdx] && (() => {
 											const pt = telemetryBuffer[netHoverIdx];
-											const rx = getPointCoords(pt.netRxMbps, netHoverIdx, telemetryBuffer.length, 400, 160);
-											const tx = getPointCoords(pt.netTxMbps, netHoverIdx, telemetryBuffer.length, 400, 160);
+											const rx = getPointCoords(pt.netRxMbps, netHoverIdx, telemetryBuffer.length, 400, 120);
+											const tx = getPointCoords(pt.netTxMbps, netHoverIdx, telemetryBuffer.length, 400, 120);
 											return (
 												<g>
-													<line x1={rx.x} y1="0" x2={rx.x} y2="160" stroke="#737373" strokeDasharray="3 3" strokeWidth="1.5" />
-													<circle cx={rx.x} cy={rx.y} r="4.5" fill="#22d3ee" stroke="#FFFFFF" strokeWidth="2" />
-													<circle cx={tx.x} cy={tx.y} r="4.5" fill="#f472b6" stroke="#FFFFFF" strokeWidth="2" />
+													<line x1={rx.x} y1="0" x2={rx.x} y2="120" stroke="#737373" strokeDasharray="3 3" strokeWidth="1.5" />
+													<circle cx={rx.x} cy={rx.y} r="4" fill="#22d3ee" stroke="#FFFFFF" strokeWidth="1.5" />
+													<circle cx={tx.x} cy={tx.y} r="4" fill="#f472b6" stroke="#FFFFFF" strokeWidth="1.5" />
 												</g>
 											);
 										})()}
@@ -530,9 +524,9 @@ export default function MonitoringPage() {
 										return (
 											<div
 												style={{ left: `${Math.min(75, Math.max(10, ratio * 100))}%` }}
-												className="absolute top-2 pointer-events-none -translate-x-1/2 z-30 bg-[#18181b] border border-[#272727] rounded-xl shadow-2xl p-2.5 font-mono text-xs text-[#FAFAFA] space-y-1 w-44 animate-fade-up"
+												className="absolute top-1 pointer-events-none -translate-x-1/2 z-30 bg-[#18181b] border border-[#272727] rounded-xl shadow-2xl p-2 font-mono text-[11px] text-[#FAFAFA] space-y-0.5 w-40 animate-fade-up"
 											>
-												<p className="text-[11px] text-[#a1a1aa] font-bold border-b border-[#272727] pb-0.5">{pt.timestamp}</p>
+												<p className="text-[10px] text-[#a1a1aa] font-bold border-b border-[#272727] pb-0.5">{pt.timestamp}</p>
 												<p className="text-cyan-400 font-bold">Ingress: {pt.netRxMbps} MB/s</p>
 												<p className="text-pink-400 font-bold">Egress: {pt.netTxMbps} MB/s</p>
 											</div>
@@ -540,78 +534,73 @@ export default function MonitoringPage() {
 									})()}
 								</div>
 
-								<div className="flex items-center justify-between text-[10px] font-mono text-[#737373] border-t border-[#272727] pt-1.5 mt-1 select-none">
+								<div className="flex items-center justify-between text-[9px] font-mono text-[#737373] pt-1 shrink-0 select-none">
 									<span>{telemetryBuffer[0]?.timestamp || '-40s'}</span>
 									<span>{telemetryBuffer[20]?.timestamp || '-20s'}</span>
-									<span className="text-cyan-400">{telemetryBuffer[telemetryBuffer.length - 1]?.timestamp || 'Live'}</span>
+									<span className="text-cyan-400 font-bold">{telemetryBuffer[telemetryBuffer.length - 1]?.timestamp || 'Live'}</span>
 								</div>
 							</div>
 						</div>
 					</Card>
 
 					{/* Disk Read/Write IOPS Graph with Y-Axis & Hover Tooltip */}
-					<Card className="bg-[#141414] border border-[#272727] rounded-xl p-5 shadow-md relative">
-						<div className="flex items-center justify-between mb-3">
-							<div>
-								<div className="flex items-center gap-2">
-									<h3 className="text-sm font-bold text-[#FAFAFA]">Disk I/O Operations (IOPS)</h3>
-									<span className="text-[11px] font-mono text-[#a1a1aa]">Peak: {iopsMax} IOPS</span>
-								</div>
-								<p className="text-xs text-[#a1a1aa]">Storage controller read/write IOPS activity</p>
+					<Card className="bg-[#141414] border border-[#272727] rounded-xl p-4 shadow-md flex flex-col justify-between min-h-0 overflow-hidden relative">
+						<div className="flex items-center justify-between mb-1 shrink-0">
+							<div className="flex items-center gap-2">
+								<h3 className="text-xs font-bold text-[#FAFAFA]">Disk I/O Operations (IOPS)</h3>
+								<span className="text-[10px] font-mono text-[#a1a1aa]">Peak: {iopsMax} IOPS</span>
 							</div>
-							<div className="flex items-center gap-3 text-xs font-mono">
-								<span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-indigo-400" /> Read: {latest.diskReadIops}</span>
-								<span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-orange-400" /> Write: {latest.diskWriteIops}</span>
+							<div className="flex items-center gap-2.5 text-[11px] font-mono">
+								<span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-indigo-400" /> Read: {latest.diskReadIops}</span>
+								<span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-400" /> Write: {latest.diskWriteIops}</span>
 							</div>
 						</div>
 
-						<div className="flex items-stretch gap-2 h-48">
-							<div className="flex flex-col justify-between text-[10px] font-mono text-[#737373] text-right py-1 select-none w-11 shrink-0">
-								<span>2,000</span>
-								<span>1,500</span>
-								<span>1,000</span>
-								<span>500</span>
-								<span>0</span>
+						<div className="flex-1 flex items-stretch gap-2 min-h-0">
+							<div className="flex flex-col justify-between text-[9px] font-mono text-[#737373] text-right py-0.5 select-none w-9 shrink-0">
+								<span>2.0K</span>
+								<span>1.0K</span>
+								<span>0.0K</span>
 							</div>
 
-							<div className="flex-1 flex flex-col min-w-0 relative">
-								<div className="flex-1 relative">
+							<div className="flex-1 flex flex-col min-w-0 min-h-0 relative">
+								<div className="flex-1 relative overflow-hidden rounded-lg bg-[#0f0f10] border border-[#272727]/50">
 									<svg
-										className="w-full h-full overflow-visible cursor-crosshair"
-										viewBox="0 0 400 160"
+										className="w-full h-full cursor-crosshair"
+										viewBox="0 0 400 120"
 										preserveAspectRatio="none"
 										onMouseMove={(e) => handleMouseMove(e, telemetryBuffer.length, setIopsHoverIdx)}
 										onMouseLeave={() => setIopsHoverIdx(null)}
 									>
-										{[0, 40, 80, 120, 160].map((y) => (
+										{[10, 60, 110].map((y) => (
 											<line key={y} x1="0" y1={y} x2="400" y2={y} stroke="#272727" strokeDasharray="3 3" strokeWidth="1" />
 										))}
 
 										<path
-											d={createSvgPath(telemetryBuffer.map((d) => d.diskReadIops), 400, 160, 2000)}
+											d={createSvgPath(telemetryBuffer.map((d) => d.diskReadIops), 400, 120, 2000)}
 											fill="none"
 											stroke="#818cf8"
-											strokeWidth="2.5"
+											strokeWidth="2"
 											strokeLinecap="round"
 										/>
 
 										<path
-											d={createSvgPath(telemetryBuffer.map((d) => d.diskWriteIops), 400, 160, 2000)}
+											d={createSvgPath(telemetryBuffer.map((d) => d.diskWriteIops), 400, 120, 2000)}
 											fill="none"
 											stroke="#fb923c"
-											strokeWidth="2.5"
+											strokeWidth="2"
 											strokeLinecap="round"
 										/>
 
 										{iopsHoverIdx !== null && telemetryBuffer[iopsHoverIdx] && (() => {
 											const pt = telemetryBuffer[iopsHoverIdx];
-											const r = getPointCoords(pt.diskReadIops, iopsHoverIdx, telemetryBuffer.length, 400, 160, 2000);
-											const w = getPointCoords(pt.diskWriteIops, iopsHoverIdx, telemetryBuffer.length, 400, 160, 2000);
+											const r = getPointCoords(pt.diskReadIops, iopsHoverIdx, telemetryBuffer.length, 400, 120, 2000);
+											const w = getPointCoords(pt.diskWriteIops, iopsHoverIdx, telemetryBuffer.length, 400, 120, 2000);
 											return (
 												<g>
-													<line x1={r.x} y1="0" x2={r.x} y2="160" stroke="#737373" strokeDasharray="3 3" strokeWidth="1.5" />
-													<circle cx={r.x} cy={r.y} r="4.5" fill="#818cf8" stroke="#FFFFFF" strokeWidth="2" />
-													<circle cx={w.x} cy={w.y} r="4.5" fill="#fb923c" stroke="#FFFFFF" strokeWidth="2" />
+													<line x1={r.x} y1="0" x2={r.x} y2="120" stroke="#737373" strokeDasharray="3 3" strokeWidth="1.5" />
+													<circle cx={r.x} cy={r.y} r="4" fill="#818cf8" stroke="#FFFFFF" strokeWidth="1.5" />
+													<circle cx={w.x} cy={w.y} r="4" fill="#fb923c" stroke="#FFFFFF" strokeWidth="1.5" />
 												</g>
 											);
 										})()}
@@ -623,9 +612,9 @@ export default function MonitoringPage() {
 										return (
 											<div
 												style={{ left: `${Math.min(75, Math.max(10, ratio * 100))}%` }}
-												className="absolute top-2 pointer-events-none -translate-x-1/2 z-30 bg-[#18181b] border border-[#272727] rounded-xl shadow-2xl p-2.5 font-mono text-xs text-[#FAFAFA] space-y-1 w-44 animate-fade-up"
+												className="absolute top-1 pointer-events-none -translate-x-1/2 z-30 bg-[#18181b] border border-[#272727] rounded-xl shadow-2xl p-2 font-mono text-[11px] text-[#FAFAFA] space-y-0.5 w-40 animate-fade-up"
 											>
-												<p className="text-[11px] text-[#a1a1aa] font-bold border-b border-[#272727] pb-0.5">{pt.timestamp}</p>
+												<p className="text-[10px] text-[#a1a1aa] font-bold border-b border-[#272727] pb-0.5">{pt.timestamp}</p>
 												<p className="text-indigo-400 font-bold">Read: {pt.diskReadIops} IOPS</p>
 												<p className="text-orange-400 font-bold">Write: {pt.diskWriteIops} IOPS</p>
 											</div>
@@ -633,10 +622,10 @@ export default function MonitoringPage() {
 									})()}
 								</div>
 
-								<div className="flex items-center justify-between text-[10px] font-mono text-[#737373] border-t border-[#272727] pt-1.5 mt-1 select-none">
+								<div className="flex items-center justify-between text-[9px] font-mono text-[#737373] pt-1 shrink-0 select-none">
 									<span>{telemetryBuffer[0]?.timestamp || '-40s'}</span>
 									<span>{telemetryBuffer[20]?.timestamp || '-20s'}</span>
-									<span className="text-indigo-400">{telemetryBuffer[telemetryBuffer.length - 1]?.timestamp || 'Live'}</span>
+									<span className="text-indigo-400 font-bold">{telemetryBuffer[telemetryBuffer.length - 1]?.timestamp || 'Live'}</span>
 								</div>
 							</div>
 						</div>
