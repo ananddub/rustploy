@@ -9,16 +9,11 @@ import {
 	Cpu,
 	ArrowUpRight,
 	ChevronsUpDown,
-	Check,
-	Sliders,
-	Layers,
-	Zap,
-	HardDrive,
-	Radio
+	Check
 } from 'lucide-react';
 import { PageLayout } from '@/components/PageLayout';
 import { getAuthSession } from '$lib/auth';
-import { getMonitoringMock, generateLoopingTick, type TelemetrySeriesPoint } from '$lib/mocks';
+import { getMonitoringMock, generateLoopingTick, type TelemetrySeriesPoint, type TelemetryTimeRange } from '$lib/mocks';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { toastSuccess, toastInfo } from '$lib/toast';
@@ -29,13 +24,24 @@ const nodesList = [
 	{ id: 'backup-replica-03', label: 'backup-replica-03 (Ubuntu 22.04)' }
 ];
 
+const timeScaleRanges: { id: TelemetryTimeRange; label: string }[] = [
+	{ id: '1m', label: '1m' },
+	{ id: '5m', label: '5m' },
+	{ id: '15m', label: '15m' },
+	{ id: '1d', label: '1d' },
+	{ id: '7d', label: '7d' },
+	{ id: '1mth', label: '1mth' },
+	{ id: '1yr', label: '1yr' },
+	{ id: 'Max', label: 'Max' }
+];
+
 export default function MonitoringPage() {
 	const navigate = useNavigate();
 
 	const [isStreaming, setIsStreaming] = useState(true);
 	const [selectedNode, setSelectedNode] = useState('production-01');
 	const [nodeMenuOpen, setNodeMenuOpen] = useState(false);
-	const [timeRange, setTimeRange] = useState<'1m' | '5m' | '15m' | '1h'>('1m');
+	const [timeRange, setTimeRange] = useState<TelemetryTimeRange>('1m');
 
 	// Advanced Viz Controls
 	const [chartMode, setChartMode] = useState<'spline' | 'stepped' | 'area'>('spline');
@@ -48,19 +54,19 @@ export default function MonitoringPage() {
 
 	// Initial dataset loaded from mock provider
 	const [telemetryBuffer, setTelemetryBuffer] = useState<TelemetrySeriesPoint[]>(() =>
-		getMonitoringMock(selectedNode, 40)
+		getMonitoringMock(selectedNode, 40, timeRange)
 	);
 
 	const tickIndexRef = useRef(40);
 
-	// When node changes, reset telemetry stream with host mock
+	// When node or time range changes, reset telemetry stream with rescaled mock
 	useEffect(() => {
-		const mockData = getMonitoringMock(selectedNode, 40);
+		const mockData = getMonitoringMock(selectedNode, 40, timeRange);
 		setTelemetryBuffer(mockData);
 		tickIndexRef.current = 40;
-	}, [selectedNode]);
+	}, [selectedNode, timeRange]);
 
-	// Real-time live looping tick interval (runs continuously every 1000ms)
+	// Real-time live looping tick interval (runs continuously every 1000ms for short ranges)
 	useEffect(() => {
 		if (!isStreaming) return;
 
@@ -68,7 +74,7 @@ export default function MonitoringPage() {
 			tickIndexRef.current += 1;
 			setTelemetryBuffer((prev) => {
 				if (!prev || prev.length === 0) {
-					return getMonitoringMock(selectedNode, 40);
+					return getMonitoringMock(selectedNode, 40, timeRange);
 				}
 				const lastPoint = prev[prev.length - 1];
 				const nextPoint = generateLoopingTick(lastPoint, tickIndexRef.current);
@@ -77,7 +83,7 @@ export default function MonitoringPage() {
 		}, 1000);
 
 		return () => clearInterval(interval);
-	}, [isStreaming, selectedNode]);
+	}, [isStreaming, selectedNode, timeRange]);
 
 	// Convert numeric series to smooth SVG path (supporting Spline cubic curves or Stepped lines)
 	const createSvgPath = (
@@ -191,7 +197,7 @@ export default function MonitoringPage() {
 	return (
 		<PageLayout>
 			<div className="m-3.5 flex-1 flex flex-col min-h-0 bg-[#171717] border border-[#272727] rounded-2xl shadow-xl p-5 space-y-4 overflow-hidden select-none animate-fade-up">
-				{/* Top Controls & Viz Controls Header */}
+				{/* Top Controls & Stock Market Time Scale Header */}
 				<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
 					<div>
 						<h1 className="text-2xl font-extrabold tracking-tight text-[#FAFAFA] flex items-center gap-2.5">
@@ -199,11 +205,31 @@ export default function MonitoringPage() {
 							Real-Time Telemetry & Data Science Analytics
 						</h1>
 						<p className="text-xs text-[#a1a1aa] mt-0.5">
-							Interactive glow curves · 8-Core workload matrix · Per-core focus filters · Crosshair analytics
+							Stock-market style time zoom (1m to Max) · Multi-core heatmap · Crosshair analytics
 						</p>
 					</div>
 
 					<div className="flex flex-wrap items-center gap-2.5">
+						{/* Stock-Market Style Time Scale Range Selector */}
+						<div className="flex items-center gap-0.5 bg-[#141414] p-1 rounded-xl border border-[#272727]">
+							{timeScaleRanges.map((r) => (
+								<button
+									key={r.id}
+									onClick={() => {
+										setTimeRange(r.id);
+										toastInfo(`Rescaled time zoom to ${r.label}`);
+									}}
+									className={`px-2 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+										timeRange === r.id
+											? 'bg-[#272727] text-[#FAFAFA] font-bold shadow-xs'
+											: 'text-[#737373] hover:text-[#FAFAFA]'
+									}`}
+								>
+									{r.label}
+								</button>
+							))}
+						</div>
+
 						{/* Chart Render Style Switcher */}
 						<div className="flex items-center gap-1 bg-[#141414] p-1 rounded-xl border border-[#272727]">
 							{(['spline', 'stepped', 'area'] as const).map((mode) => (
@@ -285,7 +311,7 @@ export default function MonitoringPage() {
 
 						<button
 							onClick={() => {
-								setTelemetryBuffer(getMonitoringMock(selectedNode, 40));
+								setTelemetryBuffer(getMonitoringMock(selectedNode, 40, timeRange));
 								tickIndexRef.current = 40;
 								toastSuccess('Telemetry stream buffer reset');
 							}}
@@ -325,7 +351,7 @@ export default function MonitoringPage() {
 						<p className="text-[10px] text-[#737373] font-mono mt-0.5">{latest.httpRps} RPS Traefik Ingress</p>
 					</Card>
 
-					{/* NEW: Live 8-Core Workload Heatmap Tile */}
+					{/* Live 8-Core Workload Heatmap Tile */}
 					<Card className="col-span-2 lg:col-span-1 bg-[#141414] border border-[#272727] rounded-xl p-3 shadow-md flex flex-col justify-between">
 						<div className="flex items-center justify-between">
 							<p className="text-[10px] font-semibold text-[#a1a1aa] uppercase tracking-wider">8-CORE HEATMAP</p>
@@ -357,7 +383,7 @@ export default function MonitoringPage() {
 							<div className="flex items-center gap-2">
 								<h2 className="text-sm font-bold text-[#FAFAFA]">CPU Core Utilization Streams (8 Cores)</h2>
 								<span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#272727] text-[#a1a1aa] border border-white/10">
-									Avg: {cpuAvgStats}% · Peak: {cpuMax}%
+									Range: {timeRange} · Avg: {cpuAvgStats}% · Peak: {cpuMax}%
 								</span>
 							</div>
 						</div>
@@ -580,10 +606,10 @@ export default function MonitoringPage() {
 
 							{/* Bottom X-Axis Timestamp Axis */}
 							<div className="flex items-center justify-between text-[10px] font-mono text-[#737373] pt-1.5 shrink-0 select-none">
-								<span>{telemetryBuffer[0]?.timestamp || '-40s'}</span>
-								<span>{telemetryBuffer[10]?.timestamp || '-30s'}</span>
-								<span>{telemetryBuffer[20]?.timestamp || '-20s'}</span>
-								<span>{telemetryBuffer[30]?.timestamp || '-10s'}</span>
+								<span>{telemetryBuffer[0]?.timestamp || '-'}</span>
+								<span>{telemetryBuffer[10]?.timestamp || '-'}</span>
+								<span>{telemetryBuffer[20]?.timestamp || '-'}</span>
+								<span>{telemetryBuffer[30]?.timestamp || '-'}</span>
 								<span className="text-green-400 font-bold">{telemetryBuffer[telemetryBuffer.length - 1]?.timestamp || 'Live'}</span>
 							</div>
 						</div>
@@ -686,8 +712,8 @@ export default function MonitoringPage() {
 								</div>
 
 								<div className="flex items-center justify-between text-[9px] font-mono text-[#737373] pt-1 shrink-0 select-none">
-									<span>{telemetryBuffer[0]?.timestamp || '-40s'}</span>
-									<span>{telemetryBuffer[20]?.timestamp || '-20s'}</span>
+									<span>{telemetryBuffer[0]?.timestamp || '-'}</span>
+									<span>{telemetryBuffer[20]?.timestamp || '-'}</span>
 									<span className="text-cyan-400 font-bold">{telemetryBuffer[telemetryBuffer.length - 1]?.timestamp || 'Live'}</span>
 								</div>
 							</div>
@@ -774,8 +800,8 @@ export default function MonitoringPage() {
 								</div>
 
 								<div className="flex items-center justify-between text-[9px] font-mono text-[#737373] pt-1 shrink-0 select-none">
-									<span>{telemetryBuffer[0]?.timestamp || '-40s'}</span>
-									<span>{telemetryBuffer[20]?.timestamp || '-20s'}</span>
+									<span>{telemetryBuffer[0]?.timestamp || '-'}</span>
+									<span>{telemetryBuffer[20]?.timestamp || '-'}</span>
 									<span className="text-indigo-400 font-bold">{telemetryBuffer[telemetryBuffer.length - 1]?.timestamp || 'Live'}</span>
 								</div>
 							</div>

@@ -20,16 +20,38 @@ export interface TelemetrySeriesPoint {
 	httpLatencyP95Ms: number;
 }
 
-export function getMonitoringMock(hostNode = 'production-01', count = 60): TelemetrySeriesPoint[] {
+export type TelemetryTimeRange = '1m' | '5m' | '15m' | '1d' | '7d' | '1mth' | '1yr' | 'Max';
+
+export function getMonitoringMock(
+	hostNode = 'production-01',
+	count = 60,
+	range: TelemetryTimeRange = '1m'
+): TelemetrySeriesPoint[] {
 	const now = Date.now();
 	const result: TelemetrySeriesPoint[] = [];
 
+	let intervalMs = 1000;
+	if (range === '5m') intervalMs = 5000;
+	else if (range === '15m') intervalMs = 15000;
+	else if (range === '1d') intervalMs = (24 * 60 * 60 * 1000) / count;
+	else if (range === '7d') intervalMs = (7 * 24 * 60 * 60 * 1000) / count;
+	else if (range === '1mth') intervalMs = (30 * 24 * 60 * 60 * 1000) / count;
+	else if (range === '1yr') intervalMs = (365 * 24 * 60 * 60 * 1000) / count;
+	else if (range === 'Max') intervalMs = (730 * 24 * 60 * 60 * 1000) / count;
+
 	for (let i = 0; i < count; i++) {
-		const time = new Date(now - (count - i) * 1000).toLocaleTimeString([], {
-			hour: '2-digit',
-			minute: '2-digit',
-			second: '2-digit'
-		});
+		const targetDate = new Date(now - (count - i) * intervalMs);
+
+		let time = '';
+		if (range === '1m' || range === '5m' || range === '15m') {
+			time = targetDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+		} else if (range === '1d') {
+			time = targetDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+		} else if (range === '7d' || range === '1mth') {
+			time = targetDate.toLocaleDateString([], { month: 'short', day: 'numeric' });
+		} else {
+			time = targetDate.toLocaleDateString([], { year: '2-digit', month: 'short' });
+		}
 
 		const t = i * 0.15;
 		const baseLoad = hostNode.includes('staging') ? 35 : hostNode.includes('backup') ? 28 : 52;
