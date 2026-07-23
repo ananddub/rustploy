@@ -69,6 +69,15 @@
 	background: #525252;
 }
 
+/* Hidden Scrollbar Utility (Scrolls without showing bar visual) */
+.no-scrollbar::-webkit-scrollbar {
+	display: none;
+}
+.no-scrollbar {
+	-ms-overflow-style: none;
+	scrollbar-width: none;
+}
+
 @keyframes fadeUp {
 	from {
 		opacity: 0;
