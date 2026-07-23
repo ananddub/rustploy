@@ -7,7 +7,9 @@ import {
 	RefreshCw,
 	Server,
 	Cpu,
-	ArrowUpRight
+	ArrowUpRight,
+	ChevronsUpDown,
+	Check
 } from 'lucide-react';
 import { PageLayout } from '@/components/PageLayout';
 import { getAuthSession } from '$lib/auth';
@@ -16,11 +18,18 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { toastSuccess, toastInfo } from '$lib/toast';
 
+const nodesList = [
+	{ id: 'production-01', label: 'production-01 (Ubuntu 24.04)' },
+	{ id: 'staging-worker-02', label: 'staging-worker-02 (Debian 12)' },
+	{ id: 'backup-replica-03', label: 'backup-replica-03 (Ubuntu 22.04)' }
+];
+
 export default function MonitoringPage() {
 	const navigate = useNavigate();
 
 	const [isStreaming, setIsStreaming] = useState(true);
 	const [selectedNode, setSelectedNode] = useState('production-01');
+	const [nodeMenuOpen, setNodeMenuOpen] = useState(false);
 	const [timeRange, setTimeRange] = useState<'1m' | '5m' | '15m' | '1h'>('1m');
 
 	// Initial dataset loaded from mock provider
@@ -114,18 +123,38 @@ export default function MonitoringPage() {
 					</div>
 
 					<div className="flex flex-wrap items-center gap-3">
-						{/* Node Selector */}
-						<div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#141414] border border-[#272727] text-xs">
-							<Server className="w-3.5 h-3.5 text-[#a1a1aa]" />
-							<select
-								value={selectedNode}
-								onChange={(e) => setSelectedNode(e.target.value)}
-								className="bg-transparent text-[#FAFAFA] font-medium focus:outline-none cursor-pointer"
+						{/* Custom Dark Node Selector Menu */}
+						<div className="relative">
+							<button
+								onClick={() => setNodeMenuOpen(!nodeMenuOpen)}
+								className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#141414] hover:bg-[#272727] border border-[#272727] text-xs transition-colors cursor-pointer text-[#FAFAFA] font-medium"
 							>
-								<option value="production-01">production-01 (Ubuntu 24.04)</option>
-								<option value="staging-worker-02">staging-worker-02 (Debian 12)</option>
-								<option value="backup-replica-03">backup-replica-03 (Ubuntu 22.04)</option>
-							</select>
+								<Server className="w-3.5 h-3.5 text-[#a1a1aa]" />
+								<span>{nodesList.find((n) => n.id === selectedNode)?.label}</span>
+								<ChevronsUpDown className="w-3.5 h-3.5 text-[#a1a1aa] ml-1" />
+							</button>
+
+							{nodeMenuOpen && (
+								<div className="absolute top-full left-0 mt-1.5 z-50 w-64 bg-[#18181b] border border-[#272727] rounded-xl shadow-2xl p-1 space-y-0.5 animate-fade-up">
+									{nodesList.map((node) => (
+										<button
+											key={node.id}
+											onClick={() => {
+												setSelectedNode(node.id);
+												setNodeMenuOpen(false);
+											}}
+											className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-colors cursor-pointer text-left ${
+												selectedNode === node.id
+													? 'bg-[#272727] text-[#FAFAFA] font-bold'
+													: 'text-[#a1a1aa] hover:bg-[#272727]/60 hover:text-[#FAFAFA]'
+											}`}
+										>
+											<span>{node.label}</span>
+											{selectedNode === node.id && <Check className="w-3.5 h-3.5 text-[#FAFAFA]" />}
+										</button>
+									))}
+								</div>
+							)}
 						</div>
 
 						{/* Time Range Selector */}
