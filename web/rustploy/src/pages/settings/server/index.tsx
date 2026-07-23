@@ -40,13 +40,6 @@ export default function ServerSettingsPage() {
 
 	return (
 		<PageLayout>
-			<header className="flex items-center justify-between px-6 py-3 border-b border-[#262626] text-xs bg-[#0A0A0A] shrink-0">
-				<div className="flex items-center gap-2">
-					<Settings className="w-3.5 h-3.5 text-[#a1a1aa]" />
-					<span className="font-medium text-[#FAFAFA]">Server Settings</span>
-				</div>
-			</header>
-
 			<main className="flex-1 m-3.5 overflow-y-auto p-7 animate-fade-up min-h-0">
 				<div className="max-w-5xl mx-auto space-y-6">
 					<Card className="bg-[#171717] border border-[#262626] rounded-xl shadow-md overflow-hidden">

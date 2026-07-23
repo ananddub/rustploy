@@ -148,13 +148,6 @@ export default function TraefikPage() {
 
 	return (
 		<PageLayout>
-			<header className="flex items-center justify-between px-6 py-3 border-b border-[#262626] text-xs bg-[#0A0A0A] shrink-0">
-				<div className="flex items-center gap-2">
-					<Globe className="w-3.5 h-3.5 text-[#a1a1aa]" />
-					<span className="font-medium text-[#FAFAFA]">Traefik File System</span>
-				</div>
-			</header>
-
 			<main className="flex-1 m-3.5 overflow-y-auto p-7 animate-fade-up min-h-0">
 				<div className="max-w-6xl mx-auto space-y-6">
 					<div className="rounded-xl border border-[#262626] bg-[#171717] overflow-hidden shadow-md">

@@ -70,33 +70,6 @@ export default function RemoteServersPage() {
 
 	return (
 		<PageLayout>
-			<header className="flex items-center justify-between px-6 py-3 border-b border-[#262626] text-xs bg-[#0A0A0A] shrink-0">
-				<div className="flex items-center gap-2">
-					<button onClick={() => navigate('/dashboard')} className="text-[#737373] hover:text-[#FAFAFA] transition-colors flex items-center gap-1.5 cursor-pointer">
-						<Rocket className="w-3.5 h-3.5" />
-						Home
-					</button>
-					<span className="text-[#737373]">/</span>
-					<span className="font-medium text-[#FAFAFA] flex items-center gap-1.5">
-						<Server className="w-3.5 h-3.5 text-[#a1a1aa]" /> Remote Servers
-					</span>
-				</div>
-
-				<div className="flex items-center gap-2 px-3 py-1 rounded-full bg-[#141414] border border-[#262626]">
-					<span className="text-[11px] text-[#a1a1aa]">Data Source:</span>
-					<button
-						onClick={() => setUseMock(!useMock)}
-						className={`text-[11px] font-semibold px-2 py-0.5 rounded transition-colors cursor-pointer ${
-							useMock
-								? 'bg-[#262626] text-[#FAFAFA] border border-white/10'
-								: 'text-[#737373] hover:text-[#FAFAFA]'
-						}`}
-					>
-						{useMock ? 'Mock Demo Data' : 'Live Rust Backend API'}
-					</button>
-				</div>
-			</header>
-
 			<main className="flex-1 m-3.5 overflow-y-auto p-7 animate-fade-up flex flex-col min-h-0 bg-[#171717] border border-[#262626] rounded-2xl shadow-md space-y-6">
 				<div className="flex items-center justify-between">
 					<div>

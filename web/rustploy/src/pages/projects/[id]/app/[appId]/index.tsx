@@ -33,16 +33,6 @@ export default function AppDetailPage() {
 
 	return (
 		<PageLayout>
-			<header className="flex items-center justify-between px-6 py-3 border-b border-[#262626] text-xs bg-[#0A0A0A] shrink-0">
-				<div className="flex items-center gap-2">
-					<button onClick={() => navigate(`/projects/${id}`)} className="text-[#737373] hover:text-[#FAFAFA] transition-colors flex items-center gap-1.5 cursor-pointer">
-						<Rocket className="w-3.5 h-3.5" /> Project #{id}
-					</button>
-					<span className="text-[#737373]">/</span>
-					<span className="font-medium text-[#FAFAFA]">Application #{appId}</span>
-				</div>
-			</header>
-
 			<main className="flex-1 m-3.5 overflow-y-auto p-7 animate-fade-up flex flex-col min-h-0 bg-[#171717] border border-[#262626] rounded-2xl shadow-md space-y-6">
 				<div className="flex items-center justify-between">
 					<div className="flex items-center gap-3">
